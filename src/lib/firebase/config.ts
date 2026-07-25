@@ -1,20 +1,12 @@
 /**
- * Configuracao do Firebase lida SEMPRE de variaveis de ambiente.
- * Nenhuma chave hardcoded no repositorio.
+ * Configuracao do SDK web, lida SEMPRE de variaveis de ambiente.
  *
- * A leitura e preguicosa de proposito: se fosse avaliada no import, um `next
- * build` sem `.env.local` quebraria na prerenderizacao. Assim o erro aparece
- * onde importa — na hora de falar com o Firebase — e com nome da variavel.
+ * Todo acesso a `process.env` aqui e ESTATICO — o Next so inlina
+ * `NEXT_PUBLIC_*` no bundle do browser dessa forma. A validacao fica em
+ * `@/lib/env`, que recebe o valor ja lido.
  */
 
-function required(name: string, value: string | undefined): string {
-  if (!value) {
-    throw new Error(
-      `Variavel de ambiente ausente: ${name}. Copie .env.example para .env.local e preencha.`,
-    );
-  }
-  return value;
-}
+import { required } from '@/lib/env';
 
 export function getFirebaseConfig() {
   return {
@@ -46,5 +38,5 @@ export function getFunctionsRegion(): string {
 
 /** Nome sem prefixo `use` de proposito: nao e hook, e leitura de env. */
 export function emulatorsEnabled(): boolean {
-  return process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === 'true';
+  return process.env.NEXT_PUBLIC_USE_EMULATORS === 'true';
 }

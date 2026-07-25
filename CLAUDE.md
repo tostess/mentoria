@@ -193,9 +193,10 @@ Presente exige avaliação preenchida. Cota zerada esconde o botão, não o desa
 
 ## Estado atual
 
-Fase: **F0 concluída + scaffold no ar** — protótipo HTML single-file validado (três visões,
-economia de moedas, momento do presente) e projeto Next.js criado. Nenhuma feature de negócio
-ainda. Próxima sessão: **F1** (onboarding, perfil, fuso do usuário, grants de boas-vindas).
+Fase: **F0 concluída + scaffold conectado ao Firebase** — protótipo HTML single-file validado
+(três visões, economia de moedas, momento do presente), projeto Next.js criado e a fundação de
+infraestrutura fechada. Nenhuma feature de negócio ainda.
+Próxima sessão: **F1** (onboarding, perfil, fuso do usuário, grants de boas-vindas).
 
 ### O que o scaffold já tem
 
@@ -205,19 +206,25 @@ src/app/
   (mentee)/                 /inicio /mentores /agenda /carteira
   (mentor)/                 /mentor /mentor/disponibilidade /mentor/agenda
   (admin)/                  /admin /admin/mentores /admin/personalizacao
+  api/health/route.ts       teste de fumaça: escreve e lê `_health/ping` pelo Admin SDK
 src/lib/auth/               ROLES, readClaims (fallback seguro), AuthProvider, RoleGate
 src/lib/config/             tipos + DEFAULT_APP_CONFIG (tabela de economia) + leitor server-side
-src/lib/firebase/           client.ts (SDK web) e admin.ts (Admin SDK), tudo por env
+src/lib/env.ts              required / requiredEnv / optionalEnv — erro nomeia a variável
+src/lib/firebase/           config.ts (env do SDK web), client.ts (SDK web), admin.ts (Admin SDK)
 src/lib/firestore/scoped.ts withOrgScope / assertSameOrg — invariante 9
 src/lib/scheduling/         só o README com o invariante 1; a F2 começa pelos testes
 functions/                  southamerica-east1: ensureUserBootstrap, setUserRole (+ auditLog)
-scripts/                    seed-app-config.ts, set-claims.ts
+scripts/                    seed-app-config.ts, set-claims.ts, dev-emu.mjs
+.firebaserc                 alias default → projeto `mentoria`
+firebase.json               firestore + storage + functions + emuladores (singleProjectMode)
 firestore.rules             deny-by-default; bookings e wallets somente leitura para o cliente
 ```
 
-Comandos: `npm run dev` · `npm test` · `npm run typecheck` · `npm run build` ·
+Comandos: `npm run dev` · `npm run dev:emu` · `npm run emu` · `npm test` ·
+`npm run typecheck` · `npm run build` · `npm run rules:test` (placeholder até a F5) ·
 `npm run seed:config` · `npm run claims:set -- --email x@y.com --role admin`.
-Configuração de ambiente em `.env.example` → `.env.local`. Detalhes no `README.md`.
+Configuração de ambiente em `.env.local.example` → `.env.local`. Etapas manuais de console em
+`docs/SETUP.md`; visão geral no `README.md`.
 
 ### Decisões do scaffold
 
@@ -232,14 +239,29 @@ Configuração de ambiente em `.env.example` → `.env.local`. Detalhes no `READ
   idempotente.
 - Leitura de env é **preguiçosa** (`getFirebaseConfig()`), para `next build` rodar sem `.env.local`
   e o erro aparecer com o nome da variável faltando.
+- **Credencial do Admin SDK são três variáveis** (`FIREBASE_ADMIN_PROJECT_ID`,
+  `_CLIENT_EMAIL`, `_PRIVATE_KEY`), não o JSON inteiro. O arquivo da conta de serviço nunca entra
+  no repositório — copia-se os três campos e apaga.
+- `src/lib/env.ts` tem **duas portas de propósito**: `required(nome, valor)` para variáveis que vão
+  ao browser (o Next só inlina `NEXT_PUBLIC_*` em acesso **estático**; índice dinâmico chega
+  `undefined` no bundle) e `requiredEnv(nome)` para código só de servidor.
+- **`NEXT_PUBLIC_USE_EMULATORS=true` desliga a credencial**: `admin.ts` aponta
+  `FIRESTORE_EMULATOR_HOST`/`FIREBASE_AUTH_EMULATOR_HOST` e usa `applicationDefault()`. É o que
+  faz `npm run dev:emu` rodar sem conta de serviço nenhuma.
+- `scripts/dev-emu.mjs` existe porque `VAR=valor comando` não funciona no shell do Windows, e o
+  setup fechou a porta para `cross-env`/`dotenv-cli`.
 - `functions/src/lib/roles.ts` é **cópia proposital** de `src/lib/auth/roles.ts` — pacotes npm
   separados. Mudou papel, mudou nos dois.
 - Testes de economia (`defaults.test.ts`) travam a tabela do CLAUDE.md contra a semente.
 
 ### Pendências conhecidas
 
-- `firestore.rules` **não foi compilada localmente** — o emulador exige Java, ausente na máquina.
-  Validar com `firebase emulators:start` ou no primeiro deploy.
-- Sem `.firebaserc`: rodar `firebase use --add` ao criar o projeto.
+- **Java ausente na máquina** — os emuladores de Auth e Firestore rodam em JVM, então `npm run emu`
+  não sobe e `firestore.rules` segue **sem compilação local**. Instalar um JDK
+  (`winget install EclipseAdoptium.Temurin.21.JDK`) e validar em `http://127.0.0.1:4000`.
+  Enquanto isso, `/api/health` só foi exercitado contra as regras, não contra o emulador.
+- **Plano Spark**: Cloud Functions não implantam. Tudo em emulador; migrar para Blaze e configurar
+  alerta de orçamento **antes da F5** (`createBooking` é callable — invariante 5).
+- `firebase.json` declara runtime **`nodejs22`** (não 20), casando com `functions/package.json`.
 - Sem teste de rules (`@firebase/rules-unit-testing`) — entra junto com a F5, onde negar escrita
-  em `wallets` passa a valer dinheiro.
+  em `wallets` passa a valer dinheiro. `npm run rules:test` é placeholder até lá.

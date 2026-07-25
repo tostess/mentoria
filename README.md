@@ -8,9 +8,23 @@ de mexer no codigo.
 
 ```bash
 npm install
-cp .env.example .env.local   # preencha com as chaves do seu projeto Firebase
+cp .env.local.example .env.local   # preencha com as chaves do seu projeto Firebase
 npm run dev
 ```
+
+As etapas de console (registrar app web, chave da conta de servico, provedores de
+login, Java para os emuladores, Blaze antes da F5) estao em
+[docs/SETUP.md](docs/SETUP.md).
+
+Contra os emuladores, sem precisar de credencial nenhuma:
+
+```bash
+npm run emu       # emuladores + UI em http://127.0.0.1:4000  (exige JDK)
+npm run dev:emu   # Next apontando para eles
+```
+
+`GET /api/health` e o teste de fumaca da conexao: escreve em `_health/ping` pelo
+Admin SDK, le de volta e devolve `{ ok: true }`.
 
 Antes do primeiro login, semeie a configuracao e promova seu usuario:
 
@@ -47,10 +61,13 @@ scripts/                seed de appConfig e claims por CLI
 - Papeis vivem em custom claims (`role`, `orgId`); `users/{uid}` so espelha.
 - Guard de rota (`RoleGate`) e conveniencia de navegacao, nao seguranca.
 
+- A chave da conta de servico ignora as rules por design. Ela vive em
+  `.env.local` (tres campos, `FIREBASE_ADMIN_*`), nunca como arquivo no repo.
+
 Para testar as rules localmente:
 
 ```bash
-npm run emulators
+npm run emu
 ```
 
 ## Testes
