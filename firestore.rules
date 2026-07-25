@@ -1,0 +1,221 @@
+rules_version = '2';
+
+// ---------------------------------------------------------------------------
+// App de Mentoria — Security Rules
+//
+// Postura: NEGAR POR PADRAO. Cada colecao so ganha regra quando a feature
+// correspondente entra (CLAUDE.md: "Security Rules e audit log evoluem junto
+// com cada feature, nunca depois").
+//
+// Invariantes cobertos aqui:
+//   4. Cliente NAO escreve `bookings` nem `wallets` — negado explicitamente.
+//   3. `wallets/{uid}/entries` e append-only e imutavel — nada de cliente.
+//  11. `auditLogs` so o Admin SDK escreve; cliente nem le.
+//   9. Todo documento com escopo nasce com `orgId` e so o dono do escopo le.
+//   7. Mentor nunca se autocadastra — cliente nao cria `mentors/{uid}`.
+//   8. Taxonomia e textos vivem em `appConfig` — leitura publica, escrita
+//      apenas via Admin SDK (publicar personalizacao gera auditLog).
+//
+// Papeis vem de custom claims: request.auth.token.role e .orgId.
+// ---------------------------------------------------------------------------
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------------- helpers ----------------
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function claims() {
+      return request.auth.token;
+    }
+
+    function role() {
+      return signedIn() && 'role' in claims() ? claims().role : 'anonymous';
+    }
+
+    function callerOrg() {
+      return signedIn() && 'orgId' in claims() ? claims().orgId : 'public';
+    }
+
+    function isAdmin() {
+      return role() == 'admin';
+    }
+
+    function isModerator() {
+      return role() == 'moderator';
+    }
+
+    function isStaff() {
+      return isAdmin() || isModerator();
+    }
+
+    function isMentor() {
+      return role() == 'mentor';
+    }
+
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    // Documento com escopo so e visivel dentro da propria org (invariante 9).
+    function sameOrg(data) {
+      return data.orgId == callerOrg();
+    }
+
+    // Campos que o cliente jamais escreve por conta propria.
+    function keepsImmutable(fields) {
+      return !request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny(fields.toSet());
+    }
+
+    // ---------------- orgs ----------------
+    // Leitura da propria org; escrita so Admin SDK.
+    match /orgs/{orgId} {
+      allow get: if signedIn() && (orgId == callerOrg() || isAdmin());
+      allow list, write: if false;
+    }
+
+    // ---------------- appConfig ----------------
+    // Taxonomia, copy, branding e coinPolicy. Leitura publica (a UI precisa
+    // dos textos antes do login). Publicacao so via callable com auditLog.
+    match /appConfig/{orgId} {
+      allow get: if true;
+      allow list, write: if false;
+    }
+
+    // ---------------- users ----------------
+    // O usuario le e edita o proprio perfil, mas NUNCA role nem orgId — esses
+    // vivem em custom claims e sao espelhados aqui pelo Admin SDK.
+    match /users/{uid} {
+      allow get: if isSelf(uid) || isStaff();
+      allow list: if isStaff();
+      allow create: if false; // criado pelo callable de bootstrap
+      allow update: if isSelf(uid)
+                    && keepsImmutable(['role', 'orgId', 'uid', 'createdAt']);
+      allow delete: if false;
+    }
+
+    // ---------------- mentors ----------------
+    // Perfil publico so quando ativo. Mentor nunca se cria (invariante 7):
+    // o documento nasce do consumo de um `mentorInvites`.
+    match /mentors/{uid} {
+      allow get: if (resource.data.status == 'active' && sameOrg(resource.data))
+                 || isSelf(uid)
+                 || isStaff();
+      allow list: if signedIn()
+                  && resource.data.status == 'active'
+                  && sameOrg(resource.data);
+      allow create: if false;
+      allow update: if isSelf(uid) && isMentor()
+                    && keepsImmutable([
+                         'orgId', 'status', 'ratingAvg', 'sessionCount',
+                         'giftQuotaMonthly', 'createdAt'
+                       ]);
+      allow delete: if false;
+
+      // Regra semanal e excecoes: so o proprio mentor mexe.
+      // Datas ficam no fuso do mentor + campo `timezone` IANA (invariante 2).
+      match /rules/{ruleId} {
+        allow read: if isSelf(uid) || isStaff();
+        allow write: if isSelf(uid) && isMentor();
+      }
+
+      match /exceptions/{day} {
+        allow read: if isSelf(uid) || isStaff();
+        allow write: if isSelf(uid) && isMentor();
+      }
+    }
+
+    // ---------------- convites e candidaturas ----------------
+    // Token de convite so e resolvido por callable (Admin SDK).
+    match /mentorInvites/{token} {
+      allow read, write: if false;
+    }
+
+    match /mentorApplications/{id} {
+      allow read: if isStaff();
+      allow write: if false; // candidatura entra por callable + moderationQueue
+    }
+
+    // ---------------- bookings ----------------
+    // INVARIANTE 4 e 5: cliente le, mas NUNCA escreve. Reserva nasce apenas do
+    // callable `createBooking`, que numa unica transacao valida o slot contra o
+    // motor, debita a moeda e grava o documento com ID deterministico
+    // {mentorId}_{startAtISO} (invariante 6).
+    //
+    // `participantUids` e a projecao plana de `participants[].uid`: as rules
+    // nao sabem navegar lista de mapas, entao o Admin SDK grava os dois campos.
+    match /bookings/{bookingId} {
+      allow get, list: if signedIn()
+                       && sameOrg(resource.data)
+                       && (
+                            resource.data.mentorId == request.auth.uid
+                            || request.auth.uid in resource.data.participantUids
+                            || isStaff()
+                          );
+      allow create, update, delete: if false;
+    }
+
+    // ---------------- briefings ----------------
+    // Sala nao abre sem briefing (invariante 10). O vinculo com a reserva e
+    // validado no servidor; aqui so o dono escreve o proprio.
+    match /briefings/{id} {
+      allow get: if signedIn() && (isSelf(resource.data.uid) || isStaff());
+      allow list: if isStaff();
+      allow create: if signedIn()
+                    && isSelf(request.resource.data.uid)
+                    && request.resource.data.orgId == callerOrg();
+      allow update: if signedIn() && isSelf(resource.data.uid);
+      allow delete: if false;
+    }
+
+    // ---------------- wallets ----------------
+    // INVARIANTE 3 e 4: o saldo e derivado do livro-caixa. `entries` e
+    // append-only e imutavel, `balance` e so cache. Nada de cliente escreve —
+    // grant, spend, refund, gift, expire e adjust saem do Admin SDK.
+    match /wallets/{uid} {
+      allow get: if isSelf(uid) || isStaff();
+      allow list: if false;
+      allow write: if false;
+
+      match /entries/{entryId} {
+        allow get, list: if isSelf(uid) || isStaff();
+        allow write: if false;
+      }
+    }
+
+    // ---------------- cota de presente ----------------
+    match /giftQuotas/{quotaId} {
+      allow get: if signedIn() && (isMentor() || isStaff());
+      allow list, write: if false;
+    }
+
+    // ---------------- moderacao e auditoria ----------------
+    match /reports/{id} {
+      allow read: if isStaff();
+      allow create: if signedIn() && request.resource.data.orgId == callerOrg();
+      allow update, delete: if false;
+    }
+
+    match /moderationQueue/{id} {
+      allow read: if isStaff();
+      allow write: if false;
+    }
+
+    // INVARIANTE 11: trilha de auditoria e append-only do lado do servidor.
+    // Cliente nao le nem escreve — consulta de auditoria passa por callable.
+    match /auditLogs/{id} {
+      allow read, write: if false;
+    }
+
+    // ---------------- default deny ----------------
+    // reviews, goals, checkins, asyncQuestions, pills, tracks, waitlist,
+    // mentorRequests, referrals: entram junto com as respectivas fases.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

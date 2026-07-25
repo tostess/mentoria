@@ -1,0 +1,27 @@
+@import 'tailwindcss';
+
+/*
+  Sem CSS variables de cor (CLAUDE.md): as cores da marca vem de
+  `appConfig.branding` e sao aplicadas como hex inline — style={{ color: '#...' }}
+  ou classe Tailwind com valor arbitrario, bg-[#4F46E5].
+*/
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    Arial,
+    sans-serif;
+  background-color: #f8fafc;
+  color: #0f172a;
+  -webkit-font-smoothing: antialiased;
+}
