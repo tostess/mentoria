@@ -6,44 +6,21 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "seed:config": "tsx scripts/seed-app-config.ts",
-    "claims:set": "tsx scripts/set-claims.ts",
-    "emu": "firebase emulators:start",
-    "emulators": "npm run emu",
-    "dev:emu": "node scripts/dev-emu.mjs",
-    "rules:test": "node -e \"console.log('Testes de regras entram na F5, com @firebase/rules-unit-testing. Ate la: npm run emu e valide na UI em http://127.0.0.1:4000')\""
+    "lint": "eslint"
   },
   "dependencies": {
-    "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
-    "firebase": "^12.16.0",
-    "firebase-admin": "^13.0.0",
-    "lucide-react": "^0.469.0",
-    "luxon": "^3.5.0",
-    "next": "^15.5.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "server-only": "^0.0.1",
-    "tailwind-merge": "^2.6.0"
+    "next": "16.3.4",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
   },
   "devDependencies": {
-    "@eslint/eslintrc": "^3.2.0",
-    "@tailwindcss/postcss": "^4.0.0",
-    "@types/luxon": "^3.4.2",
-    "@types/node": "^22.10.0",
-    "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0",
-    "dotenv": "^16.4.7",
-    "eslint": "^9.17.0",
-    "eslint-config-next": "^15.5.0",
-    "firebase-tools": "^15.24.0",
-    "tailwindcss": "^4.0.0",
-    "tsx": "^4.19.2",
-    "typescript": "^5.7.0",
-    "vitest": "^3.0.0"
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.4",
+    "tailwindcss": "^4",
+    "typescript": "^5"
   }
 }

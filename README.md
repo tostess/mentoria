@@ -1,79 +1,36 @@
-# App de Mentoria
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-Marketplace de mentoria com oferta curada e economia de moedas. O contexto de
-produto, os invariantes e o roadmap estao em [CLAUDE.md](CLAUDE.md) — leia antes
-de mexer no codigo.
+## Getting Started
 
-## Rodar
+First, run the development server:
 
 ```bash
-npm install
-cp .env.local.example .env.local   # preencha com as chaves do seu projeto Firebase
 npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
 ```
 
-As etapas de console (registrar app web, chave da conta de servico, provedores de
-login, Java para os emuladores, Blaze antes da F5) estao em
-[docs/SETUP.md](docs/SETUP.md).
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-Contra os emuladores, sem precisar de credencial nenhuma:
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-```bash
-npm run emu       # emuladores + UI em http://127.0.0.1:4000  (exige JDK)
-npm run dev:emu   # Next apontando para eles
-```
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
-`GET /api/health` e o teste de fumaca da conexao: escreve em `_health/ping` pelo
-Admin SDK, le de volta e devolve `{ ok: true }`.
+## Learn More
 
-Antes do primeiro login, semeie a configuracao e promova seu usuario:
+To learn more about Next.js, take a look at the following resources:
 
-```bash
-npm run seed:config                                        # orgs/public + appConfig/public
-npm run claims:set -- --email voce@exemplo.com --role admin # primeiro admin
-```
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
 
-`claims:set` exige que o usuario ja exista no Auth (ou seja: entre uma vez pelo
-`/login` antes). Depois de trocar o papel, faca logout/login para o token novo.
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-## Estrutura
+## Deploy on Vercel
 
-```
-src/app/
-  (auth)/login          entrada unica
-  (mentee)/             /inicio /mentores /agenda /carteira
-  (mentor)/             /mentor /mentor/disponibilidade /mentor/agenda
-  (admin)/              /admin /admin/mentores /admin/personalizacao
-src/lib/
-  auth/                 papeis, custom claims, contexto de sessao
-  config/               tipos e defaults de appConfig (semente, nao fonte de verdade)
-  firebase/             SDK de cliente e Admin SDK, ambos por env
-  firestore/scoped.ts   helpers de orgId (invariante 9)
-  scheduling/           motor puro de disponibilidade — F2, travado depois dos testes
-functions/              Cloud Functions em southamerica-east1
-scripts/                seed de appConfig e claims por CLI
-```
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
-## Seguranca
-
-- `firestore.rules` nega por padrao. `bookings` e `wallets` sao **somente
-  leitura** para o cliente: escrita so pelo Admin SDK, via callable.
-- Papeis vivem em custom claims (`role`, `orgId`); `users/{uid}` so espelha.
-- Guard de rota (`RoleGate`) e conveniencia de navegacao, nao seguranca.
-
-- A chave da conta de servico ignora as rules por design. Ela vive em
-  `.env.local` (tres campos, `FIREBASE_ADMIN_*`), nunca como arquivo no repo.
-
-Para testar as rules localmente:
-
-```bash
-npm run emu
-```
-
-## Testes
-
-```bash
-npm test          # Vitest
-npm run typecheck # tsc --noEmit
-npm run lint
-```
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
