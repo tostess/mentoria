@@ -510,5 +510,6 @@ F16 formato grupo · F18 dashboards e exclusão de conta.
 
 ## Estado atual
 
-Etapa: **0** — contrato migrado para Supabase. Nada implementado.
+Etapa: **1** — design system, tema white-label, termos e cascas dos cinco papéis prontos.
+Nada funcional ainda. Próxima: Etapa 2 (conexão Supabase, Drizzle e Vercel).
 Motor de agenda: **não travado**.
