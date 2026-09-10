@@ -2,10 +2,10 @@ import "server-only";
 
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { requireSupabasePublicEnv } from "@/lib/env";
-import { requireServiceRoleKey } from "@/lib/env.server";
+import { requireSecretKey } from "@/lib/env.server";
 
 /**
- * Cliente `service_role` — **ignora RLS**.
+ * Cliente `service_role` — **ignora RLS**. Autenticado pela chave secreta.
  *
  * Invariante 5: só existe aqui e em Route Handlers. Nunca em componente
  * cliente, nunca em variável `NEXT_PUBLIC_`. `server-only` garante isso no
@@ -17,7 +17,7 @@ import { requireServiceRoleKey } from "@/lib/env.server";
  */
 export function createAdminClient() {
   const { url } = requireSupabasePublicEnv();
-  return createSupabaseClient(url, requireServiceRoleKey(), {
+  return createSupabaseClient(url, requireSecretKey(), {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }

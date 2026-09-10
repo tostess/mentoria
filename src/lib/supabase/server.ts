@@ -6,16 +6,16 @@ import { requireSupabasePublicEnv } from "@/lib/env";
 
 /**
  * Cliente de servidor com a sessão do usuário, lida dos cookies. Continua na
- * chave anon: RLS vale, e é dela que saem `auth_role()` e `auth_org_id()`
+ * chave publishable: RLS vale, e é dela que saem `auth_role()` e `auth_org_id()`
  * (invariante 19 — papel e `org_id` vêm do JWT, nunca de campo de tabela).
  *
  * Um cliente novo por requisição, sempre. Nunca guardar em módulo.
  */
 export async function createClient() {
-  const { url, anonKey } = requireSupabasePublicEnv();
+  const { url, publishableKey } = requireSupabasePublicEnv();
   const cookieStore = await cookies();
 
-  return createServerClient(url, anonKey, {
+  return createServerClient(url, publishableKey, {
     cookies: {
       getAll() {
         return cookieStore.getAll();

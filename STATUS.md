@@ -10,18 +10,21 @@ Uma linha por sessão, mais recente no topo. Atualizar **antes** do commit final
 
 ## Bloqueios abertos
 
-- **Projeto Supabase ainda não existe / `.env.local` não preenchido.** A fiação da Etapa 2
-  está pronta e verde no build, mas nenhuma conexão real foi feita. Antes da Etapa 3:
-  criar `mentoria` e `mentoria-dev` na região São Paulo, copiar `.env.local.example` para
-  `.env.local`, preencher, e rodar `npm run check:supabase` até dar tudo verde.
+- **`.env.local` pela metade.** `mentoria-dev` existe (ref `pcoqllmquntaidttsvek`) e o Auth
+  responde com a chave publishable — conexão real verificada. Faltam três valores para a Etapa 3
+  poder rodar migração: `SUPABASE_SECRET_KEY`, `DATABASE_URL` (transaction pooler, 6543) e
+  `DIRECT_URL` (session pooler, 5432). Rodar `npm run check:supabase` até dar tudo verde.
+- **Projeto `mentoria` (produção) ainda não criado.** Invariante 17. Não bloqueia o piloto local.
 
 ## Decisões de sessão
 _(dependência escolhida, atalho tomado, dívida assumida — o que não merece o CLAUDE.md)_
 
-- **2026-09-10 (Etapa 2):** nomes de variável seguem o vocabulário do `CLAUDE.md`
-  (`NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`) e não os rótulos novos do painel
-  do Supabase ("publishable" / "secret"). São as mesmas chaves; o `.env.local.example` diz onde
-  achar cada uma.
+- **2026-09-10 (Etapa 2, revisto):** o projeto `mentoria-dev` usa o esquema **novo** de chaves do
+  Supabase (`sb_publishable_...` / `sb_secret_...`), então as variáveis passaram a se chamar
+  `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` e `SUPABASE_SECRET_KEY` — o que o painel entrega, para o
+  copiar e colar não errar. Os nomes legados (`..._ANON_KEY`, `..._SERVICE_ROLE_KEY`) continuam
+  aceitos como fallback em `env.ts` / `env.server.ts`. `service_role` segue sendo o nome do **papel
+  Postgres** nas invariantes: a chave secreta é o que autentica como ele.
 - **2026-09-10 (Etapa 2):** `getDb()` e `getSql()` são funções, não constantes exportadas. Constante
   avaliaria `DATABASE_URL` na importação e derrubaria `next build` sem `.env.local`. O pool fica no
   `globalThis` porque o HMR reavalia o módulo a cada salvamento.

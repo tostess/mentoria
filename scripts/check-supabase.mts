@@ -17,37 +17,49 @@ function record(label: string, ok: boolean, note: string) {
   console.log(`${ok ? "  ok  " : " FALHA"}  ${label}${note ? ` — ${note}` : ""}`);
 }
 
-function required(name: string): string | null {
-  const value = process.env[name];
-  if (!value) {
-    record(name, false, "ausente no .env.local");
+/** Aceita o nome novo do painel ou o legado do mesmo papel. */
+function required(...names: string[]): string | null {
+  const hit = names.find((name) => process.env[name]);
+  if (!hit) {
+    record(names[0], false, "ausente no .env.local");
     return null;
   }
-  record(name, true, "definida");
+  const value = process.env[hit]!;
+  if (/SEU_PROJECT_REF|SENHA|YOUR-PASSWORD/.test(value)) {
+    record(hit, false, "ainda com o texto do template");
+    return null;
+  }
+  record(hit, true, hit === names[0] ? "definida" : "definida (nome legado)");
   return value;
 }
 
 console.log("\nVariáveis\n");
 
 const url = required("NEXT_PUBLIC_SUPABASE_URL");
-const anonKey = required("NEXT_PUBLIC_SUPABASE_ANON_KEY");
-const serviceKey = required("SUPABASE_SERVICE_ROLE_KEY");
+const publishableKey = required(
+  "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
+  "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+);
+const secretKey = required("SUPABASE_SECRET_KEY", "SUPABASE_SERVICE_ROLE_KEY");
 const databaseUrl = required("DATABASE_URL");
 const directUrl = required("DIRECT_URL");
 
-if (serviceKey && serviceKey === anonKey) {
-  record("chaves distintas", false, "anon e service_role são iguais");
+if (secretKey && secretKey === publishableKey) {
+  record("chaves distintas", false, "a pública e a secreta são iguais");
+}
+if (secretKey?.startsWith("sb_publishable_")) {
+  record("chave secreta", false, "é uma chave publishable, não a secret");
 }
 
 console.log("\nConexões\n");
 
-if (url && anonKey) {
-  const client = createClient(url, anonKey, {
+if (url && publishableKey) {
+  const client = createClient(url, publishableKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
   const { error } = await client.auth.getUser();
   const ok = !error || error.name === "AuthSessionMissingError";
-  record("Supabase Auth (anon)", ok, ok ? "responde" : (error?.message ?? ""));
+  record("Supabase Auth (publishable)", ok, ok ? "responde" : (error?.message ?? ""));
 }
 
 for (const [label, connection] of [

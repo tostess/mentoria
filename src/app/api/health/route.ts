@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { createClient } from "@/lib/supabase/server";
 import { hasSupabasePublicEnv } from "@/lib/env";
-import { hasDatabaseUrl, hasServiceRoleKey } from "@/lib/env.server";
+import { hasDatabaseUrl, hasSecretKey } from "@/lib/env.server";
 
 /**
  * Diagnóstico da Etapa 2: o app enxerga o Supabase e o Postgres?
@@ -37,7 +37,7 @@ async function timed(run: () => Promise<void>): Promise<Check> {
 export async function GET() {
   const env = {
     supabaseUrl: hasSupabasePublicEnv,
-    serviceRoleKey: hasServiceRoleKey,
+    secretKey: hasSecretKey,
     databaseUrl: hasDatabaseUrl,
   };
 
