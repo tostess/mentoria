@@ -28,6 +28,7 @@ Next.js 16.3.4 (App Router) · TypeScript strict · Tailwind · shadcn/ui ·
 **Supabase Postgres (São Paulo) com RLS** · **Drizzle** (schema + migrations + queries tipadas) ·
 Supabase Auth (`role` e `org_id` como claims no JWT) · Supabase Storage ·
 Vercel (`gru1`) · Vercel Cron · Luxon · Vitest · Daily.co · Claude API · Z-API · Resend.
+Dev: `drizzle-kit` (gera migração), `dotenv` (só o `drizzle.config.ts` — o Next lê `.env.local` sozinho).
 
 Escolhida por RLS (protege o multi-tenant), constraints (garantem o livro-caixa) e SQL (relatório
 vira query, não cron de pré-agregação).
@@ -492,6 +493,12 @@ F16 formato grupo · F18 dashboards e exclusão de conta.
   processa pagamento**.
 - Piloto fechado em 10/11 com operação manual; self-service depois.
 - Busca no cliente; sem serviço de busca externo.
+- **Duas conexões Postgres:** `DATABASE_URL` no pooler de transação (6543, `prepare: false`) para o
+  runtime serverless; `DIRECT_URL` na 5432 para DDL — pooler de transação não aceita migração.
+- **`drizzle-kit push` não existe no projeto.** Sincroniza sem gerar arquivo e fura a regra de
+  migração versionada. Só `db:generate` + `db:migrate`.
+- **No Next 16 `middleware.ts` virou `proxy.ts`.** É lá que a sessão do Supabase é renovada, na
+  Etapa 4. Enquanto ele não existir, `supabase/server.ts` engole o erro de escrita de cookie.
 
 ## Descartado
 
@@ -510,6 +517,10 @@ F16 formato grupo · F18 dashboards e exclusão de conta.
 
 ## Estado atual
 
-Etapa: **1** — design system, tema white-label, termos e cascas dos cinco papéis prontos.
-Nada funcional ainda. Próxima: Etapa 2 (conexão Supabase, Drizzle e Vercel).
+Etapa: **2** — conexão pronta. Três clientes Supabase (`client`/`server`/`admin`), Drizzle sobre
+postgres.js, `drizzle.config.ts` gerando em `supabase/migrations/`, `vercel.json` em `gru1`.
+Invariante 5 travada por `server-only` (quebra o build) e por teste estático.
+Diagnóstico: `npm run check:supabase` e `GET /api/health`.
+Banco ainda vazio — `src/lib/db/schema.ts` é placeholder.
+Próxima: Etapa 3 (esquema, constraints, triggers e RLS).
 Motor de agenda: **não travado**.
