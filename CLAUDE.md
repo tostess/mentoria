@@ -2,291 +2,513 @@
 
 ## O que é
 
-Marketplace de mentoria com **oferta curada**: mentores não se cadastram, entram por convite do
-admin. Mentorados recebem **moedas** periodicamente e trocam por sessões 1:1 de 30 ou 45 minutos,
-por vídeo, dentro do app. Mentor pode presentear uma moeda extra ao avaliar a sessão, dentro de uma
-cota mensal. Existe visão de admin/moderador com personalização da plataforma.
+Plataforma **B2B de mentoria corporativa**, vendida para RHs. A empresa contratante compra um bloco
+de **fichas** e o RH distribui entre colaboradores selecionados. Cada ficha vale uma sessão 1:1 de
+30 minutos, por vídeo, dentro da plataforma.
 
-Preparado para, no futuro, uma **empresa patrocinadora** comprar pacote de moedas para seus
-colaboradores — daí o `orgId` em tudo desde o início.
+Os **Parceiros de Desenvolvimento** são curados e convidados pela operadora da plataforma e atendem
+profissionais de todas as empresas contratantes. Os **Profissionais** pertencem a uma empresa só.
 
-Aplicação **web responsiva**, pt-BR apenas. Não é app nativo de loja.
+Nicho provável: educação superior e saúde. Web responsiva, pt-BR. Não é app nativo de loja.
+
+### Vocabulário — em toda a interface, sem exceção
+
+| Conceito | Termo | Forma curta |
+|---|---|---|
+| Mentor | Parceiro de Desenvolvimento | **Parceiro** |
+| Mentorado | Profissional | Profissional |
+| Moeda | ficha / fichas | ficha |
+
+Tratamento **você**. Tom profissional e próximo. Todos os termos vivem em `app_config.copy.terms`,
+lidos por `src/lib/terms.ts`, e são sobrescrevíveis por empresa. Nenhum termo de domínio hardcoded.
 
 ## Stack
 
-Next.js (App Router) — versão: **16.3.4** · TypeScript strict · Tailwind ·
-Firebase Auth + Firestore + Storage · Admin SDK em Route Handlers · Vercel (região `gru1`) ·
-Vercel Cron · Luxon · Vitest · Daily.co (vídeo) · Claude API (matching, resumo) · Z-API
-(WhatsApp) · Resend (e-mail transacional).
+Next.js 16.3.4 (App Router) · TypeScript strict · Tailwind · shadcn/ui ·
+**Supabase Postgres (São Paulo) com RLS** · **Drizzle** (schema + migrations + queries tipadas) ·
+Supabase Auth (`role` e `org_id` como claims no JWT) · Supabase Storage ·
+Vercel (`gru1`) · Vercel Cron · Luxon · Vitest · Daily.co · Claude API · Z-API · Resend.
 
-Sem Cloud Functions. Sem triggers do Firestore. Tudo que é reativo acontece na rota que causou o
-evento; tudo que é periódico acontece em cron.
+Escolhida por RLS (protege o multi-tenant), constraints (garantem o livro-caixa) e SQL (relatório
+vira query, não cron de pré-agregação).
 
 ---
 
 ## INVARIANTES — não violar sem pedido explícito
 
-1. **`src/lib/scheduling/` é TypeScript puro.** Sem Firebase, sem rede. Depois de validado pelos
-   testes, está **travado**.
-2. **Datas em UTC no banco.** Conversão só na borda de UI, com o `timezone` do usuário. Regra semanal
-   do mentor é salva no fuso dele + campo `timezone` IANA.
-3. **Saldo de moedas é derivado.** A verdade é `wallets/{uid}/entries` — append-only, imutável.
-   `balance` é cache. Correção é um `adjust`, nunca edição.
-4. **Cliente não escreve `bookings` nem `wallets`.** Security Rules negam. Toda escrita privilegiada
-   passa por Route Handler com Admin SDK.
-5. **Criação de reserva é atômica.** `POST /api/bookings` faz, numa única transação: validar slot
-   contra o motor → debitar → criar reserva. Falhou uma etapa, nada acontece.
-6. **ID de reserva é determinístico:** `{mentorId}_{startAtISO}`. Dois pedidos simultâneos, um falha.
-7. **Mentor nunca se autocadastra.** Só existe mentor vindo de `mentorInvites`.
-8. **Taxonomia, textos e política vivem em `appConfig`**, nunca no código.
-9. **`orgId` em todo documento com escopo.** Padrão `'public'`. Nunca consultar sem filtrar.
-10. **Sala não abre sem briefing preenchido.**
-11. **Toda ação de admin ou moderador gera `auditLogs`.** Inclusive publicar personalização.
-12. **Moeda não é comprável nem transferível entre mentorados.** Doação só via pote intermediado.
-13. **O assistente recomenda pessoas, nunca horários.** Considera todos os mentores ativos, com ou
-    sem vaga. Todo horário exibido vem do motor. Mentor sem vaga aparece com fila de espera ou
-    pergunta assíncrona no lugar dos slots.
-14. **Sinal de demanda é agregado e anônimo.** Mentor vê quantidades por semana, nunca quem.
-15. **Trabalho agendado é idempotente.** Lançamento por cron usa `idempotencyKey` determinística
-    (`grant_{uid}_{YYYYMM}`, `expire_{entryId}`, `reminder24_{bookingId}`) e falha se já existir.
-16. **Production → `mentoria`; Preview e Development → `mentoria-dev`.** Preview nunca escreve em
-    produção.
-17. **Presença é derivada da sala, não declarada.** O webhook do Daily.co marca `attended` por
-    participante. O mentor só **corrige** na avaliação, e a correção gera audit log. Sem isso, a
-    penalidade por falta não é aplicável.
-18. **Papel é verificado no servidor em toda rota privilegiada**, via custom claim decodificado
-    pelo Admin SDK. Nunca confiar em campo `role` de documento.
+1. **`src/lib/scheduling/` é TypeScript puro.** Sem banco, sem rede. Validado por testes, fica
+   **travado**.
+2. **Datas em `timestamptz`.** Conversão só na borda de UI. Regra semanal do Parceiro é minutos
+   desde a meia-noite **no fuso dele** + campo `timezone` IANA.
+3. **Saldo é derivado do livro-caixa.** `wallet_ledger` e `org_ledger` são append-only, com trigger
+   que bloqueia `update` e `delete`. O campo `balance` é mantido por trigger e protegido por
+   `check (balance >= 0)`. Correção é `adjust`, nunca edição.
+4. **Cliente nunca escreve em `bookings`, `wallets`, `wallet_ledger`, `org_wallets` nem
+   `org_ledger`.** Não existe policy de `insert`/`update`/`delete` para papel autenticado. Toda
+   escrita privilegiada passa por Route Handler com `service_role`.
+5. **`service_role` só existe no servidor** — `src/lib/supabase/admin.ts` e Route Handlers. Nunca
+   em componente cliente, nunca em variável `NEXT_PUBLIC_`.
+6. **Reserva e alocação são transações SQL.** Reserva: validar slot → inserir `spend` → inserir
+   booking. Alocação: `allocate` negativo no `org_ledger` e positivo no `wallet_ledger`. Uma falha
+   derruba tudo.
+7. **Sobreposição é impedida pelo banco**, não pelo código: constraint de exclusão em `bookings`
+   sobre `(partner_id, tstzrange(start_at, end_at))` para status ativos. Isso cobre inclusive a
+   sessão estendida de 30 para 60 minutos.
+8. **Parceiro nunca se autocadastra.** Só via `partner_invites`. Candidatura espontânea entra em
+   `partner_applications` e só vira Parceiro por decisão do admin.
+9. **Escopo é assimétrico e isso é intencional:** `partners` pertencem à **plataforma** e são
+   visíveis a todas as empresas; `profiles`, `wallets`, `bookings`, `briefings`, `reviews`, `goals`
+   são **da empresa**. O isolamento é garantido por RLS, não por lembrar de filtrar.
+10. **O RH nunca vê conteúdo de sessão.** `org_admin` não tem policy de leitura em `bookings`,
+    `briefings`, `reviews` nem `session_events`. Vê apenas `org_usage`. Sem essa garantia ninguém
+    usa a plataforma com sinceridade — é argumento de venda, não limitação.
+11. **Sala não abre sem briefing** (a partir da fase em que existir).
+12. **Toda ação de admin, moderador ou RH grava `audit_logs`.**
+13. **Ficha não é comprável pelo profissional nem transferível entre profissionais.**
+14. **O assistente recomenda pessoas, nunca horários.** Considera todos os Parceiros ativos, com ou
+    sem vaga. Todo horário exibido vem do motor.
+15. **Sinal de demanda é agregado e anônimo.** Nunca quem, nunca de qual empresa.
+16. **Trabalho agendado é idempotente**, via `idempotency_key` única
+    (`alloc_{userId}_{YYYYMM}`, `reminder24_{bookingId}`, `nudge_{userId}_{YYYYWW}`).
+17. **Production → `mentoria`; Preview e Development → `mentoria-dev`.**
+18. **Presença é derivada da sala.** Webhook do Daily grava `session_events`. O Parceiro só
+    **corrige**, e a correção grava `audit_logs`.
+19. **Papel e `org_id` são lidos do JWT no servidor**, nunca de campo de tabela.
+20. **Extensão de sessão é decidida dentro da sala.** Exige `canExtend` verdadeiro e prorroga o
+    token do vídeo. Não custa ficha ao profissional.
+
+---
+
+## Papéis
+
+| Papel | Quem é | Pode |
+|---|---|---|
+| `admin` | operadora da plataforma | empresas, contratos, curadoria de Parceiros, economia, personalização |
+| `moderator` | delegado da operadora | fila, denúncias, avaliações, estornos — não mexe em contrato nem aparência |
+| `org_admin` | RH da empresa | saldo do contrato, selecionar colaboradores, alocar fichas, utilização agregada |
+| `partner` | Parceiro | agenda, disponibilidade, perfil, sessões, sinal de demanda |
+| `professional` | colaborador | buscar Parceiro, agendar, participar, avaliar |
 
 ---
 
 ## Regras de trabalho
 
-- Cores em **hex inline** via valores arbitrários do Tailwind (`bg-[#C2317A]`). Nunca CSS variables
-  para cor. Quando a cor vier de `appConfig.branding`, usar `style` inline.
+- Cores em **hex inline** (`bg-[#C2317A]`), nunca CSS variables. O accent vem de `resolveTheme()`.
 - Estados visuais via `className` condicional.
-- **Uma feature por sessão.** Atualizar `CLAUDE.md` e `STATUS.md` ao final de cada sessão.
+- **Uma feature por sessão.** Atualizar `CLAUDE.md` e `STATUS.md` ao final.
 - Commits curtos, imperativo, em português.
-- Security Rules e audit log evoluem **junto** com cada feature.
-- Toda mudança em `scheduling/`, carteira ou rules acompanha teste.
+- RLS e audit log evoluem **junto** com cada feature.
+- Toda mudança em `scheduling/`, livros-caixa ou policies acompanha teste.
+- Migração é sempre arquivo versionado em `supabase/migrations/`. Nunca alterar esquema pelo painel.
 - Protótipo HTML single-file antes de codar tela nova.
-- Rotas que chamam a Claude API exportam `maxDuration`; conferir o teto vigente do plano da Vercel
-  antes de definir — não chutar.
-- Busca de mentores é **filtro no cliente** sobre a lista de ativos cacheada. Com menos de 200
-  mentores, nenhum serviço de busca externo.
+- Rotas que chamam a Claude API exportam `maxDuration`; conferir o teto do plano da Vercel.
+- Busca de Parceiros é filtro no cliente sobre a lista de ativos cacheada. Sem serviço externo
+  abaixo de 200 Parceiros.
 - Sem `any`. Sem dependência nova sem registrar aqui.
 
 ---
 
-## Sistema de design (aprovado pelo cliente — não reinventar)
+## Sistema de design
 
-| Papel | Hex | Uso |
-|---|---|---|
-| ink | `#2A1B26` | texto principal, marca escura |
-| mist | `#FDF8FB` | fundo da página |
-| white | `#FFFFFF` | superfícies, sidebar |
-| blush | `#FCEDF4` | destaque suave, item ativo, aviso |
-| magenta | `#C2317A` | ação primária (default de `branding.accent`) |
-| deep | `#8E1E58` | texto sobre blush, hover |
-| line | `#F3E4EC` | bordas |
-| line2 | `#EAD6E1` | bordas de input |
-| stone | `#8E7C86` | texto secundário |
-| gold | `#C98A2E` | moeda — único tom quente do sistema |
-| gold-soft | `#FBF1DE` | fundo da moeda |
-| success | `#2E6B52` / `#EAF6F0` | confirmada, estorno |
-| danger | `#A63A2E` / `#FBEAE7` | denúncia, suspender |
+Paleta **default da plataforma** — o produto é white-label e cada empresa sobrescreve
+`branding.accent` e o logotipo. A cliente ainda não tem marca.
 
-Fontes: **Darker Grotesque** (títulos, 600/700), **Instrument Sans** (corpo), **IBM Plex Mono**
-(horários, números, rótulos em caixa alta com tracking). Raio padrão 14px, botões 10px, chips 8px.
+| Papel | Hex |
+|---|---|
+| ink | `#2A1B26` |
+| mist | `#FDF8FB` |
+| white | `#FFFFFF` |
+| blush | `#FCEDF4` |
+| accent (default) | `#C2317A` |
+| deep | `#8E1E58` |
+| line | `#F3E4EC` |
+| line2 | `#EAD6E1` |
+| stone | `#8E7C86` |
+| gold | `#C98A2E` |
+| gold-soft | `#FBF1DE` |
+| success | `#2E6B52` / `#EAF6F0` |
+| danger | `#A63A2E` / `#FBEAE7` |
 
-Princípios: muito branco; rosa como estrutura, não como decoração; a moeda é a única coisa dourada
-e deve parecer moeda, não botão; o momento do presente é o único lugar com animação.
+Fontes: **Darker Grotesque** (títulos 600/700), **Instrument Sans** (corpo), **IBM Plex Mono**
+(horários, números, rótulos em caixa alta). Raio 14px, botões 10px, chips 8px.
+
+Princípios: muito branco; o accent é estrutura, não decoração; a ficha é a única coisa dourada e
+deve parecer ficha, não botão; presente e extensão são os únicos momentos com animação.
 
 ---
 
-## Modelo de dados (Firestore)
+## Esquema — DDL canônica
+
+```sql
+create extension if not exists btree_gist;
+
+create type user_role       as enum ('admin','moderator','org_admin','partner','professional');
+create type partner_status  as enum ('invited','onboarding','pending_review','active','paused','archived');
+create type booking_status  as enum ('pending','confirmed','done','cancelled',
+                                     'no_show_professional','no_show_partner','expired');
+create type ledger_type     as enum ('purchase','allocate','spend','refund','gift','reclaim','adjust');
+create type engagement_type as enum ('voluntario','parceria','remunerado');
+
+-- ---------- empresas ----------
+create table orgs (
+  id                uuid primary key default gen_random_uuid(),
+  name              text not null,
+  cnpj              text,
+  active            boolean not null default true,
+  contracted_fichas int not null default 0 check (contracted_fichas >= 0),
+  contract_start    date,
+  contract_end      date,
+  branding          jsonb,
+  created_by        uuid,
+  created_at        timestamptz not null default now()
+);
+
+create table org_wallets (
+  org_id        uuid primary key references orgs(id) on delete restrict,
+  balance       int not null default 0 check (balance >= 0),
+  last_entry_at timestamptz
+);
+
+create table org_ledger (
+  id              uuid primary key default gen_random_uuid(),
+  org_id          uuid not null references orgs(id) on delete restrict,
+  type            ledger_type not null,
+  amount          int not null check (amount <> 0),
+  balance_after   int not null,
+  to_user_id      uuid,
+  by_user_id      uuid,
+  reason          text,
+  idempotency_key text not null unique,
+  created_at      timestamptz not null default now()
+);
+
+-- ---------- pessoas ----------
+create table profiles (
+  id          uuid primary key references auth.users(id) on delete cascade,
+  org_id      uuid references orgs(id),
+  role        user_role not null,
+  name        text not null,
+  email       text not null,
+  photo_url   text,
+  timezone    text not null default 'America/Sao_Paulo',
+  job_title   text,
+  area        text,
+  phone       text,
+  notif_prefs jsonb not null default '{"email":true,"whatsapp":false}'::jsonb,
+  active      boolean not null default true,
+  deleted_at  timestamptz,
+  created_at  timestamptz not null default now(),
+  -- invariante 9 no esquema: só profissional e RH pertencem a uma empresa
+  constraint profiles_org_scope
+    check ((role in ('professional','org_admin')) = (org_id is not null))
+);
+
+create table wallets (
+  user_id       uuid primary key references profiles(id) on delete cascade,
+  org_id        uuid not null references orgs(id),
+  balance       int not null default 0 check (balance >= 0),
+  last_entry_at timestamptz,
+  last_used_at  timestamptz
+);
+
+create table wallet_ledger (
+  id              uuid primary key default gen_random_uuid(),
+  user_id         uuid not null references wallets(user_id) on delete restrict,
+  org_id          uuid not null references orgs(id),
+  type            ledger_type not null,
+  amount          int not null check (amount <> 0),
+  balance_after   int not null,
+  booking_id      uuid,
+  by_user_id      uuid,
+  reason          text,
+  idempotency_key text not null unique,
+  created_at      timestamptz not null default now()
+);
+
+-- ---------- parceiros (escopo plataforma) ----------
+create table partners (
+  id                      uuid primary key references profiles(id) on delete cascade,
+  status                  partner_status not null default 'invited',
+  headline                text,
+  bio                     text,
+  areas                   text[] not null default '{}',
+  skills                  text[] not null default '{}',
+  seniority               text,
+  buffer_min              int not null default 15 check (buffer_min >= 0),
+  max_per_week            int not null default 4  check (max_per_week > 0),
+  auto_confirm            boolean not null default false,
+  engagement              engagement_type not null default 'voluntario',
+  contracted_hours_monthly numeric,
+  gift_quota_monthly      int not null default 3,
+  extension_quota_monthly int not null default 3,
+  rating_avg              numeric,
+  rating_count            int not null default 0,
+  session_count           int not null default 0,
+  approved_by             uuid,
+  approved_at             timestamptz
+);
+
+create table partner_rules (
+  id             uuid primary key default gen_random_uuid(),
+  partner_id     uuid not null references partners(id) on delete cascade,
+  weekday        smallint not null check (weekday between 0 and 6),
+  start_min      int not null check (start_min between 0 and 1440),
+  end_min        int not null check (end_min between 0 and 1440),
+  effective_from date,
+  effective_to   date,
+  check (end_min > start_min)
+);
+
+create table partner_exceptions (
+  id         uuid primary key default gen_random_uuid(),
+  partner_id uuid not null references partners(id) on delete cascade,
+  day        date not null,
+  kind       text not null check (kind in ('block','extra')),
+  start_min  int,
+  end_min    int,
+  reason     text
+);
+
+create table partner_invites (
+  id         uuid primary key default gen_random_uuid(),
+  token      text not null unique,
+  email      text not null,
+  phone      text,
+  area       text,
+  expires_at timestamptz not null,
+  used_at    timestamptz,
+  created_by uuid not null,
+  created_at timestamptz not null default now()
+);
+
+create table partner_applications (
+  id         uuid primary key default gen_random_uuid(),
+  name       text not null,
+  contact    text not null,
+  pitch      text,
+  linkedin   text,
+  status     text not null default 'pending',
+  decided_by uuid,
+  decided_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+-- ---------- sessões ----------
+create table bookings (
+  id                    uuid primary key default gen_random_uuid(),
+  org_id                uuid not null references orgs(id),
+  partner_id            uuid not null references partners(id),
+  professional_id       uuid not null references profiles(id),
+  start_at              timestamptz not null,
+  end_at                timestamptz not null,
+  duration_min          int not null default 30,
+  extended_by           int not null default 0,
+  price_fichas          int not null default 1,
+  status                booking_status not null default 'pending',
+  attended_partner      boolean,
+  attended_professional boolean,
+  room_name             text,
+  created_via           text not null default 'search',
+  briefing_id           uuid,
+  confirmed_at          timestamptz,
+  cancelled_at          timestamptz,
+  cancelled_by          uuid,
+  created_at            timestamptz not null default now(),
+  check (end_at > start_at),
+  -- invariante 7: o banco impede sobreposição, inclusive de sessão estendida
+  constraint bookings_no_overlap exclude using gist (
+    partner_id with =,
+    tstzrange(start_at, end_at) with &&
+  ) where (status in ('pending','confirmed'))
+);
+
+create index on bookings (professional_id, start_at);
+create index on bookings (org_id, start_at);
+```
+
+Demais tabelas, mesmas convenções (`id uuid pk`, `created_at timestamptz`, FK com `references`),
+criadas na Etapa 3: `briefings`, `session_events`, `reviews`, `gift_quotas`, `partner_hours`,
+`goals`, `checkins`, `notifications`, `waitlist`, `async_questions`, `suggestion_events`,
+`org_usage`, `reports`, `moderation_queue`, `app_config`, `audit_logs`.
+
+### Triggers obrigatórios
+
+```sql
+-- saldo mantido pelo banco; o check (balance >= 0) derruba a transação no débito indevido
+create or replace function apply_wallet_entry() returns trigger language plpgsql as $$
+begin
+  update wallets
+     set balance = balance + new.amount, last_entry_at = now()
+   where user_id = new.user_id
+  returning balance into new.balance_after;
+  if not found then raise exception 'carteira inexistente: %', new.user_id; end if;
+  return new;
+end $$;
+
+create trigger trg_wallet_entry before insert on wallet_ledger
+  for each row execute function apply_wallet_entry();
+
+-- livro-caixa é imutável
+create or replace function block_mutation() returns trigger language plpgsql as $$
+begin raise exception 'livro-caixa é imutável'; end $$;
+
+create trigger trg_wallet_ledger_immutable before update or delete on wallet_ledger
+  for each row execute function block_mutation();
+```
+
+Espelhar ambos para `org_ledger` / `org_wallets`.
+
+### RLS
+
+```sql
+create or replace function auth_role() returns user_role language sql stable as $$
+  select nullif(current_setting('request.jwt.claims', true)::jsonb ->> 'user_role','')::user_role
+$$;
+
+create or replace function auth_org_id() returns uuid language sql stable as $$
+  select nullif(current_setting('request.jwt.claims', true)::jsonb ->> 'org_id','')::uuid
+$$;
+```
+
+RLS habilitado em **todas** as tabelas. Princípios das policies:
+
+- `partners`, `partner_rules`, `partner_exceptions`: `select` para qualquer autenticado quando
+  `status = 'active'`; o próprio Parceiro e o `admin` veem qualquer status. `update` só do próprio
+  Parceiro, e **nunca** da coluna `status`.
+- `profiles`: `select` onde `org_id = auth_org_id()`, mais o próprio registro; `admin` vê tudo.
+- `wallets` e `wallet_ledger`: `select` apenas do próprio `user_id`. **Nenhuma** policy de
+  `insert`, `update` ou `delete`.
+- `bookings`, `briefings`, `reviews`, `session_events`: `select` para o profissional dono ou o
+  Parceiro da sessão. **Nenhuma policy para `org_admin`** — invariante 10.
+- `org_usage`: `select` para `org_admin` da própria empresa e para `admin`.
+- `app_config`: `select` para qualquer autenticado; escrita só `service_role`.
+- `audit_logs`, `partner_invites`, `partner_applications`, `moderation_queue`: leitura só `admin`
+  ou `moderator`.
+
+`service_role` ignora RLS — é por isso que ele só existe no servidor.
+
+---
+
+## Política da ficha — `app_config.ficha_policy`
+
+| Chave | Default |
+|---|---|
+| `default_allocation_per_user` | 2 por mês |
+| `expires` | **false** — fichas acumulam |
+| `max_balance` | 6 |
+| `price_30` | 1 |
+| `cancel_window_hours` | 12 |
+| `partner_no_show_bonus` | 1 |
+| `gift_quota_monthly` | 3, não acumula |
+| `extension_quota_monthly` | 3, não custa ficha |
+| `idle_nudge_after_days` | 21 |
+
+**Limites:** `booking_horizon_days` 14 · `max_pending_per_professional` 2 ·
+`pending_expires_hours` 48 · `min_notice_hours` 12 · `session_grace_minutes` 15
+
+### Fluxo da ficha
 
 ```
-orgs/{orgId}                          name, plan:'public'|'sponsor', active
-users/{uid}                           orgId, role, name, photoURL, timezone, notifPrefs{whatsapp,email},
-                                      phone?, deletedAt?
-mentors/{uid}                         orgId, status:'invited'|'onboarding'|'pending_review'|'active'|
-                                      'paused'|'archived', headline, bio, areas[], skills[], seniority,
-                                      sessionDurations[], bufferMin, maxPerWeek, autoConfirm, timezone,
-                                      giftQuotaMonthly, ratingAvg, ratingCount, sessionCount
-mentors/{uid}/rules/{ruleId}          weekday, startMin, endMin, effectiveFrom, effectiveTo
-mentors/{uid}/exceptions/{yyyy-mm-dd} type:'block'|'extra', ranges[]
-mentorInvites/{token}                 orgId, email, phone, suggestedArea, expiresAt, usedAt, createdBy
-mentorApplications/{id}               orgId, name, contact, pitch, status, decidedBy
-
-bookings/{mentorId}_{startAtISO}      orgId, mentorId, format:'1:1'|'grupo', capacity,
-                                      participants[{uid, briefingId, attended:boolean|null}],
-                                      startAt, endAt, durationMin, priceCoins,
-                                      status:'pending'|'confirmed'|'done'|'cancelled'|'no_show_mentee'|
-                                      'no_show_mentor'|'expired', roomName?, trackId?,
-                                      createdVia:'search'|'ai'|'referral'|'reschedule',
-                                      cancelledBy?, cancelledAt?, confirmedAt?
-briefings/{id}                        bookingId, uid, problem, links[], goalId?, submittedAt
-sessionEvents/{id}                    bookingId, uid?, kind:'joined'|'left'|'room_created', at, raw
-                                      ← escrito só pelo webhook do Daily
-
-wallets/{uid}                         orgId, balance (cache), lastEntryAt
-wallets/{uid}/entries/{id}            type:'grant'|'spend'|'refund'|'gift'|'expire'|'adjust', amount,
-                                      balanceAfter, bookingId?, byUid?, reason, idempotencyKey,
-                                      expiresAt?, createdAt                        ← imutável
-giftQuotas/{mentorId}_{YYYYMM}        limit, used
-reviews/{bookingId}_{uid}             rating, tags[], comment, gifted, attendedOverride?, visibility
-goals/{id}                            orgId, uid, title, mentorIds[], progress, status
-checkins/{bookingId}                  dueAt, channel, answeredAt?, done?
-
-notifications/{uid}/items/{id}       kind, title, body, link, readAt?, sentVia[], createdAt
-asyncQuestions/{id}                   orgId, menteeId, mentorId, question, answer?, mediaUrl?, dueAt,
-                                      priceCoins, status:'open'|'answered'|'expired_refunded'
-pills/{id}                            mentorId, title, mediaUrl, durationSec, areas[], published
-tracks/{id}                           orgId, menteeId, goalTitle, source, steps[]
-waitlist/{mentorId}_{uid}             areas[], window, notifiedAt?
-mentorRequests/{id}                   orgId, uid, need, area, status
-referrals/{id}                        fromMentorId, toMentorId, menteeId, note, bookingId?
-
-suggestionEvents/{id}                 orgId, mentorId, uid, at, kind:'suggested'|'viewed'|'blocked'|
-                                      'waitlisted', source, requestedWindow?, ttlAt   ← TTL 90 dias
-mentorDemand/{mentorId}_{YYYY-WW}     suggested, viewed, blocked, waitlisted, topWindows[], areas[]
-
-reports/{id}                          orgId, target, targetId, reason, status
-moderationQueue/{id}                  kind:'application'|'profile'|'review'|'report', refId, status
-appConfig/{orgId}                     branding, taxonomy, copy, coinPolicy, limits, flags, version,
-                                      publishedBy, publishedAt
-auditLogs/{id}                        orgId, actorUid, action, targetRef, before, after, at
+admin registra contrato ──▶ org_ledger purchase  (+N)
+RH aloca ────────────────▶ org_ledger allocate (−1) + wallet_ledger allocate (+1)  [1 transação]
+profissional agenda ─────▶ wallet_ledger spend (−1) + insert bookings              [1 transação]
+cancelou a tempo ────────▶ wallet_ledger refund (+1)
+Parceiro presenteia ─────▶ wallet_ledger gift (+1) + debita gift_quotas
+colaborador sai ─────────▶ wallet_ledger reclaim (−saldo) + org_ledger reclaim (+saldo)
 ```
 
-### Máquina de estados da sessão
+### Máquina de estados
 
 ```
 pending ──confirmar──▶ confirmed ──fim + 15min──▶ done
-   │                      │
-   │ 48h sem resposta     ├──cancelar──▶ cancelled (estorno se > cancelWindowHours)
-   ▼                      ├──ninguém entrou / só mentor──▶ no_show_mentee (moeda consumida)
-expired (estorno)         └──só mentorado entrou──▶ no_show_mentor (estorno + compensação)
+   │                       │
+   │ 48h sem resposta      ├──cancelar──▶ cancelled (estorno se > cancel_window_hours)
+   ▼                       ├──ninguém ou só Parceiro entrou──▶ no_show_professional (ficha some)
+ expired (estorno)         └──só profissional entrou──▶ no_show_partner (estorno + bônus)
 ```
 
-Transições para `done` e `no_show_*` são feitas pelo cron `close-sessions`, lendo `sessionEvents`.
-O mentor pode contestar na avaliação (`attendedOverride`), e isso gera audit log.
+### Indicador que sustenta a renovação
 
-### Economia de moedas — defaults em `appConfig.coinPolicy`
+**Taxa de utilização** = fichas usadas ÷ alocadas, por empresa e mês. Empresa que paga e não usa não
+renova, então subutilização é problema de produto. Em Postgres é uma view sobre `wallet_ledger` —
+não precisa de cron de pré-agregação, só de materialização se ficar lenta.
 
-| Chave | Default |
-|---|---|
-| `welcomeGrant` | 3 |
-| `monthlyGrant` | 3 |
-| `maxBalance` | 8 |
-| `expiryDays` | 90, consumo FIFO |
-| `price30` / `price45` | 1 / 2 |
-| `priceAsyncQuestion` | 1 |
-| `cancelWindowHours` | 12 |
-| `mentorNoShowBonus` | 1 |
-| `giftQuotaMonthly` | 3, não acumula |
-| `giftRequiresReview` | true |
+### Trabalho agendado (Vercel Cron, idempotentes)
 
-### Limites — `appConfig.limits`
-
-| Chave | Default |
-|---|---|
-| `bookingHorizonDays` | 14 |
-| `maxPendingPerMentee` | 2 |
-| `pendingExpiresHours` | 48 |
-| `asyncAnswerHours` | 48 |
-| `minNoticeHours` | 12 |
-| `sessionGraceMinutes` | 15 |
-
-### Trabalho agendado (Vercel Cron, todos idempotentes)
-
-| Job | Cadência | Fase |
-|---|---|---|
-| `grant-monthly` | dia 1º, 03:00 | F5 |
-| `expire-coins` | diário | F5 |
-| `expire-pending` | a cada hora | F7 |
-| `close-sessions` | a cada 15 min | F7 |
-| `send-reminders` (24h e 1h) | a cada 15 min | F8 |
-| `checkin-7d` | diário | F10 |
-| `aggregate-demand` | semanal | F11 |
-| `refund-unanswered` | diário | F12 |
+`allocate-monthly` (dia 1º) · `expire-pending` (horário) · `close-sessions` (15 min) ·
+`send-reminders` 24h e 1h (15 min) · `nudge-idle` (semanal) · `aggregate-demand` (semanal) ·
+`checkin-7d` (diário) · `refund-unanswered` (diário)
 
 ### Vídeo
 
-Sala Daily.co criada **sob demanda** no primeiro `join`, com nome = `bookingId`. Token por
-participante com `nbf` = início − 10 min e `exp` = fim + 15 min. Webhook grava `sessionEvents`.
-Gravação desligada por padrão.
+Sala Daily criada sob demanda no primeiro `join`, nome = `booking_id`. Token por participante com
+`nbf` = início − 10 min, `exp` = fim + 15 min. Estender prorroga `exp` e `end_at`, e só é permitido
+se `canExtend` for verdadeiro. Webhook grava `session_events`. Gravação desligada por padrão.
 
-### Notificações
+### LGPD
 
-Canais: in-app (sempre), e-mail (Resend), WhatsApp (Z-API, só com consentimento e telefone).
-Eventos: reserva confirmada, lembrete 24h, lembrete 1h, cancelamento, horário aberto (fila de
-espera), presente recebido, pergunta respondida, check-in.
-
-### Exclusão de conta (LGPD)
-
-`users/{uid}` recebe `deletedAt` e tem nome, foto, e-mail e telefone substituídos por marcadores.
-`wallets/{uid}/entries`, `bookings` e `auditLogs` **não são apagados** — são imutáveis por
-construção. Reviews têm o autor anonimizado. Auth é removido.
+Controladora é a empresa da operadora. Termos e política de privacidade são fornecidos por ela e
+apenas inseridos em `app_config.copy.legal`. Exclusão de conta marca `deleted_at` e anonimiza nome,
+foto, e-mail e telefone; livros-caixa, `bookings` e `audit_logs` permanecem — são imutáveis.
 
 ---
 
-## Roadmap — uma fase por sessão
+## Roadmap
 
-### Base (este prompt)
-- **Etapas 0–5:** contrato, design system, conexão, auth/papéis/config, motor de agenda, rules.
+**Base (Etapas 0–5):** contrato e limpeza · design system e cascas · conexão Supabase/Drizzle ·
+esquema, constraints e RLS · auth, papéis e config · motor de agenda.
 
-### MVP
-- **F1.5** Console admin: convite, curadoria, personalização, fila de decisões
-- **F3** Disponibilidade: **modo rápido "só esta semana" primeiro**, depois grade e exceções
-- **F4** Perfil do mentor, `pending_review → active`
-- **F5** Carteira: boas-vindas, `grant-monthly`, `expire-coins`, `POST /api/bookings`
-- **F6** Busca (filtro cliente) + reserva consumindo moeda + limites anti-abuso
-- **F7** Agenda nas duas visões, confirmar/cancelar/remarcar, estornos, `expire-pending`,
-  `close-sessions`, fila de espera com notificação ao abrir horário
-- **F8** Briefing obrigatório, sala Daily, webhook, `send-reminders`
-- **F9** Encerramento: avaliação, presente, cota, contestação de presença, moderação de nota baixa
+**Piloto fechado — alvo 10/11/2026.** Tudo operado pelo admin, nada self-service.
+- **P1** Painel do admin: criar empresa, registrar contrato, criar Parceiro direto, criar
+  Profissional, alocar fichas
+- **P2** Disponibilidade do Parceiro (só modo rápido "esta semana") e perfil básico
+- **P3** Carteiras, `allocate-monthly`, `POST /api/bookings` transacional
+- **P4** Busca simples, agendamento, agenda das duas visões, `expire-pending`, `close-sessions`,
+  `send-reminders`
+- **P5** Sala Daily, webhook de presença, extensão de 30 min dentro da sala
 
-### Pós-MVP
-- **F10** Transcrição → resumo → tarefas (Claude API) + `checkin-7d`
-- **F11** Assistente de IA + sinal de demanda + `aggregate-demand` + painel de demanda por mentor
-- **F12** Pergunta assíncrona + `refund-unanswered`
-- **F13** Pílulas · **F14** Trilha multi-mentor · **F15** Pedido reverso + indicação
-- **F16** Formato grupo (só ligar `format:'grupo'`) · **F17** Console do patrocinador
-- **F18** Relatório de horas do mentor, dashboards, exclusão de conta
+Fora do piloto: convite por token, candidatura espontânea, console do RH, personalização por
+empresa, briefing, avaliação, presente, cancelamento com estorno, moderação.
+
+**Produto (nov/2026 – fev/2027):** F1.5 convite e moderação · F2 console do RH · F3 grade semanal
+completa · F4 personalização por empresa · F6 briefing · F7 cancelamento e fila de espera ·
+F8 avaliação e presente · F9 horas do Parceiro · F10 resumo por IA e check-in · F11 assistente e
+sinal de demanda · F12 pergunta assíncrona · F13 pílulas · F14 trilha · F15 indicação ·
+F16 formato grupo · F18 dashboards e exclusão de conta.
 
 ---
 
 ## Decisões tomadas
 
-- Oferta curada por convite; candidatura espontânea vai para fila, admin decide.
-- `admin` (curadoria, economia, personalização) e `moderator` (fila, denúncias, estornos).
-- Suspender mentor cascateia: cancela futuras, estorna, avisa, sugere substituto.
-- 1:1 é o produto; `format:'grupo'` é opção.
-- IA recomenda entre todos os ativos; resultado em dois níveis (melhor encaixe / disponível agora).
-- Sinal de demanda agregado; `blocked` é a métrica principal; sem ranking público.
-- Cloud Functions substituídas por Route Handlers: Vercel paga, um deploy só, sem Blaze.
-  Contrapartida: sem triggers.
-- Presença derivada de webhook do Daily; mentor só corrige.
-- Lembretes 24h/1h como principal defesa contra falta.
-- Notas 1 e 2 passam pela moderação antes de publicar.
-- Busca no cliente; sem Algolia.
+- Modelo B2B: RH compra bloco de fichas e distribui. Multi-tenant é o produto.
+- **Supabase no lugar de Firebase**, decidido antes de qualquer código: RLS protege o isolamento
+  entre empresas concorrentes, constraints garantem o livro-caixa, relatório vira query.
+- Parceiros pertencem à plataforma; Profissionais pertencem a uma empresa.
+- RH vê utilização agregada, nunca conteúdo nem par profissional↔Parceiro.
+- Sessão de 30 minutos apenas no lançamento.
+- Fichas acumulam e não expiram; subutilização é combatida por aviso e medida.
+- Parceiro escolhe entre presentear ficha **ou** estender a sessão, decidido dentro da sala.
+- Parceiro pode ser voluntário, parceria ou remunerado; a plataforma acompanha horas, mas **não
+  processa pagamento**.
+- Piloto fechado em 10/11 com operação manual; self-service depois.
+- Busca no cliente; sem serviço de busca externo.
 
 ## Descartado
 
-- Chat livre mentor↔mentorado fora da janela de 24h da sessão.
-- Ranking público de mentorados ou mentores.
-- Gravação ligada por padrão.
-- Marketplace de cursos.
+- Firebase / Firestore. - Chat livre fora da janela de 24h da sessão. - Ranking público.
+- Gravação por padrão. - Marketplace de cursos. - Pagamento dentro da plataforma.
 
 ## Em aberto
 
-- Mentor ganha moeda por hora doada? (`flags.mentorEarnsCoins`, default false)
-- Mentorado ganha moeda por contribuir? Risco de burla.
-- Nome da moeda (configurável, default "moeda").
+- Nome da plataforma, domínio e identidade visual.
+- O RH escolhe quais Parceiros sua empresa enxerga, ou todos veem todos?
+- Parceiro pode recusar atender determinada empresa?
+- Profissional que sai da empresa: `reclaim` automático ou manual?
+- Parceiro ganha ficha por hora doada? (`flags.partner_earns_fichas`, default false)
 
 ---
 
 ## Estado atual
 
-Etapa: **0** — contrato escrito, terreno verificado.
-Motor de agenda: **não travado ainda**.
+Etapa: **0** — contrato migrado para Supabase. Nada implementado.
+Motor de agenda: **não travado**.
