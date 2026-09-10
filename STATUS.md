@@ -4,7 +4,7 @@ Uma linha por sessão, mais recente no topo. Atualizar **antes** do commit final
 
 | Data | Etapa | O que foi feito | Pendências | Commit |
 |---|---|---|---|---|
-| 2026-09-10 | 0 | Contrato migrado para Supabase; artefatos de Firebase removidos | — | — |
+| 2026-09-10 | 0 | Contrato migrado para Supabase; artefatos de Firebase removidos; `npm run build` verde | — | `27ff6d7` |
 
 ## Bloqueios abertos
 _(nenhum)_
