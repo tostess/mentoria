@@ -47,8 +47,22 @@ const directUrl = required("DIRECT_URL");
 if (secretKey && secretKey === publishableKey) {
   record("chaves distintas", false, "a pública e a secreta são iguais");
 }
-if (secretKey?.startsWith("sb_publishable_")) {
-  record("chave secreta", false, "é uma chave publishable, não a secret");
+/** Chave de API do Supabase: `sb_secret_...`/`sb_publishable_...` ou um JWT. */
+function looksLikeApiKey(value: string) {
+  return /^sb_(secret|publishable)_/.test(value) || value.startsWith("eyJ");
+}
+
+if (secretKey && !looksLikeApiKey(secretKey)) {
+  record(
+    "formato da chave secreta",
+    false,
+    "não parece chave de API (esperado `sb_secret_...`) — senha do banco colada aqui?",
+  );
+} else if (secretKey?.startsWith("sb_publishable_")) {
+  record("formato da chave secreta", false, "é a publishable, não a secret");
+}
+if (publishableKey && !looksLikeApiKey(publishableKey)) {
+  record("formato da chave pública", false, "não parece chave de API");
 }
 
 console.log("\nConexões\n");
@@ -60,6 +74,16 @@ if (url && publishableKey) {
   const { error } = await client.auth.getUser();
   const ok = !error || error.name === "AuthSessionMissingError";
   record("Supabase Auth (publishable)", ok, ok ? "responde" : (error?.message ?? ""));
+}
+
+if (url && secretKey) {
+  // `listUsers` exige a chave secreta: com a publishable o Supabase responde
+  // 401. É a prova de que a chave que ignora RLS é válida mesmo.
+  const admin = createClient(url, secretKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const { error } = await admin.auth.admin.listUsers({ perPage: 1 });
+  record("Supabase Admin (secret)", !error, error ? error.message : "responde");
 }
 
 for (const [label, connection] of [
@@ -87,4 +111,6 @@ console.log(
     ? "\nTudo conectado.\n"
     : `\n${failed.length} verificação(ões) falharam.\n`,
 );
-process.exit(failed.length === 0 ? 0 : 1);
+// `process.exit()` derruba o libuv no Windows enquanto os sockets do Supabase
+// ainda fecham. Marcar o código deixa o Node sair sozinho.
+process.exitCode = failed.length === 0 ? 0 : 1;

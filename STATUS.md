@@ -10,14 +10,22 @@ Uma linha por sessão, mais recente no topo. Atualizar **antes** do commit final
 
 ## Bloqueios abertos
 
-- **`.env.local` pela metade.** `mentoria-dev` existe (ref `pcoqllmquntaidttsvek`) e o Auth
-  responde com a chave publishable — conexão real verificada. Faltam três valores para a Etapa 3
-  poder rodar migração: `SUPABASE_SECRET_KEY`, `DATABASE_URL` (transaction pooler, 6543) e
-  `DIRECT_URL` (session pooler, 5432). Rodar `npm run check:supabase` até dar tudo verde.
+- **`SUPABASE_SECRET_KEY` ainda é a senha do banco, não a chave de API.** O Admin do Supabase
+  responde `Invalid API key`. Pegar a chave `sb_secret_...` em Settings > API Keys. Não bloqueia a
+  Etapa 3 (migração usa `DIRECT_URL`), mas bloqueia todo Route Handler privilegiado — a P3 inteira.
 - **Projeto `mentoria` (produção) ainda não criado.** Invariante 17. Não bloqueia o piloto local.
 
 ## Decisões de sessão
 _(dependência escolhida, atalho tomado, dívida assumida — o que não merece o CLAUDE.md)_
+
+- **2026-09-10 (Etapa 2):** conexão confirmada contra `mentoria-dev`: Postgres 17.6, `public`
+  vazio, `drizzle.__drizzle_migrations` criada por um `db:migrate` sem migração nenhuma. O pooler é
+  `aws-0-sa-east-1.pooler.supabase.com` (usuário `postgres.<ref>`), determinado por sonda: região
+  errada responde "Tenant or user not found", certa responde erro de senha. `btree_gist` **não**
+  está instalado — a Etapa 3 precisa criar antes da constraint de exclusão da invariante 7.
+- **2026-09-10 (Etapa 2):** a senha do banco tem `@`, então vai percent-encoded (`%40`) nas duas
+  URLs. Sem encoding o postgres.js até tolera, mas é sorte: o parser corta no `@` errado. O
+  drizzle-kit foi testado com a forma encodada.
 
 - **2026-09-10 (Etapa 2, revisto):** o projeto `mentoria-dev` usa o esquema **novo** de chaves do
   Supabase (`sb_publishable_...` / `sb_secret_...`), então as variáveis passaram a se chamar
