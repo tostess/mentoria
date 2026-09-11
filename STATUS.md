@@ -4,20 +4,22 @@ Uma linha por sessão, mais recente no topo. Atualizar **antes** do commit final
 
 | Data | Etapa | O que foi feito | Pendências | Commit |
 |---|---|---|---|---|
-| 2026-09-10 | 2 | `.env.local.example`; `env.ts` público e `env.server.ts` com `server-only`; clientes `supabase/client`, `server` e `admin`; Drizzle sobre postgres.js com pool cacheado; `drizzle.config.ts` gerando em `supabase/migrations/` com prefixo `supabase`; `vercel.json` em `gru1`; `GET /api/health`; `npm run check:supabase`; teste estático da invariante 5 | Falta `.env.local` real: nada foi conectado a um projeto Supabase ainda | `7b308da` |
+| 2026-09-10 | 2 | `.env.local.example`; `env.ts` público e `env.server.ts` com `server-only`; clientes `supabase/client`, `server` e `admin`; Drizzle sobre postgres.js com pool cacheado; `drizzle.config.ts` gerando em `supabase/migrations/` com prefixo `supabase`; `vercel.json` em `gru1`; `GET /api/health`; `npm run check:supabase`; teste estático da invariante 5 | — conexão verificada ponta a ponta contra `mentoria-dev` | `7b308da` |
 | 2026-09-10 | 1 | Fontes via `next/font`; 11 componentes em `components/ui`; `theme.ts` com `resolveTheme`; `terms.ts`; shell com sidebar 246px e bloco de topo por papel; grupos `(auth)`, `(professional)`, `(partner)`, `(org)`, `(admin)` com 17 páginas vazias; `/design` só em dev com seletor de accent | Nome da plataforma é placeholder ("Mentoria") até `app_config` | `761d11d` |
 | 2026-09-10 | 0 | Contrato migrado para Supabase; artefatos de Firebase removidos; `npm run build` verde | — | `27ff6d7` |
 
 ## Bloqueios abertos
 
-- **`SUPABASE_SECRET_KEY` ainda é a senha do banco, não a chave de API.** O Admin do Supabase
-  responde `Invalid API key`. Pegar a chave `sb_secret_...` em Settings > API Keys. Não bloqueia a
-  Etapa 3 (migração usa `DIRECT_URL`), mas bloqueia todo Route Handler privilegiado — a P3 inteira.
 - **Projeto `mentoria` (produção) ainda não criado.** Invariante 17. Não bloqueia o piloto local.
+- **Variáveis ainda não cadastradas na Vercel.** Só existem em `.env.local`.
 
 ## Decisões de sessão
 _(dependência escolhida, atalho tomado, dívida assumida — o que não merece o CLAUDE.md)_
 
+- **2026-09-10 (Etapa 2, fechamento):** `npm run check:supabase` todo verde e `GET /api/health`
+  em `next start` respondendo `200` com `ok: true` (banco 17ms pelo pooler de transação). Os três
+  valores tinham ido para campos trocados: a senha do banco no `SUPABASE_SECRET_KEY`, a Project URL
+  no `DATABASE_URL`, e a senha entre colchetes no `DIRECT_URL`.
 - **2026-09-10 (Etapa 2):** conexão confirmada contra `mentoria-dev`: Postgres 17.6, `public`
   vazio, `drizzle.__drizzle_migrations` criada por um `db:migrate` sem migração nenhuma. O pooler é
   `aws-0-sa-east-1.pooler.supabase.com` (usuário `postgres.<ref>`), determinado por sonda: região

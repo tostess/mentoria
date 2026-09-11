@@ -520,7 +520,9 @@ F16 formato grupo · F18 dashboards e exclusão de conta.
 Etapa: **2** — conexão pronta. Três clientes Supabase (`client`/`server`/`admin`), Drizzle sobre
 postgres.js, `drizzle.config.ts` gerando em `supabase/migrations/`, `vercel.json` em `gru1`.
 Invariante 5 travada por `server-only` (quebra o build) e por teste estático.
-Diagnóstico: `npm run check:supabase` e `GET /api/health`.
-Banco ainda vazio — `src/lib/db/schema.ts` é placeholder.
+Diagnóstico: `npm run check:supabase` e `GET /api/health` — ambos verdes contra `mentoria-dev`
+(Postgres 17.6, pooler `aws-0-sa-east-1`).
+Banco ainda vazio — `src/lib/db/schema.ts` é placeholder e `public` não tem tabela.
+`btree_gist` não está instalado: a Etapa 3 cria antes da constraint da invariante 7.
 Próxima: Etapa 3 (esquema, constraints, triggers e RLS).
 Motor de agenda: **não travado**.
