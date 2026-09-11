@@ -4,7 +4,7 @@ Uma linha por sessão, mais recente no topo. Atualizar **antes** do commit final
 
 | Data | Etapa | O que foi feito | Pendências | Commit |
 |---|---|---|---|---|
-| 2026-09-10 | 3 | Esquema em `src/lib/db/schema/` (7 módulos, 27 tabelas); três migrações versionadas — prólogo, base gerada, epílogo; RLS nas 27 com 36 policies; `bookings_no_overlap`; triggers de saldo e imutabilidade; privilégio de coluna em `partners.status` e `profiles.role`; view `org_usage`; `app_config` semeada; 15 testes de invariante contra o Postgres | `org_admin` ainda não tem caminho de leitura além de `org_usage` — confirmar na Etapa 4 | `1e8b744` |
+| 2026-09-10 | 3 | Esquema em `src/lib/db/schema/` (7 módulos, 27 tabelas); três migrações versionadas — prólogo, base gerada, epílogo; RLS nas 27 com 36 policies; `bookings_no_overlap`; triggers de saldo e imutabilidade; privilégio de coluna em `partners.status` e `profiles.role`; view `org_usage`; `app_config` semeada; 20 testes de invariante contra o Postgres, incluindo RLS exercitada como usuário logado | `org_admin` ainda não tem caminho de leitura além de `org_usage` — confirmar na Etapa 4 | `1e8b744` |
 | 2026-09-10 | 2 | `.env.local.example`; `env.ts` público e `env.server.ts` com `server-only`; clientes `supabase/client`, `server` e `admin`; Drizzle sobre postgres.js com pool cacheado; `drizzle.config.ts` gerando em `supabase/migrations/` com prefixo `supabase`; `vercel.json` em `gru1`; `GET /api/health`; `npm run check:supabase`; teste estático da invariante 5 | — conexão verificada ponta a ponta contra `mentoria-dev` | `7b308da` |
 | 2026-09-10 | 1 | Fontes via `next/font`; 11 componentes em `components/ui`; `theme.ts` com `resolveTheme`; `terms.ts`; shell com sidebar 246px e bloco de topo por papel; grupos `(auth)`, `(professional)`, `(partner)`, `(org)`, `(admin)` com 17 páginas vazias; `/design` só em dev com seletor de accent | Nome da plataforma é placeholder ("Mentoria") até `app_config` | `761d11d` |
 | 2026-09-10 | 0 | Contrato migrado para Supabase; artefatos de Firebase removidos; `npm run build` verde | — | `27ff6d7` |
@@ -36,6 +36,12 @@ _(dependência escolhida, atalho tomado, dívida assumida — o que não merece 
 - **2026-09-10 (Etapa 3):** os testes de invariante rodam em transação com rollback forçado e se
   **pulam sozinhos** sem `DIRECT_URL`, para a suíte não quebrar em CI sem credencial. Verificado por
   mutação: com sessões que não se cruzam, o teste de sobreposição falha em vez de passar à toa.
+- **2026-09-10 (Etapa 3):** a invariante 10 é testada por **comportamento**, não por catálogo:
+  `set local role authenticated` mais `request.jwt.claims` reproduzem o contexto que o PostgREST
+  monta, e o RH consulta de verdade. Os testes se validam entre si — se a troca de papel falhasse,
+  o RH enxergaria a sessão. Confirmado por mutação: com as claims do Profissional dono, a mesma
+  query devolve 1 em vez de 0. A primeira versão do teste era vazia (checava briefing e livro-caixa
+  em tabelas sem linha); agora o cenário insere os dois antes de conferir que o RH não os vê.
 
 - **2026-09-10 (Etapa 2, fechamento):** `npm run check:supabase` todo verde e `GET /api/health`
   em `next start` respondendo `200` com `ok: true` (banco 17ms pelo pooler de transação). Os três

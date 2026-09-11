@@ -308,3 +308,152 @@ run("invariante 10 — o RH nunca vê conteúdo de sessão", () => {
     expect(rows).toEqual([]);
   });
 });
+
+/**
+ * RLS exercitada como usuário de verdade, não por inspeção de catálogo.
+ *
+ * `set local role authenticated` + `request.jwt.claims` reproduzem exatamente
+ * o contexto que o PostgREST monta a partir do JWT. É a diferença entre
+ * "nenhuma policy menciona org_admin" e "o RH tentou ler e não veio linha".
+ */
+async function comoUsuario(
+  tx: postgres.TransactionSql,
+  claims: { sub?: string; user_role: string; org_id?: string },
+) {
+  await tx.unsafe(`set local role authenticated`);
+  await tx.unsafe(
+    `set local request.jwt.claims = ${literal(JSON.stringify({ role: "authenticated", ...claims }))}`,
+  );
+}
+
+/** Aspas simples escapadas para literal SQL. */
+function literal(value: string) {
+  return `'${value.replace(/'/g, "''")}'`;
+}
+
+async function voltarAoServidor(tx: postgres.TransactionSql) {
+  await tx.unsafe(`reset role`);
+  await tx.unsafe(`select set_config('request.jwt.claims', '', true)`);
+}
+
+run("invariante 10 — comportamento, com RLS ativa", () => {
+  it("o RH não enxerga uma única linha de bookings da própria empresa", async () => {
+    const visto = await inRollback(async (tx) => {
+      const { orgId, professionalId, partnerId } = await seed(tx);
+      const [booking] = await tx<{ id: string }[]>`
+        insert into bookings (org_id, partner_id, professional_id, start_at, end_at, status)
+        values (${orgId}, ${partnerId}, ${professionalId},
+                '2027-04-01T13:00:00Z'::timestamptz,
+                '2027-04-01T13:30:00Z'::timestamptz, 'confirmed')
+        returning id`;
+
+      // Sem estas duas linhas as asserções de briefing e livro-caixa passariam
+      // vazias — tabela sem linha devolve zero por motivo nenhum.
+      await tx`
+        insert into briefings (booking_id, professional_id, goal)
+        values (${booking.id}, ${professionalId}, 'Quero estruturar minha transição')`;
+      await tx`
+        insert into wallet_ledger (user_id, org_id, type, amount, balance_after, idempotency_key)
+        values (${professionalId}, ${orgId}, 'allocate', 2, 0, ${`rh-${Date.now()}`})`;
+
+      const [rh] = await tx<{ id: string }[]>`
+        insert into auth.users (id, instance_id, aud, role, email)
+        values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000',
+                'authenticated', 'authenticated', ${`rh-${Date.now()}@teste.local`})
+        returning id`;
+      await tx`
+        insert into profiles (id, org_id, role, name, email)
+        values (${rh.id}, ${orgId}, 'org_admin', 'RH Teste', 'rh@teste.local')`;
+
+      await comoUsuario(tx, { sub: rh.id, user_role: "org_admin", org_id: orgId });
+      const bookings = await tx<{ id: string }[]>`select id from bookings`;
+      const briefings = await tx<{ id: string }[]>`select id from briefings`;
+      const ledger = await tx<{ id: string }[]>`select id from wallet_ledger`;
+      await voltarAoServidor(tx);
+
+      return { bookings: bookings.length, briefings: briefings.length, ledger: ledger.length };
+    });
+
+    expect(visto).toEqual({ bookings: 0, briefings: 0, ledger: 0 });
+  });
+
+  it("o Profissional dono enxerga a própria sessão", async () => {
+    const n = await inRollback(async (tx) => {
+      const { orgId, professionalId, partnerId } = await seed(tx);
+      await tx`
+        insert into bookings (org_id, partner_id, professional_id, start_at, end_at, status)
+        values (${orgId}, ${partnerId}, ${professionalId},
+                '2027-04-01T13:00:00Z'::timestamptz,
+                '2027-04-01T13:30:00Z'::timestamptz, 'confirmed')`;
+
+      await comoUsuario(tx, { sub: professionalId, user_role: "professional", org_id: orgId });
+      const rows = await tx<{ id: string }[]>`select id from bookings`;
+      await voltarAoServidor(tx);
+      return rows.length;
+    });
+
+    expect(n).toBe(1);
+  });
+
+  it("o Parceiro da sessão também enxerga", async () => {
+    const n = await inRollback(async (tx) => {
+      const { orgId, professionalId, partnerId } = await seed(tx);
+      await tx`
+        insert into bookings (org_id, partner_id, professional_id, start_at, end_at, status)
+        values (${orgId}, ${partnerId}, ${professionalId},
+                '2027-04-01T13:00:00Z'::timestamptz,
+                '2027-04-01T13:30:00Z'::timestamptz, 'confirmed')`;
+
+      await comoUsuario(tx, { sub: partnerId, user_role: "partner" });
+      const rows = await tx<{ id: string }[]>`select id from bookings`;
+      await voltarAoServidor(tx);
+      return rows.length;
+    });
+
+    expect(n).toBe(1);
+  });
+});
+
+run("invariante 9 — isolamento entre empresas concorrentes", () => {
+  it("um Profissional não vê o perfil de colaborador de outra empresa", async () => {
+    const visto = await inRollback(async (tx) => {
+      const a = await seed(tx);
+      const b = await seed(tx);
+
+      await comoUsuario(tx, { sub: a.professionalId, user_role: "professional", org_id: a.orgId });
+      const rows = await tx<{ id: string }[]>`
+        select id from profiles where id = ${b.professionalId}`;
+      // O Parceiro ativo, esse sim, é visível — é da plataforma.
+      const parceiro = await tx<{ id: string }[]>`
+        select id from profiles where id = ${b.partnerId}`;
+      await voltarAoServidor(tx);
+
+      return { outraEmpresa: rows.length, parceiro: parceiro.length };
+    });
+
+    expect(visto.outraEmpresa).toBe(0);
+    expect(visto.parceiro).toBe(1);
+  });
+
+  it("a carteira é só do dono, nem para colega da mesma empresa", async () => {
+    const n = await inRollback(async (tx) => {
+      const { orgId, professionalId } = await seed(tx);
+      const [colega] = await tx<{ id: string }[]>`
+        insert into auth.users (id, instance_id, aud, role, email)
+        values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000',
+                'authenticated', 'authenticated', ${`col-${Date.now()}@teste.local`})
+        returning id`;
+      await tx`
+        insert into profiles (id, org_id, role, name, email)
+        values (${colega.id}, ${orgId}, 'professional', 'Colega', 'col@teste.local')`;
+
+      await comoUsuario(tx, { sub: colega.id, user_role: "professional", org_id: orgId });
+      const rows = await tx<{ user_id: string }[]>`
+        select user_id from wallets where user_id = ${professionalId}`;
+      await voltarAoServidor(tx);
+      return rows.length;
+    });
+
+    expect(n).toBe(0);
+  });
+});
