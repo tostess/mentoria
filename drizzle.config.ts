@@ -11,7 +11,7 @@ const url = process.env.DIRECT_URL ?? process.env.DATABASE_URL ?? "";
 
 export default defineConfig({
   dialect: "postgresql",
-  schema: "./src/lib/db/schema.ts",
+  schema: "./src/lib/db/schema/index.ts",
   // Invariante: migração é arquivo versionado aqui, nunca mudança pelo painel.
   out: "./supabase/migrations",
   // Prefixo com timestamp para o nome bater com o do CLI do Supabase.
@@ -19,6 +19,9 @@ export default defineConfig({
   dbCredentials: { url },
   // O Supabase mantém esquemas próprios; o drizzle só enxerga o `public`.
   schemaFilter: ["public"],
+  // `authenticated`, `anon` e `service_role` são do Supabase: o drizzle usa,
+  // não gerencia. Sem isso ele geraria `create role` e `drop role` para eles.
+  entities: { roles: { provider: "supabase" } },
   verbose: true,
   strict: true,
 });

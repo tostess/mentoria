@@ -4,6 +4,7 @@ Uma linha por sessão, mais recente no topo. Atualizar **antes** do commit final
 
 | Data | Etapa | O que foi feito | Pendências | Commit |
 |---|---|---|---|---|
+| 2026-09-10 | 3 | Esquema em `src/lib/db/schema/` (7 módulos, 27 tabelas); três migrações versionadas — prólogo, base gerada, epílogo; RLS nas 27 com 36 policies; `bookings_no_overlap`; triggers de saldo e imutabilidade; privilégio de coluna em `partners.status` e `profiles.role`; view `org_usage`; `app_config` semeada; 15 testes de invariante contra o Postgres | `org_admin` ainda não tem caminho de leitura além de `org_usage` — confirmar na Etapa 4 | `` |
 | 2026-09-10 | 2 | `.env.local.example`; `env.ts` público e `env.server.ts` com `server-only`; clientes `supabase/client`, `server` e `admin`; Drizzle sobre postgres.js com pool cacheado; `drizzle.config.ts` gerando em `supabase/migrations/` com prefixo `supabase`; `vercel.json` em `gru1`; `GET /api/health`; `npm run check:supabase`; teste estático da invariante 5 | — conexão verificada ponta a ponta contra `mentoria-dev` | `7b308da` |
 | 2026-09-10 | 1 | Fontes via `next/font`; 11 componentes em `components/ui`; `theme.ts` com `resolveTheme`; `terms.ts`; shell com sidebar 246px e bloco de topo por papel; grupos `(auth)`, `(professional)`, `(partner)`, `(org)`, `(admin)` com 17 páginas vazias; `/design` só em dev com seletor de accent | Nome da plataforma é placeholder ("Mentoria") até `app_config` | `761d11d` |
 | 2026-09-10 | 0 | Contrato migrado para Supabase; artefatos de Firebase removidos; `npm run build` verde | — | `27ff6d7` |
@@ -15,6 +16,26 @@ Uma linha por sessão, mais recente no topo. Atualizar **antes** do commit final
 
 ## Decisões de sessão
 _(dependência escolhida, atalho tomado, dívida assumida — o que não merece o CLAUDE.md)_
+
+- **2026-09-10 (Etapa 3):** três migrações em vez de uma, por ordem de dependência. As policies
+  chamam `auth_role()` e o Postgres resolve a função no `create policy`, então ela tem de existir
+  antes do arquivo que cria as tabelas. O prólogo foi criado com `drizzle-kit generate --custom`
+  **antes** do `generate` normal, para o journal ficar consistente — o snapshot do custom nasce
+  vazio, então a base sai completa depois dele.
+- **2026-09-10 (Etapa 3):** `profiles` ganhou uma policy a mais do que o `CLAUDE.md` previa: o
+  perfil de qualquer Parceiro **ativo** é legível por qualquer autenticado. Sem ela a busca da P4
+  devolveria Parceiros sem nome, porque `partners` é visível a todas as empresas (invariante 9) mas
+  o nome mora em `profiles`. É a leitura mínima que faz a invariante 9 funcionar de ponta a ponta.
+- **2026-09-10 (Etapa 3):** `wallets.last_used_at` passou a ser preenchido pelo mesmo trigger do
+  saldo, quando o lançamento é negativo. É o que alimenta o `nudge-idle` sem job extra.
+- **2026-09-10 (Etapa 3):** `gift_quotas` tem `period` (`YYYYMM`) na chave primária em vez de um job
+  de reset mensal — quota que não acumula é quota cujo mês novo simplesmente não tem linha ainda.
+- **2026-09-10 (Etapa 3):** `moderation_queue.ref_id` é polimórfico (aponta para a tabela indicada
+  por `kind`), sem FK. Dívida assumida: o banco não garante a integridade desse ponteiro. A
+  alternativa era uma coluna por tipo, que cresce a cada tipo novo.
+- **2026-09-10 (Etapa 3):** os testes de invariante rodam em transação com rollback forçado e se
+  **pulam sozinhos** sem `DIRECT_URL`, para a suíte não quebrar em CI sem credencial. Verificado por
+  mutação: com sessões que não se cruzam, o teste de sobreposição falha em vez de passar à toa.
 
 - **2026-09-10 (Etapa 2, fechamento):** `npm run check:supabase` todo verde e `GET /api/health`
   em `next start` respondendo `200` com `ok: true` (banco 17ms pelo pooler de transação). Os três

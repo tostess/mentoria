@@ -1,1 +1,27 @@
-{"version":"7","dialect":"postgresql","entries":[]}
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1789090948448,
+      "tag": "20260911014228_prologo",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1789091001029,
+      "tag": "20260911014321_esquema_base",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789091004275,
+      "tag": "20260911014324_invariantes",
+      "breakpoints": true
+    }
+  ]
+}

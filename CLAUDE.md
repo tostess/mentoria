@@ -499,6 +499,14 @@ F16 formato grupo · F18 dashboards e exclusão de conta.
   migração versionada. Só `db:generate` + `db:migrate`.
 - **No Next 16 `middleware.ts` virou `proxy.ts`.** É lá que a sessão do Supabase é renovada, na
   Etapa 4. Enquanto ele não existir, `supabase/server.ts` engole o erro de escrita de cookie.
+- **`auth_role()` devolve `text`, não `user_role`.** As policies são criadas na mesma migração que
+  o enum, e o Postgres resolve a função no `create policy` — então ela precisa existir antes do
+  tipo. A comparação é idêntica; perde-se só o erro de digitação pego pelo tipo.
+- **RLS decide linha; privilégio de coluna decide coluna.** `status` de `partners` e `role`/`org_id`
+  de `profiles` são protegidos por `revoke update` + `grant update (colunas)`, não por policy.
+- **`org_usage` é view que roda como dona**, ignorando a RLS de `wallet_ledger` de propósito: é o
+  que deixa o RH ver o agregado sem nunca ver a linha. O recorte por empresa vive no `where`, via
+  `can_read_org()`.
 
 ## Descartado
 
@@ -517,12 +525,13 @@ F16 formato grupo · F18 dashboards e exclusão de conta.
 
 ## Estado atual
 
-Etapa: **2** — conexão pronta. Três clientes Supabase (`client`/`server`/`admin`), Drizzle sobre
-postgres.js, `drizzle.config.ts` gerando em `supabase/migrations/`, `vercel.json` em `gru1`.
+Etapa: **3** — esquema aplicado em `mentoria-dev`. 27 tabelas, RLS ligada nas 27, 36 policies,
+27 checks, a constraint de exclusão `bookings_no_overlap`, os quatro triggers de livro-caixa mais
+o de `audit_logs`, a view `org_usage` e `app_config` semeada com `ficha_policy`, `limits` e `flags`.
+Três migrações versionadas: prólogo (extensões e helpers de JWT), esquema base gerado pelo Drizzle,
+epílogo (o que o Drizzle não modela).
+Invariantes 3, 4, 7, 8, 9, 10 e 16 cobertas por teste contra o Postgres de verdade
+(`src/lib/db/invariantes.test.ts`, 15 casos em transação com rollback).
 Invariante 5 travada por `server-only` (quebra o build) e por teste estático.
-Diagnóstico: `npm run check:supabase` e `GET /api/health` — ambos verdes contra `mentoria-dev`
-(Postgres 17.6, pooler `aws-0-sa-east-1`).
-Banco ainda vazio — `src/lib/db/schema.ts` é placeholder e `public` não tem tabela.
-`btree_gist` não está instalado: a Etapa 3 cria antes da constraint da invariante 7.
-Próxima: Etapa 3 (esquema, constraints, triggers e RLS).
+Próxima: Etapa 4 (auth, papéis e config — inclui pôr `user_role` e `org_id` no JWT).
 Motor de agenda: **não travado**.
