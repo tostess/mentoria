@@ -1,13 +1,13 @@
 import type { ReactNode } from "react";
 import { Ficha } from "@/components/ui/Ficha";
 import type { Shell } from "@/lib/roles";
-import { cap, terms } from "@/lib/terms";
+import { cap, type Terms } from "@/lib/terms";
 
 /**
  * Bloco de topo da sidebar, por papel. Números são placeholder da Etapa 1 —
  * passam a vir do banco quando cada papel ganhar sua fase.
  */
-export function SidebarTop({ shell }: { shell: Shell }) {
+export function SidebarTop({ shell, terms }: { shell: Shell; terms: Terms }) {
   switch (shell) {
     case "professional":
       return (

@@ -23,19 +23,21 @@ export type Theme = {
   successSoft: string;
   danger: string;
   dangerSoft: string;
-  /** Nome exibido na marca. Placeholder até vir de app_config. */
+  /** Nome exibido na marca. Vem de `branding.name`; o default é placeholder. */
   platformName: string;
   logoUrl: string | null;
 };
 
-/** Recorte mínimo de `app_config` que o tema precisa. Cresce na Etapa 4. */
-export type ThemeConfig = {
-  branding?: {
-    accent?: string | null;
-    name?: string | null;
-    logoUrl?: string | null;
-  } | null;
-} | null;
+/**
+ * O que a empresa sobrescreve. Mora aqui, e não no módulo de configuração,
+ * porque `normalizeHex` é daqui: se o tipo morasse lá, os dois módulos se
+ * importariam em círculo por causa de uma validação de hex.
+ */
+export type Branding = {
+  accent: string | null;
+  name: string | null;
+  logoUrl: string | null;
+};
 
 export const DEFAULT_THEME: Theme = {
   ink: "#2A1B26",
@@ -103,10 +105,16 @@ export function onSoft(hex: string): string {
   return onAccent(hex) === DEFAULT_THEME.white ? hex : DEFAULT_THEME.ink;
 }
 
-export function resolveTheme(config: ThemeConfig): Theme {
-  const branding = config?.branding ?? null;
-  const accent = normalizeHex(branding?.accent) ?? DEFAULT_THEME.accent;
-  const platformName = branding?.name?.trim() || DEFAULT_THEME.platformName;
-  const logoUrl = branding?.logoUrl?.trim() || null;
-  return { ...DEFAULT_THEME, accent, platformName, logoUrl };
+/**
+ * Branding resolvido → tema. Só `accent`, nome e logotipo mudam por empresa:
+ * ink, ouro e os tons de estado são estrutura do sistema de design e não
+ * entram na personalização.
+ */
+export function resolveTheme(branding: Branding | null): Theme {
+  return {
+    ...DEFAULT_THEME,
+    accent: normalizeHex(branding?.accent) ?? DEFAULT_THEME.accent,
+    platformName: branding?.name?.trim() || DEFAULT_THEME.platformName,
+    logoUrl: branding?.logoUrl?.trim() || null,
+  };
 }

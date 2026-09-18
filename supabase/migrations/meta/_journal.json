@@ -22,6 +22,20 @@
       "when": 1789091004275,
       "tag": "20260911014324_invariantes",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1789524630112,
+      "tag": "20260916021030_auth_claims",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1789703011144,
+      "tag": "20260918034331_copy_e_branding",
+      "breakpoints": true
     }
   ]
 }

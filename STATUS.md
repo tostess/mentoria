@@ -4,6 +4,7 @@ Uma linha por sessão, mais recente no topo. Atualizar **antes** do commit final
 
 | Data | Etapa | O que foi feito | Pendências | Commit |
 |---|---|---|---|---|
+| 2026-09-18 | 4 | Hook `custom_access_token_hook` (invariante 19) e `app_config` com `copy` e `branding`; `src/proxy.ts` renovando sessão e roteando por papel; `lib/auth/` (claims, rotas, sessão, ações) e `lib/config/` (parse puro + carga no servidor); entrada real por Server Action, sair, `requireRole()` nos quatro layouts; vocabulário e marca vindos do banco, com sobrescrita por empresa; 49 testes novos (89 no total) | **Hook desligado no painel** — sem ativar, ninguém entra | _(a registrar)_ |
 | 2026-09-10 | 3 | Esquema em `src/lib/db/schema/` (7 módulos, 27 tabelas); três migrações versionadas — prólogo, base gerada, epílogo; RLS nas 27 com 36 policies; `bookings_no_overlap`; triggers de saldo e imutabilidade; privilégio de coluna em `partners.status` e `profiles.role`; view `org_usage`; `app_config` semeada; 20 testes de invariante contra o Postgres, incluindo RLS exercitada como usuário logado | `org_admin` ainda não tem caminho de leitura além de `org_usage` — confirmar na Etapa 4 | `1e8b744` |
 | 2026-09-10 | 2 | `.env.local.example`; `env.ts` público e `env.server.ts` com `server-only`; clientes `supabase/client`, `server` e `admin`; Drizzle sobre postgres.js com pool cacheado; `drizzle.config.ts` gerando em `supabase/migrations/` com prefixo `supabase`; `vercel.json` em `gru1`; `GET /api/health`; `npm run check:supabase`; teste estático da invariante 5 | — conexão verificada ponta a ponta contra `mentoria-dev` | `7b308da` |
 | 2026-09-10 | 1 | Fontes via `next/font`; 11 componentes em `components/ui`; `theme.ts` com `resolveTheme`; `terms.ts`; shell com sidebar 246px e bloco de topo por papel; grupos `(auth)`, `(professional)`, `(partner)`, `(org)`, `(admin)` com 17 páginas vazias; `/design` só em dev com seletor de accent | Nome da plataforma é placeholder ("Mentoria") até `app_config` | `761d11d` |
@@ -11,11 +12,65 @@ Uma linha por sessão, mais recente no topo. Atualizar **antes** do commit final
 
 ## Bloqueios abertos
 
+- **Hook de access token desligado no painel do `mentoria-dev`.** Authentication → Hooks →
+  Customize Access Token → `public.custom_access_token_hook`. A função existe, está testada e é
+  chamada pelo GoTrue, não pela aplicação — enquanto o gancho não for ligado o token sai sem
+  `user_role`, `parseClaims()` devolve null e todo login termina em "acesso inativo". Verificado
+  em 18/09 criando usuário pela API de admin, entrando e decodificando o JWT: só `sub`.
 - **Projeto `mentoria` (produção) ainda não criado.** Invariante 17. Não bloqueia o piloto local.
 - **Variáveis ainda não cadastradas na Vercel.** Só existem em `.env.local`.
 
 ## Decisões de sessão
 _(dependência escolhida, atalho tomado, dívida assumida — o que não merece o CLAUDE.md)_
+
+- **2026-09-18 (Etapa 4):** o `mentoria-dev` estava fora do ar no começo da sessão — gateway
+  devolvendo 521 e o pooler dizendo "tenant not found" nas duas regiões, sintoma de projeto
+  pausado. Voltou sozinho durante a sessão. A sonda de região do `check:supabase` não distingue
+  pausado de região errada, e o check deu **verde falso** em "Supabase Auth (publishable)": ele
+  aceita qualquer erro que não seja de sessão, e um 521 passou. Vale apertar quando sobrar tempo.
+- **2026-09-18 (Etapa 4):** confirmada a pendência aberta na Etapa 3 — o `org_admin` continua sem
+  caminho de leitura além de `org_usage`, e isso é a invariante 10, não lacuna. A Etapa 4 estendeu
+  a regra para a rota: `canAccess('org_admin', '/agenda')` é false, coberto por teste. Quando o
+  console do RH chegar (F2), ele lê agregado; nunca `bookings`.
+- **2026-09-18 (Etapa 4):** `getClaims()` no lugar de `getUser()`. As claims que importam
+  (`user_role`, `org_id`) são customizadas e não aparecem no objeto de usuário — `getUser()`
+  obrigaria a reler `profiles` a cada requisição, que é exatamente o que a invariante 19 proíbe.
+- **2026-09-18 (Etapa 4):** o build quebrou antes de existir `force-dynamic` no layout raiz: o
+  Next tentava pré-renderizar as cascas, cada worker abria conexão com o Postgres e estourava 60s
+  por página. A correção não é timeout, é dizer a verdade — nada aqui é estático.
+- **2026-09-18 (Etapa 4):** o proxy **fecha** quando falta variável do Supabase, em vez de deixar
+  passar. Deploy com variável faltando não pode virar aplicação sem porta; a tela de entrada
+  continua de pé e o erro aparece lá.
+- **2026-09-18 (Etapa 4):** `parseClaims()` recusa token cujo `org_id` não combina com o papel
+  (invariante 9). Token coerente não tem como chegar assim — o `check` de `profiles` impede a
+  linha que o geraria — então chegar significa token forjado, e a resposta é não.
+- **2026-09-18 (Etapa 4):** o teste do hook nasceu medindo a si mesmo. Passando o evento com
+  `JSON.stringify`, o postgres.js infere o tipo pelo `::jsonb` do SQL e serializa a string **como**
+  jsonb, produzindo um jsonb string em vez de objeto: o hook não achava `user_id` e devolvia o
+  evento intacto, e 9 dos 12 casos falhavam por motivo errado. Vai por `tx.json()`.
+- **2026-09-18 (Etapa 4):** o caso "roda como `supabase_auth_admin`" não dá para exercitar — o
+  `postgres` não é membro desse papel e `set role` é negado. Virou asserção de privilégio via
+  `has_function_privilege` / `has_table_privilege` mais a policy conferida por existir, ser
+  permissiva e valer para o papel. É mais fraco que comportamento, e está anotado como tal.
+  Conferido por mutação que a asserção discrimina: para `authenticated` e `anon` dá false.
+- **2026-09-18 (Etapa 4):** `anon` tem `select` de tabela em `public.profiles` (grant default do
+  Supabase, herdado da Etapa 3). Não é furo: sem policy que case, a RLS devolve zero linhas —
+  verificado por consulta com `set local role anon`.
+- **2026-09-18 (Etapa 4):** `revoke execute` no hook pegou `public`, `anon` e `authenticated`, mas
+  `service_role` e `postgres` continuam com EXECUTE. Não acrescenta poder — os dois já leem
+  `profiles` inteira sem passar por função nenhuma. O comentário da migração diz "só o servidor de
+  auth", o que é impreciso para esses dois; o arquivo não foi editado porque já está aplicado e
+  tem hash no journal.
+- **2026-09-18 (Etapa 4):** botão de entrar com Google saiu da tela. No piloto a conta é criada
+  pelo admin, o Parceiro entra por convite (invariante 8) e não há self-service — o botão
+  desabilitado prometia um caminho que não existe.
+- **2026-09-18 (Etapa 4):** `platformName` saiu de `Terms` e foi para `branding`. É marca, não
+  vocabulário, e estava duplicado com o nome que o tema já resolvia.
+- **2026-09-18 (Etapa 4):** removido o export estático `terms`; as 16 páginas de esqueleto viraram
+  Server Components que chamam `loadTerms()`, e `Ficha`/`Price` viraram componentes de cliente com
+  `useTerms()`. Um teste de varredura impede o export voltar e impede tela importar `DEFAULT_TERMS`.
+- **2026-09-18 (Etapa 4):** o índice de cascas em `/` morreu, e com ele o link "Trocar de casca" da
+  sidebar. Trocar de casca deixou de existir quando o papel passou a vir do JWT.
 
 - **2026-09-10 (Etapa 3):** três migrações em vez de uma, por ordem de dependência. As policies
   chamam `auth_role()` e o Postgres resolve a função no `create policy`, então ela tem de existir

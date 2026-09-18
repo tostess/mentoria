@@ -1,12 +1,16 @@
+"use client";
+
+import { useTerms } from "@/components/config/TermsProvider";
 import { Ficha } from "@/components/ui/Ficha";
 import { countFichas } from "@/lib/terms";
 
 /** Preço em fichas. Sempre com a ficha ao lado — nunca só o número. */
 export function Price({ fichas, className = "" }: { fichas: number; className?: string }) {
+  const terms = useTerms();
   return (
     <span
       className={`inline-flex items-center gap-[5px] rounded-full bg-[#FBF1DE] py-1 pl-[6px] pr-[9px] font-mono text-[12px] font-semibold text-[#7A5209] ${className}`}
-      aria-label={countFichas(fichas)}
+      aria-label={countFichas(fichas, terms)}
     >
       <Ficha size="s" />
       {fichas}

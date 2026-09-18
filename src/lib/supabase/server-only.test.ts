@@ -23,6 +23,8 @@ const SERVER_ONLY_MODULES = [
   "@/lib/supabase/admin",
   "@/lib/supabase/server",
   "@/lib/db",
+  "@/lib/auth/session",
+  "@/lib/config/load",
 ];
 
 function sourceFiles(dir: string): string[] {
@@ -74,7 +76,14 @@ describe("invariante 5 — service_role só no servidor", () => {
   });
 
   it("todo módulo de servidor declara `server-only`", () => {
-    const guarded = ["lib/env.server.ts", "lib/supabase/admin.ts", "lib/supabase/server.ts", "lib/db/index.ts"];
+    const guarded = [
+      "lib/env.server.ts",
+      "lib/supabase/admin.ts",
+      "lib/supabase/server.ts",
+      "lib/db/index.ts",
+      "lib/auth/session.ts",
+      "lib/config/load.ts",
+    ];
     const missing = guarded.filter((id) => {
       const file = files.find((f) => f.id === id);
       return !file || !file.code.includes('import "server-only"');

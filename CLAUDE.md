@@ -497,8 +497,9 @@ F16 formato grupo · F18 dashboards e exclusão de conta.
   runtime serverless; `DIRECT_URL` na 5432 para DDL — pooler de transação não aceita migração.
 - **`drizzle-kit push` não existe no projeto.** Sincroniza sem gerar arquivo e fura a regra de
   migração versionada. Só `db:generate` + `db:migrate`.
-- **No Next 16 `middleware.ts` virou `proxy.ts`.** É lá que a sessão do Supabase é renovada, na
-  Etapa 4. Enquanto ele não existir, `supabase/server.ts` engole o erro de escrita de cookie.
+- **No Next 16 `middleware.ts` virou `proxy.ts`.** É lá que a sessão do Supabase é renovada — por
+  isso `supabase/server.ts` engole o erro de escrita de cookie: Server Component não grava, o
+  proxy grava. Exporta função `proxy`, roda sempre em Node e não aceita config de segmento.
 - **`auth_role()` devolve `text`, não `user_role`.** As policies são criadas na mesma migração que
   o enum, e o Postgres resolve a função no `create policy` — então ela precisa existir antes do
   tipo. A comparação é idêntica; perde-se só o erro de digitação pego pelo tipo.
@@ -507,6 +508,28 @@ F16 formato grupo · F18 dashboards e exclusão de conta.
 - **`org_usage` é view que roda como dona**, ignorando a RLS de `wallet_ledger` de propósito: é o
   que deixa o RH ver o agregado sem nunca ver a linha. O recorte por empresa vive no `where`, via
   `can_read_org()`.
+- **A sessão é lida com `getClaims()`, nunca com `getUser()`.** `user_role` e `org_id` são claims
+  customizadas escritas pelo hook na emissão do token; o objeto de usuário do servidor de auth não
+  as carrega. De quebra, `getClaims()` verifica a assinatura localmente com chave assimétrica.
+- **A migração cria o hook; o painel liga.** `custom_access_token_hook` é chamado pelo GoTrue, não
+  pela aplicação, e a ativação vive em Authentication → Hooks. Migração aplicada com o gancho
+  desligado é esquema montado e inerte: ninguém recebe papel e toda policy nega, sem erro nenhum.
+- **Nada é estático: `force-dynamic` no layout raiz.** Ele lê a sessão para resolver marca e
+  vocabulário, e toda tela abaixo é de um papel e de uma empresa. Sem isso o build tenta
+  pré-renderizar as cascas onde não há cookie nem requisição.
+- **Rota casa por segmento, não por string.** `/parceiros` é a busca do Profissional e `/parceiro`
+  é a casca do Parceiro: com `startsWith` puro o Profissional cai na casca errada, e como as duas
+  telas existem o sintoma não é 404, é papel trocado.
+- **`/api` fica fora do matcher do proxy.** Route Handler se protege sozinho; cron da Vercel e
+  webhook do Daily chegam com segredo em cabeçalho e sem cookie, e o guarda de sessão só os
+  barraria.
+- **`terms.ts` não exporta objeto de termos pronto.** Exportar um seria o caminho mais curto para
+  um "Parceiro" congelado no bundle. Quem precisa de termos chama `loadTerms()` no servidor ou
+  `useTerms()` no cliente; `DEFAULT_TERMS` é fallback de banco fora do ar, não vocabulário.
+- **Nome da plataforma é marca, não vocabulário.** Saiu de `copy.terms` e passou a viver em
+  `branding`, junto de accent e logotipo — o mesmo lugar que a empresa sobrescreve.
+- **Configuração degrada para o default; dado falha alto.** `app_config` fora do ar devolve os
+  defaults e a tela sobe. Saldo, agenda e sessão não têm esse direito.
 
 ## Descartado
 
@@ -525,13 +548,22 @@ F16 formato grupo · F18 dashboards e exclusão de conta.
 
 ## Estado atual
 
-Etapa: **3** — esquema aplicado em `mentoria-dev`. 27 tabelas, RLS ligada nas 27, 36 policies,
-27 checks, a constraint de exclusão `bookings_no_overlap`, os quatro triggers de livro-caixa mais
-o de `audit_logs`, a view `org_usage` e `app_config` semeada com `ficha_policy`, `limits` e `flags`.
-Três migrações versionadas: prólogo (extensões e helpers de JWT), esquema base gerado pelo Drizzle,
-epílogo (o que o Drizzle não modela).
-Invariantes 3, 4, 7, 8, 9, 10 e 16 cobertas por teste contra o Postgres de verdade
-(`src/lib/db/invariantes.test.ts`, 15 casos em transação com rollback).
-Invariante 5 travada por `server-only` (quebra o build) e por teste estático.
-Próxima: Etapa 4 (auth, papéis e config — inclui pôr `user_role` e `org_id` no JWT).
-Motor de agenda: **não travado**.
+Etapa: **4** — auth, papéis e config. Cinco migrações versionadas em `mentoria-dev`: prólogo,
+esquema base, epílogo, `auth_claims` (o `custom_access_token_hook`, invariante 19) e
+`copy_e_branding` (`app_config` ganhou as chaves `copy` e `branding`).
+
+Entrada por e-mail e senha em Server Action, `proxy.ts` renovando a sessão e mandando cada papel
+para a sua casca, `requireRole()` repetindo a regra dentro de cada layout, e `app_config`
+alimentando vocabulário e marca — com sobrescrita por empresa via `orgs.branding`.
+
+89 testes em 7 arquivos. Invariante 19 coberta das duas pontas
+(`src/lib/auth/hook.test.ts`, 12 casos contra o Postgres de verdade): o hook escreve as claims, e
+`auth_role()` / `auth_org_id()` leem exatamente o que ele escreveu. Invariantes 3, 4, 7, 8, 9, 10
+e 16 seguem em `src/lib/db/invariantes.test.ts`. Invariante 5 travada por `server-only` mais teste
+estático, agora cobrindo também `lib/auth/session.ts` e `lib/config/load.ts`.
+
+**Pendência que bloqueia o login:** o hook está no banco e testado, mas **desligado no painel**.
+Sem ativar em Authentication → Hooks → Customize Access Token, o token sai sem `user_role` e todo
+mundo cai em "acesso inativo". Verificado end-to-end em 18/09/2026.
+
+Próxima: Etapa 5 (motor de agenda). Motor de agenda: **não travado**.

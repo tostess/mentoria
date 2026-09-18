@@ -1,6 +1,7 @@
 import { StubPage } from "@/components/shell/StubPage";
-import { terms } from "@/lib/terms";
+import { loadTerms } from "@/lib/config/load";
 
-export default function Page() {
-  return <StubPage eyebrow={terms.professional} title={terms.partners} phase="P4" />;
+export default async function Page() {
+  const t = await loadTerms();
+  return <StubPage eyebrow={t.professional} title={t.partners} phase="P4" />;
 }

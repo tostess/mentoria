@@ -20,8 +20,9 @@ import {
   Stat,
   Tag,
 } from "@/components/ui";
-import { NAV_BY_SHELL, SHELL_LABEL, type Shell } from "@/lib/roles";
-import { cap, countFichas, terms } from "@/lib/terms";
+import { useTerms } from "@/components/config/TermsProvider";
+import { navFor, shellLabel, type Shell } from "@/lib/roles";
+import { cap, countFichas } from "@/lib/terms";
 import { DEFAULT_THEME, normalizeHex, resolveTheme } from "@/lib/theme";
 
 const PRESETS: { name: string; hex: string }[] = [
@@ -35,9 +36,10 @@ const PRESETS: { name: string; hex: string }[] = [
 const SHELLS: Shell[] = ["professional", "partner", "org", "admin"];
 
 export function DesignGallery() {
+  const terms = useTerms();
   const [accent, setAccent] = useState(DEFAULT_THEME.accent);
   const [draft, setDraft] = useState(DEFAULT_THEME.accent);
-  const theme = resolveTheme({ branding: { accent } });
+  const theme = resolveTheme({ accent, name: null, logoUrl: null });
 
   function commit(value: string) {
     setDraft(value);
@@ -195,7 +197,7 @@ export function DesignGallery() {
           <Row>
             <Price fichas={1} />
             <Price fichas={2} />
-            <span className="text-[13px] text-[#8E7C86]">{countFichas(1)} por sessão de 30 min</span>
+            <span className="text-[13px] text-[#8E7C86]">{countFichas(1, terms)} por sessão de 30 min</span>
           </Row>
         </Section>
 
@@ -239,9 +241,9 @@ export function DesignGallery() {
                 key={shell}
                 className="flex w-full flex-col gap-[22px] rounded-[14px] border border-[#F3E4EC] bg-white px-4 py-[22px]"
               >
-                <Brand sub={SHELL_LABEL[shell]} />
-                <SidebarTop shell={shell} />
-                <NavLinks items={NAV_BY_SHELL[shell]} />
+                <Brand sub={shellLabel(shell, terms)} />
+                <SidebarTop shell={shell} terms={terms} />
+                <NavLinks items={navFor(shell, terms)} />
               </div>
             ))}
           </div>

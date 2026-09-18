@@ -1,4 +1,6 @@
-import { terms } from "@/lib/terms";
+"use client";
+
+import { useTerms } from "@/components/config/TermsProvider";
 
 export type FichaSize = "s" | "m" | "l" | "xl";
 
@@ -14,6 +16,7 @@ const SIZE: Record<FichaSize, { outer: string; ring: string }> = {
  * Ouro fixo da paleta — não muda com o accent da empresa.
  */
 export function Ficha({ size = "m", className = "" }: { size?: FichaSize; className?: string }) {
+  const terms = useTerms();
   const s = SIZE[size];
   return (
     <span
