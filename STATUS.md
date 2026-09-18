@@ -17,8 +17,14 @@ Uma linha por sessão, mais recente no topo. Atualizar **antes** do commit final
   chamada pelo GoTrue, não pela aplicação — enquanto o gancho não for ligado o token sai sem
   `user_role`, `parseClaims()` devolve null e todo login termina em "acesso inativo". Verificado
   em 18/09 criando usuário pela API de admin, entrando e decodificando o JWT: só `sub`.
-- **Projeto `mentoria` (produção) ainda não criado.** Invariante 17. Não bloqueia o piloto local.
-- **Variáveis ainda não cadastradas na Vercel.** Só existem em `.env.local`.
+- **Produção (`mentoria`) criada e vazia.** Ref `dtqylmvexaoybkdfzsna`, `sa-east-1`, pooler em
+  `aws-0-sa-east-1.pooler.supabase.com` (determinado por sonda). As cinco migrações **ainda não
+  foram aplicadas** lá, e o hook de access token também precisa ser ligado nesse projeto.
+- **`drizzle.config.ts` não sabe migrar produção.** Ele carrega `.env.local` com `override: true`,
+  então variável passada na linha de comando é ignorada. Migrar o `mentoria` exige um caminho
+  explícito para o segundo ambiente antes de rodar `db:migrate`.
+- **Variáveis ainda não cadastradas na Vercel.** Só existem em `.env.local`. Invariante 17:
+  Production aponta para `mentoria`, Preview e Development para `mentoria-dev`.
 
 ## Decisões de sessão
 _(dependência escolhida, atalho tomado, dívida assumida — o que não merece o CLAUDE.md)_
@@ -28,6 +34,12 @@ _(dependência escolhida, atalho tomado, dívida assumida — o que não merece 
   pausado. Voltou sozinho durante a sessão. A sonda de região do `check:supabase` não distingue
   pausado de região errada, e o check deu **verde falso** em "Supabase Auth (publishable)": ele
   aceita qualquer erro que não seja de sessão, e um 521 passou. Vale apertar quando sobrar tempo.
+- **2026-09-18 (produção criada):** o projeto `mentoria` nasceu com **chave de assinatura
+  assimétrica (ES256)**, confirmado pelo `jwks.json`. É o caminho bom para a Etapa 4: o
+  `getClaims()` verifica o token localmente com WebCrypto, sem uma ida à rede por requisição.
+  O `mentoria-dev` está no mesmo esquema (conferido pelo `jwks.json` dos dois), então dev e
+  produção se comportam igual — se um estivesse em segredo simétrico, cada `getClaims()` viraria
+  chamada ao servidor de auth e só um dos dois ambientes mostraria a latência.
 - **2026-09-18 (Etapa 4):** confirmada a pendência aberta na Etapa 3 — o `org_admin` continua sem
   caminho de leitura além de `org_usage`, e isso é a invariante 10, não lacuna. A Etapa 4 estendeu
   a regra para a rota: `canAccess('org_admin', '/agenda')` é false, coberto por teste. Quando o
