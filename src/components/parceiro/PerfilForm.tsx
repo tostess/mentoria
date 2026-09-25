@@ -6,6 +6,7 @@ import { CONTROLE, CONTROLE_MONO, Field, FieldRow } from "@/components/ui/Field"
 import { FormFeedback } from "@/components/ui/FormFeedback";
 import { salvarPerfilAcao } from "@/lib/parceiro/acoes";
 import { FORM_INICIAL } from "@/lib/forms";
+import { SENIORIDADES } from "@/lib/parceiro/senioridades";
 import type { PerfilDoParceiro } from "@/lib/parceiro/dados";
 
 /**
@@ -107,10 +108,11 @@ export function PerfilForm({
             className={CONTROLE}
           >
             <option value="">não informar</option>
-            <option value="pleno">pleno</option>
-            <option value="senior">sênior</option>
-            <option value="especialista">especialista</option>
-            <option value="executivo">executivo</option>
+            {SENIORIDADES.map((s) => (
+              <option key={s.valor} value={s.valor}>
+                {s.rotulo}
+              </option>
+            ))}
           </select>
         </Field>
         <Field

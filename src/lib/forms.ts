@@ -114,6 +114,15 @@ export function inteiro(
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
+ * Para parâmetro de rota. Um `/admin/parceiros/abc` chegaria ao Postgres como
+ * `invalid input syntax for type uuid` e viraria erro 500; conferido antes,
+ * vira o "não encontrado" que de fato é.
+ */
+export function ehId(valor: string): boolean {
+  return UUID.test(valor);
+}
+
+/**
  * Identificador que a tela manda de volta. Validar o formato não prova que a
  * linha é do escopo de quem chama — isso é conferido na consulta, com o papel
  * e o `org_id` da sessão. Aqui só se recusa o que nem chega a ser um id.

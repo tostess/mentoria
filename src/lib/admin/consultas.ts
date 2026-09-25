@@ -1,8 +1,13 @@
 import "server-only";
 
-import { and, asc, desc, eq, isNull, sql as raw } from "drizzle-orm";
+import { and, asc, eq, isNull, sql as raw } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { auditLogs, orgWallets, orgs, partners, profiles, wallets } from "@/lib/db/schema";
+import { orgWallets, orgs, partners, profiles, wallets } from "@/lib/db/schema";
+import type { DadosDoParceiro } from "@/lib/pessoas/edicao";
+import type { EventoDeAtividade } from "./atividade";
+import type { Colaborador, ParceiroNaLista } from "./tipos";
+
+export type { Colaborador, ParceiroNaLista } from "./tipos";
 
 /**
  * As leituras do painel da operadora.
@@ -169,14 +174,6 @@ export async function buscarEmpresa(orgId: string): Promise<Empresa | null> {
   return { ...linha, saldo: linha.saldo ?? 0 };
 }
 
-export type Colaborador = {
-  id: string;
-  nome: string;
-  email: string;
-  cargo: string | null;
-  saldo: number;
-  ultimoUso: Date | null;
-};
 
 export async function listarColaboradores(orgId: string): Promise<Colaborador[]> {
   return getDb()
@@ -185,6 +182,7 @@ export async function listarColaboradores(orgId: string): Promise<Colaborador[]>
       nome: profiles.name,
       email: profiles.email,
       cargo: profiles.jobTitle,
+      ativo: profiles.active,
       saldo: wallets.balance,
       ultimoUso: wallets.lastUsedAt,
     })
@@ -253,17 +251,6 @@ export async function listarLancamentosDoContrato(
   }));
 }
 
-export type ParceiroNaLista = {
-  id: string;
-  nome: string;
-  email: string;
-  headline: string | null;
-  status: string;
-  engajamento: string;
-  areas: string[];
-  sessoes: number;
-  maxPorSemana: number;
-};
 
 export async function listarParceiros(): Promise<ParceiroNaLista[]> {
   const linhas = await getDb()
@@ -285,30 +272,151 @@ export async function listarParceiros(): Promise<ParceiroNaLista[]> {
   return linhas;
 }
 
-export type AcaoRegistrada = {
+export type AcaoRegistrada = EventoDeAtividade & {
   id: string;
-  acao: string;
-  entidade: string;
   quando: Date;
-  autor: string | null;
 };
 
-/** As últimas decisões da operadora. Invariante 12 vista do lado de quem lê. */
-export async function listarAcoesRecentes(limite = 8): Promise<AcaoRegistrada[]> {
-  const linhas = await getDb()
-    .select({
-      id: auditLogs.id,
-      acao: auditLogs.action,
-      entidade: auditLogs.entity,
-      quando: auditLogs.createdAt,
-      autor: profiles.name,
-    })
-    .from(auditLogs)
-    .leftJoin(profiles, eq(profiles.id, auditLogs.actorId))
-    .orderBy(desc(auditLogs.createdAt))
-    .limit(limite);
+/**
+ * O histórico de decisões, já com os nomes que a frase precisa.
+ *
+ * `audit_logs` guarda ids; a tela fala de pessoas. O alvo sai de
+ * `entity_id` quando ele é de alguém em `profiles` (criar, editar, alocar,
+ * desativar), e a empresa de `org_id`. O `after` vai junto porque é dele que
+ * sai "2 fichas" — a quantidade não mora em coluna nenhuma.
+ *
+ * Invariante 12 vista do lado de quem lê.
+ */
+export async function listarAtividade(
+  filtro: { acao?: string | null; entidadeId?: string | null; limite?: number } = {},
+): Promise<AcaoRegistrada[]> {
+  const acao = filtro.acao ?? null;
+  const entidadeId = filtro.entidadeId ?? null;
+  const limite = filtro.limite ?? 8;
 
-  return linhas;
+  const linhas = await getDb().execute<{
+    id: string;
+    acao: string;
+    quando: string;
+    antes: unknown;
+    depois: unknown;
+    autor: string | null;
+    alvo: string | null;
+    empresa: string | null;
+  }>(raw`
+    select a.id,
+           a.action      as acao,
+           a.created_at  as quando,
+           a.before      as antes,
+           a.after       as depois,
+           quem.name     as autor,
+           alvo.name     as alvo,
+           o.name        as empresa
+      from audit_logs a
+      left join profiles quem on quem.id = a.actor_id
+      left join profiles alvo on alvo.id = a.entity_id
+      left join orgs o        on o.id = a.org_id
+     where (${acao}::text is null or a.action = ${acao}::text)
+       and (${entidadeId}::uuid is null or a.entity_id = ${entidadeId}::uuid)
+     order by a.created_at desc
+     limit ${limite}`);
+
+  return linhas.map((linha) => ({
+    id: linha.id,
+    acao: linha.acao,
+    quando: new Date(linha.quando),
+    antes: linha.antes,
+    depois: linha.depois,
+    autor: linha.autor,
+    alvo: linha.alvo,
+    empresa: linha.empresa,
+  }));
+}
+
+/** As últimas decisões, para o card do painel. */
+export async function listarAcoesRecentes(limite = 8): Promise<AcaoRegistrada[]> {
+  return listarAtividade({ limite });
+}
+
+export type ParceiroEmDetalhe = DadosDoParceiro & {
+  id: string;
+  status: string;
+  ativo: boolean;
+  sessoes: number;
+  desde: Date;
+};
+
+export async function buscarParceiro(id: string): Promise<ParceiroEmDetalhe | null> {
+  const [linha] = await getDb()
+    .select({
+      id: partners.id,
+      nome: profiles.name,
+      email: profiles.email,
+      fuso: profiles.timezone,
+      ativo: profiles.active,
+      desde: profiles.createdAt,
+      headline: partners.headline,
+      bio: partners.bio,
+      areas: partners.areas,
+      habilidades: partners.skills,
+      senioridade: partners.seniority,
+      engajamento: partners.engagement,
+      maxPorSemana: partners.maxPerWeek,
+      bufferMin: partners.bufferMin,
+      confirmaSozinho: partners.autoConfirm,
+      status: partners.status,
+      sessoes: partners.sessionCount,
+    })
+    .from(partners)
+    .innerJoin(profiles, eq(profiles.id, partners.id))
+    .where(eq(partners.id, id))
+    .limit(1);
+
+  return linha ?? null;
+}
+
+export type ProfissionalEmDetalhe = {
+  id: string;
+  nome: string;
+  email: string;
+  cargo: string | null;
+  area: string | null;
+  ativo: boolean;
+  desde: Date;
+  saldo: number;
+  ultimoUso: Date | null;
+};
+
+/** Conferindo a empresa: o `orgId` vem da URL e não é prova de nada sozinho. */
+export async function buscarProfissional(
+  orgId: string,
+  id: string,
+): Promise<ProfissionalEmDetalhe | null> {
+  const [linha] = await getDb()
+    .select({
+      id: profiles.id,
+      nome: profiles.name,
+      email: profiles.email,
+      cargo: profiles.jobTitle,
+      area: profiles.area,
+      ativo: profiles.active,
+      desde: profiles.createdAt,
+      saldo: wallets.balance,
+      ultimoUso: wallets.lastUsedAt,
+    })
+    .from(profiles)
+    .innerJoin(wallets, eq(wallets.userId, profiles.id))
+    .where(
+      and(
+        eq(profiles.id, id),
+        eq(profiles.orgId, orgId),
+        eq(profiles.role, "professional"),
+        isNull(profiles.deletedAt),
+      ),
+    )
+    .limit(1);
+
+  return linha ?? null;
 }
 
 /** Só para a trilha de migalhas e o título — evita carregar a empresa inteira. */

@@ -49,12 +49,12 @@ export default async function Page() {
       />
 
       <div className="grid grid-cols-1 items-start gap-[18px] lg:grid-cols-[1.3fr_1fr]">
-        <Card title="Seus dados">
+        <Card title="Seus dados" icone="pencil">
           <PerfilForm perfil={perfil} expiraEmHoras={config.limits.pendingExpiresHours} />
         </Card>
 
         <div className="flex flex-col gap-[18px]">
-          <Card title="Como você aparece">
+          <Card title="Como você aparece" icone="user">
             <div className="flex items-start gap-3.5">
               <Avatar name={perfil.nome} size="lg" />
               <div className="min-w-0">
@@ -82,11 +82,11 @@ export default async function Page() {
           </Card>
 
           <div className="grid grid-cols-2 gap-3.5">
-            <Stat value={perfil.sessoes} label={cap(t.sessions)} />
-            <Stat value={`${perfil.bufferMin}min`} label="Descanso" />
+            <Stat value={perfil.sessoes} label={cap(t.sessions)} icone="calendar" />
+            <Stat value={`${perfil.bufferMin}min`} label="Descanso" icone="clock" />
           </div>
 
-          <Card title="O que só a operadora muda">
+          <Card title="O que só a operadora muda" icone="shield">
             <dl className="flex flex-col gap-2.5 text-[13px]">
               <Linha rotulo="Situação" valor={ROTULOS[perfil.status] ?? perfil.status} />
               <Linha rotulo="Vínculo" valor={VINCULOS[perfil.engajamento] ?? perfil.engajamento} />

@@ -1,13 +1,13 @@
 "use client";
 
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ComponentPropsWithRef, ReactNode } from "react";
 import { useTheme } from "@/components/theme/ThemeProvider";
 import { onAccent } from "@/lib/theme";
 
 export type ButtonVariant = "primary" | "ghost" | "warn" | "gold";
 export type ButtonSize = "md" | "sm";
 
-type Props = ButtonHTMLAttributes<HTMLButtonElement> & {
+type Props = ComponentPropsWithRef<"button"> & {
   variant?: ButtonVariant;
   size?: ButtonSize;
   children: ReactNode;

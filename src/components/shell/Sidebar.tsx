@@ -1,6 +1,8 @@
 import { Brand } from "@/components/shell/Brand";
 import { NavLinks } from "@/components/shell/NavLinks";
+import { SidebarRecolhivel } from "@/components/shell/SidebarRecolhivel";
 import { SidebarTop } from "@/components/shell/SidebarTop";
+import { Icone } from "@/components/ui/Icone";
 import { sair } from "@/lib/auth/actions";
 import type { Session } from "@/lib/auth/claims";
 import { loadTerms } from "@/lib/config/load";
@@ -10,8 +12,7 @@ export async function Sidebar({ shell, session }: { shell: Shell; session: Sessi
   const t = await loadTerms();
 
   return (
-    <aside className="flex flex-col gap-[22px] border-b border-[#F3E4EC] bg-white px-4 py-[22px] lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto lg:border-b-0 lg:border-r">
-      <Brand sub={shellLabel(shell, t)} />
+    <SidebarRecolhivel topo={<Brand sub={shellLabel(shell, t)} />}>
       <SidebarTop shell={shell} terms={t} />
       <NavLinks items={navFor(shell, t)} />
 
@@ -25,12 +26,13 @@ export async function Sidebar({ shell, session }: { shell: Shell; session: Sessi
         <form action={sair}>
           <button
             type="submit"
-            className="font-mono text-[10px] text-[#BFAFB8] transition-colors hover:text-[#8E7C86]"
+            className="inline-flex items-center gap-1.5 font-mono text-[10px] text-[#BFAFB8] transition-colors hover:text-[#8E7C86]"
           >
+            <Icone nome="log-out" tamanho={12} />
             Sair
           </button>
         </form>
       </div>
-    </aside>
+    </SidebarRecolhivel>
   );
 }

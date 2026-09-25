@@ -34,12 +34,16 @@ const ibmPlexMono = IBM_Plex_Mono({
  */
 export const dynamic = "force-dynamic";
 
-/** O nome no título é o da marca resolvida — a empresa pode ter o dela. */
+/**
+ * O nome no título é o da marca resolvida — a empresa pode ter o dela. Cada
+ * tela põe o próprio nome na frente ("Parceiros · Mentoria"), e é isso que
+ * distingue as abas quando a operadora tem cinco abertas.
+ */
 export async function generateMetadata(): Promise<Metadata> {
   const session = await getSession();
   const theme = await loadTheme(session?.orgId ?? null);
   return {
-    title: theme.platformName,
+    title: { default: theme.platformName, template: `%s · ${theme.platformName}` },
     description: "Plataforma de mentoria corporativa",
   };
 }

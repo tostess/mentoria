@@ -33,6 +33,7 @@ const SERVER_ONLY_MODULES = [
   "@/lib/config/load",
   "@/lib/ledger",
   "@/lib/pessoas/criar",
+  "@/lib/pessoas/editar",
   "@/lib/admin/consultas",
 ];
 
@@ -94,6 +95,7 @@ describe("invariante 5 — service_role só no servidor", () => {
       "lib/config/load.ts",
       "lib/ledger/index.ts",
       "lib/pessoas/criar.ts",
+      "lib/pessoas/editar.ts",
       "lib/admin/consultas.ts",
     ];
     const missing = guarded.filter((id) => {

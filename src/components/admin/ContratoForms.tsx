@@ -63,8 +63,8 @@ export function RegistrarContratoForm({ orgId, token }: ComToken) {
       </Button>
 
       <p className="text-[12px] leading-[1.45] text-[#8E7C86]">
-        Entra como <span className="font-mono">purchase</span> no livro-caixa da empresa e soma no
-        saldo do contrato. Não se edita depois: correção é lançamento novo.
+        Entra como compra no livro-caixa da empresa e soma no saldo do contrato. Não se edita
+        depois: correção é lançamento novo.
       </p>
     </form>
   );
@@ -78,10 +78,13 @@ export function AlocarFichasForm({
   colaboradores,
   teto,
   termoFichas,
+  selecionado,
 }: ComToken & {
   colaboradores: OpcaoDeColaborador[];
   teto: number;
   termoFichas: string;
+  /** Quem já vem escolhido — o atalho "Alocar" da tela da pessoa manda `?para=`. */
+  selecionado?: string;
 }) {
   const [estado, acao, enviando] = useActionState(alocarFichasAcao, FORM_INICIAL);
 
@@ -101,7 +104,14 @@ export function AlocarFichasForm({
       <FormFeedback erro={estado.erro} ok={estado.ok} credencial={estado.credencial} />
 
       <Field htmlFor="userId" label="Colaborador">
-        <select id="userId" name="userId" required disabled={enviando} className={CONTROLE}>
+        <select
+          id="userId"
+          name="userId"
+          required
+          defaultValue={selecionado}
+          disabled={enviando}
+          className={CONTROLE}
+        >
           {colaboradores.map((pessoa) => (
             <option key={pessoa.id} value={pessoa.id}>
               {pessoa.nome} — {pessoa.saldo === 0 ? `sem ${termoFichas}` : `${pessoa.saldo}`}

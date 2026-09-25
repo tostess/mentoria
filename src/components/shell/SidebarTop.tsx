@@ -4,8 +4,9 @@ import type { Shell } from "@/lib/roles";
 import { cap, type Terms } from "@/lib/terms";
 
 /**
- * Bloco de topo da sidebar, por papel. Números são placeholder da Etapa 1 —
- * passam a vir do banco quando cada papel ganhar sua fase.
+ * Bloco de topo da sidebar, por papel. Os números do Profissional, do
+ * Parceiro e do RH ainda são placeholder da Etapa 1 — passam a vir do banco
+ * quando cada papel ganhar sua fase (carteira na P3).
  */
 export function SidebarTop({ shell, terms }: { shell: Shell; terms: Terms }) {
   switch (shell) {
@@ -28,18 +29,11 @@ export function SidebarTop({ shell, terms }: { shell: Shell; terms: Terms }) {
         </Purse>
       );
     case "admin":
-      return (
-        <div className="rounded-[12px] border border-[#F3E4EC] bg-white px-3 py-[11px]">
-          <div className="font-mono text-[9px] uppercase tracking-[0.12em] text-[#8E7C86]">
-            Circulação
-          </div>
-          <div className="mt-1.5 grid grid-cols-3 gap-2">
-            <Mini value={320} label="contratadas" />
-            <Mini value={210} label="alocadas" />
-            <Mini value={87} label="usadas" />
-          </div>
-        </div>
-      );
+      // Sem bloco. Aqui havia três números fixos da Etapa 1 — dado falso na
+      // tela de quem opera o dinheiro. Os reais estão no painel, e trazê-los
+      // para cá exigiria uma consulta Drizzle concorrente com a da página, que
+      // é justamente o que entala a conexão de `max: 1`.
+      return null;
   }
 }
 
@@ -55,15 +49,6 @@ function Purse({ label, value, children }: { label: string; value: number | stri
           </div>
         </div>
       </div>
-    </div>
-  );
-}
-
-function Mini({ value, label }: { value: number; label: string }) {
-  return (
-    <div>
-      <div className="font-display text-[22px] font-bold leading-none">{value}</div>
-      <div className="font-mono text-[8.5px] uppercase tracking-[0.1em] text-[#B3A3AC]">{label}</div>
     </div>
   );
 }

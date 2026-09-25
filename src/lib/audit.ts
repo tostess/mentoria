@@ -1,4 +1,5 @@
 import type postgres from "postgres";
+import type { AcaoAuditada } from "@/lib/admin/atividade";
 import type { Role } from "@/lib/auth/claims";
 import { paraJsonb } from "@/lib/db/jsonb";
 
@@ -22,8 +23,12 @@ export type Auditoria = {
   ator: { id: string; role: Role };
   /** Empresa afetada, quando a ação é de uma. Ação de plataforma vai sem. */
   orgId?: string | null;
-  /** Verbo no infinitivo, com o objeto: `criar_empresa`, `alocar_fichas`. */
-  acao: string;
+  /**
+   * Verbo no infinitivo, com o objeto: `criar_empresa`, `alocar_fichas`. Só
+   * código do catálogo de `lib/admin/atividade.ts` — ação sem frase para a tela
+   * não compila.
+   */
+  acao: AcaoAuditada;
   entidade: string;
   entidadeId?: string | null;
   antes?: unknown;

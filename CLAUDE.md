@@ -27,7 +27,8 @@ lidos por `src/lib/terms.ts`, e são sobrescrevíveis por empresa. Nenhum termo 
 Next.js 16.3.4 (App Router) · TypeScript strict · Tailwind · shadcn/ui ·
 **Supabase Postgres (São Paulo) com RLS** · **Drizzle** (schema + migrations + queries tipadas) ·
 Supabase Auth (`role` e `org_id` como claims no JWT) · Supabase Storage ·
-Vercel (`gru1`) · Vercel Cron · Luxon · Vitest · Daily.co · Claude API · Z-API · Resend.
+Vercel (`gru1`) · Vercel Cron · Luxon · Vitest · Daily.co · Claude API · Z-API · Resend ·
+**lucide-react** (ícones, só por `components/ui/icones.ts`).
 Dev: `drizzle-kit` (gera migração), `dotenv` (só o `drizzle.config.ts` — o Next lê `.env.local` sozinho).
 
 Escolhida por RLS (protege o multi-tenant), constraints (garantem o livro-caixa) e SQL (relatório
@@ -463,6 +464,8 @@ esquema, constraints e RLS · auth, papéis e config · motor de agenda.
 - **P1** ✅ Painel do admin: criar empresa, registrar contrato, criar Parceiro direto, criar
   Profissional, alocar fichas
 - **P2** ✅ Disponibilidade do Parceiro (só modo rápido "esta semana") e perfil básico
+- **Polimento** ✅ Ícones, vocabulário humano no lugar de código de banco, edição de Parceiro e
+  Profissional, status, acesso e senha provisória pelo admin, busca nas listas, menu no celular
 - **P3** Carteiras, `allocate-monthly`, `POST /api/bookings` transacional
 - **P4** Busca simples, agendamento, agenda das duas visões, `expire-pending`, `close-sessions`,
   `send-reminders`
@@ -619,6 +622,38 @@ F16 formato grupo · F18 dashboards e exclusão de conta.
 - **O modo rápido substitui a rotina inteira, não acrescenta.** É o que "modo rápido" significa: o
   Parceiro está descrevendo a semana dele, não somando uma linha. Quando a grade detalhada da F3
   chegar, esta tela precisa avisar antes de sobrescrever o que a outra montou.
+- **Ícone atravessa a fronteira por nome, não por componente.** A `Sidebar` é Server Component e
+  entrega a navegação a `NavLinks`, que é cliente — e componente não é serializável. `NavItem` leva
+  `icone: NomeIcone` e o mapa nome → lucide mora em `components/ui/icones.ts`. O mapa é também o
+  catálogo: o que não está nele não entra na interface.
+- **Código de banco não chega à tela.** `audit_logs.action` continua sendo um código estável
+  (`alocar_fichas`), mas cada código tem frase em `lib/admin/atividade.ts`, escrita com os termos da
+  empresa. `registrarAuditoria` só aceita `AcaoAuditada`, derivado desse catálogo: ação nova sem frase
+  não compila. O que vem do banco sem rótulo sai humanizado, nunca cru, e `lib/copy.test.ts` varre o
+  JSX atrás de `snake_case` e nome de tabela escritos à mão. O mesmo vale para `ledger_type`, que é
+  inglês: `lib/ledger/rotulos.ts` é tipado pelo próprio enum do esquema.
+- **Edição audita a diferença, não o registro.** `before` e `after` guardam só os campos que
+  mudaram, e salvar sem mudar nada não grava linha. Um histórico de perfis inteiros dos dois lados
+  obrigaria quem lê a achar a diferença no olho.
+- **Pausar esconde; arquivar esconde e tira o acesso.** Pausado continua entrando e as sessões
+  marcadas seguem — é o que se faz antes de férias. Arquivar derruba `profiles.active` na mesma
+  transação e é recusado com sessão futura, assim como desativar Profissional. O acesso do Parceiro
+  acompanha o status; só o Profissional tem chave de acesso própria, para não haver duas chaves na
+  mesma porta discordando.
+- **E-mail repetido na troca é conferido antes, em `auth.users`.** Na criação o servidor de auth
+  responde "already registered"; na troca responde `500 Error updating user`, sem código — medido
+  contra o `mentoria-dev`. Reconhecer pelo erro, como a criação faz, produzia mensagem genérica.
+- **Senha nova é trocada e depois auditada; se a auditoria falhar, não é mostrada.** Senha que
+  ninguém viu não é acesso concedido. Auditar antes gravaria uma troca que pode não ter acontecido.
+  E nunca se abre transação em volta da chamada HTTP ao auth: a conexão de runtime é `max: 1`.
+- **Formulário de edição envia por `onSubmit`, não por `action`.** O React 19 reseta os campos não
+  controlados quando a ação termina, e devolver erro de validação conta como terminar. Em edição
+  isso apagava o que a pessoa digitou justo quando o servidor recusou. `useEnvioSemReset` resolve.
+- **Nenhum número de mentira em tela de dinheiro.** Os três números fixos da Etapa 1 saíram da
+  sidebar do admin, e não foram trocados pelos reais: a sidebar renderiza em paralelo com a página, e
+  uma consulta Drizzle ali é o `Promise.all` que entala a conexão. Os reais estão no painel.
+- **Carregando é forma parada, não movimento.** `loading.tsx` mostra blocos estáticos; nada de
+  spinner nem `animate-pulse`. O sistema de design reserva animação para presente e extensão.
 
 ## Descartado
 
@@ -637,12 +672,19 @@ F16 formato grupo · F18 dashboards e exclusão de conta.
 
 ## Estado atual
 
-Fase: **P2 fechada**. Base completa (Etapas 0–5) e duas fases do piloto no ar.
+Fase: **P2 fechada, polimento feito**. Base completa (Etapas 0–5) e duas fases do piloto no ar.
 
 A operadora opera o piloto inteiro por tela: criar empresa, registrar contrato, criar Parceiro
 ativo, criar Profissional com carteira e alocar ficha — cada escrita de dinheiro numa transação só,
 com `idempotency_key` e `audit_logs`. O Parceiro configura a própria rotina em `/parceiro/
 disponibilidade` e o próprio perfil em `/parceiro/perfil`, escrevendo pela RLS com a sessão dele.
+
+Depois de criar, a operadora corrige: `/admin/parceiros/[id]` e `/admin/empresas/[id]/pessoas/
+[userId]` editam dados (inclusive e-mail, com o login junto), movem status, ligam e desligam acesso e
+geram senha provisória nova — tudo com confirmação em dois passos onde tira algo de alguém, e com
+histórico da pessoa na própria tela. `/admin/atividade` mostra cada decisão como frase. As listas têm
+busca e filtro no cliente, a linha inteira é clicável, e abaixo de 1024px a sidebar vira barra com
+menu.
 
 O **motor de agenda** (`src/lib/scheduling/`) está travado: TypeScript puro, sem banco e sem rede,
 transformando regra semanal mais exceções mais o que já está marcado numa lista de instantes. Ele
@@ -651,11 +693,11 @@ Parceiro e pula hora que não existiu na virada do horário de verão. A tela de
 o resultado dele ao lado do formulário — invariante 14 visível: o Parceiro vê os mesmos horários que
 o Profissional verá.
 
-286 testes em 15 arquivos. O motor sozinho tem 103, divididos entre a aritmética de faixas, a
+360 testes em 20 arquivos. O motor sozinho tem 103, divididos entre a aritmética de faixas, a
 tradução de regra semanal em dia concreto e a geração de horários. Invariante 19 coberta das duas
 pontas em `src/lib/auth/hook.test.ts`; invariantes 3, 4, 7, 8, 9, 10 e 16 em
-`src/lib/db/invariantes.test.ts`; as transações da P1 em `src/lib/ledger/transacoes.test.ts`,
-chamando as mesmas funções que a aplicação chama. Invariante 5 travada por `server-only` mais teste
+`src/lib/db/invariantes.test.ts`; as transações da P1 em `src/lib/ledger/transacoes.test.ts` e as
+edições em `src/lib/pessoas/edicao.test.ts`, chamando as mesmas funções que a aplicação chama. Invariante 5 travada por `server-only` mais teste
 estático.
 
 O hook de access token está ligado desde 25/09/2026, e os dois fluxos foram percorridos na

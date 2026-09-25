@@ -1,11 +1,14 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+import { FeedDeAtividade } from "@/components/admin/FeedDeAtividade";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { ButtonLink } from "@/components/ui/ButtonLink";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Pill } from "@/components/ui/Pill";
 import { Stat } from "@/components/ui/Stat";
-import { CellStack, Table, Td, Th } from "@/components/ui/Table";
+import { Icone } from "@/components/ui/Icone";
+import { Table, Td, Th } from "@/components/ui/Table";
 import {
   listarAcoesRecentes,
   resumoDaPlataforma,
@@ -14,6 +17,8 @@ import {
 import { requireRole } from "@/lib/auth/session";
 import { loadTerms } from "@/lib/config/load";
 import { cap } from "@/lib/terms";
+
+export const metadata: Metadata = { title: "Painel" };
 
 /**
  * O painel da operadora. Números de verdade, vindos do livro-caixa e da view
@@ -47,9 +52,13 @@ export default async function Page() {
           ehOperadora ? (
             <>
               <ButtonLink href="/admin/parceiros" variant="ghost">
+                <Icone nome="user-plus" />
                 Novo {t.partner}
               </ButtonLink>
-              <ButtonLink href="/admin/empresas">Nova {t.org.toLowerCase()}</ButtonLink>
+              <ButtonLink href="/admin/empresas">
+                <Icone nome="building" />
+                Nova {t.org.toLowerCase()}
+              </ButtonLink>
             </>
           ) : undefined
         }
@@ -57,14 +66,24 @@ export default async function Page() {
 
       <div className="flex flex-col gap-[18px]">
         <div className="grid grid-cols-2 gap-3.5 lg:grid-cols-4">
-          <Stat value={resumo.empresasAtivas} label={`${t.orgs} ativas`} />
-          <Stat value={resumo.fichasContratadas} label={`${t.fichas} contratadas`} tone="gold" />
-          <Stat value={resumo.fichasAlocadas} label={`${t.fichas} alocadas`} tone="gold" />
-          <Stat value={resumo.parceirosAtivos} label={`${t.partners} ativos`} />
+          <Stat value={resumo.empresasAtivas} label={`${t.orgs} ativas`} icone="building" />
+          <Stat
+            value={resumo.fichasContratadas}
+            label={`${t.fichas} contratadas`}
+            tone="gold"
+            icone="contract"
+          />
+          <Stat
+            value={resumo.fichasAlocadas}
+            label={`${t.fichas} alocadas`}
+            tone="gold"
+            icone="coins"
+          />
+          <Stat value={resumo.parceirosAtivos} label={`${t.partners} ativos`} icone="handshake" />
         </div>
 
         <div className="grid grid-cols-1 items-start gap-[18px] lg:grid-cols-[1.55fr_1fr]">
-          <Card title={`Utilização por ${t.org.toLowerCase()}`}>
+          <Card title={`Utilização por ${t.org.toLowerCase()}`} icone="dashboard">
             <p className="mb-4 text-[13px] leading-[1.5] text-[#8E7C86]">
               {cap(t.fichas)} usadas ÷ alocadas, desde o início do contrato. É a conta que decide
               renovação.
@@ -72,6 +91,7 @@ export default async function Page() {
 
             {utilizacao.length === 0 ? (
               <EmptyState
+                icone="building"
                 title={`Nenhuma ${t.org.toLowerCase()} ainda`}
                 description={
                   <>
@@ -121,7 +141,7 @@ export default async function Page() {
           </Card>
 
           <div className="flex flex-col gap-[18px]">
-            <Card title="Onde o dinheiro está">
+            <Card title="Onde o dinheiro está" icone="wallet">
               <dl className="flex flex-col gap-3">
                 <Linha
                   rotulo={`Em contrato, não alocadas`}
@@ -131,7 +151,7 @@ export default async function Page() {
                 <Linha
                   rotulo="Alocadas em carteiras"
                   valor={resumo.fichasAlocadas}
-                  nota="Já entregues a alguém. Não voltam sem `reclaim`."
+                  nota="Já entregues a alguém. Só voltam ao contrato por devolução."
                 />
                 <Linha
                   rotulo="Já usadas em sessão"
@@ -146,32 +166,28 @@ export default async function Page() {
               </dl>
             </Card>
 
-            <Card title="Últimas decisões">
+            <Card
+              title="Últimas decisões"
+              icone="history"
+              action={
+                recentes.length > 0 ? (
+                  <Link
+                    href="/admin/atividade"
+                    className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-[#C2317A] hover:underline"
+                  >
+                    Ver tudo
+                    <Icone nome="chevron-right" tamanho={13} />
+                  </Link>
+                ) : undefined
+              }
+            >
               {recentes.length === 0 ? (
                 <p className="text-[13px] text-[#8E7C86]">
-                  Nada registrado ainda. Toda ação da operadora grava{" "}
-                  <span className="font-mono">audit_logs</span>.
+                  Nada registrado ainda. Toda decisão da operadora aparece aqui, com quem tomou e
+                  quando.
                 </p>
               ) : (
-                <ul className="flex flex-col">
-                  {recentes.map((acao) => (
-                    <li
-                      key={acao.id}
-                      className="flex items-center justify-between gap-3 border-t border-[#F3E4EC] py-2.5 first:border-t-0 first:pt-0"
-                    >
-                      <CellStack
-                        title={<span className="font-mono text-[12px]">{acao.acao}</span>}
-                        sub={acao.autor ?? "trabalho agendado"}
-                      />
-                      <time
-                        dateTime={acao.quando.toISOString()}
-                        className="shrink-0 font-mono text-[11px] text-[#8E7C86]"
-                      >
-                        {quando(acao.quando)}
-                      </time>
-                    </li>
-                  ))}
-                </ul>
+                <FeedDeAtividade eventos={recentes} t={t} />
               )}
             </Card>
           </div>
@@ -203,23 +219,4 @@ function TaxaDeUso({ taxa }: { taxa: number | null }) {
   if (taxa === null) return <span className="text-[12px] text-[#8E7C86]">sem alocação</span>;
   const variante = taxa >= 70 ? "on" : taxa >= 40 ? "wait" : "bad";
   return <Pill variant={variante}>{taxa}%</Pill>;
-}
-
-const FORMATO = new Intl.DateTimeFormat("pt-BR", {
-  day: "2-digit",
-  month: "2-digit",
-  hour: "2-digit",
-  minute: "2-digit",
-  timeZone: "America/Sao_Paulo",
-});
-
-/**
- * Data no fuso de São Paulo, resolvida no servidor.
- *
- * Invariante 2: o banco guarda `timestamptz` e a conversão acontece só na
- * borda de UI — que é aqui. O fuso é fixo no piloto; quando a operadora tiver
- * gente em outro fuso, ele vem de `profiles.timezone`.
- */
-function quando(data: Date): string {
-  return FORMATO.format(data);
 }

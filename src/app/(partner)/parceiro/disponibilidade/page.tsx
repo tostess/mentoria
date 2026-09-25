@@ -89,7 +89,7 @@ export default async function Page() {
       />
 
       <div className="grid grid-cols-1 items-start gap-[18px] lg:grid-cols-[1fr_1.15fr]">
-        <Card title="Sua rotina">
+        <Card title="Sua rotina" icone="calendar-clock">
           <DisponibilidadeForm
             diasIniciais={regras.map((regra) => regra.diaDaSemana)}
             inicioInicial={paraTexto(primeira?.inicioMin ?? 540)}
@@ -177,7 +177,7 @@ function Resumo({ avaliacoes }: { avaliacoes: readonly { recusa: string | null }
   };
 
   return (
-    <Card title="Horários que não entraram">
+    <Card title="Horários que não entraram" icone="clock">
       <ul className="flex flex-col gap-1.5 text-[13px]">
         {[...conta.entries()]
           .sort((a, b) => b[1] - a[1])

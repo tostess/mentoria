@@ -13,6 +13,7 @@ import {
   id as campoId,
   inteiro,
   lista,
+  marcado,
   opcao,
   sucesso,
   texto,
@@ -34,7 +35,20 @@ import {
   criarParceiro,
   criarProfissional,
 } from "@/lib/pessoas/criar";
+import {
+  PessoaInexistente,
+  STATUS_OPERAVEIS,
+  TemSessaoFutura,
+  TransicaoInvalida,
+  alterarAcesso,
+  alterarStatusDoParceiro,
+  editarParceiro,
+  editarProfissional,
+  novaSenhaProvisoria,
+} from "@/lib/pessoas/editar";
+import { fuso as campoFuso, senioridade as campoSenioridade } from "@/lib/parceiro/validacao";
 import { normalizeHex } from "@/lib/theme";
+import { rotuloDoCampo } from "./atividade";
 import { ehColaboradorDaEmpresa } from "./consultas";
 
 /**
@@ -61,8 +75,9 @@ async function exigeOperadora() {
 /**
  * Traduz o que o banco recusou na frase que o admin lê.
  *
- * As quatro exceções conhecidas são recusas legítimas — saldo que não dá,
- * carteira no teto, clique repetido, e-mail já usado. Qualquer outra coisa é
+ * As exceções conhecidas são recusas legítimas — saldo que não dá, carteira
+ * no teto, clique repetido, e-mail já usado, pessoa de outra empresa, status
+ * que não pode ir para onde se pediu, sessão marcada no caminho. Qualquer outra coisa é
  * defeito, e é relançada para virar erro de verdade em vez de "não foi
  * possível" genérico que ninguém consegue depurar.
  */
@@ -75,7 +90,10 @@ async function executando(fn: () => Promise<FormState>): Promise<FormState> {
         erro instanceof SaldoInsuficiente ||
         erro instanceof TetoDaCarteira ||
         erro instanceof LancamentoRepetido ||
-        erro instanceof EmailJaUsado
+        erro instanceof EmailJaUsado ||
+        erro instanceof PessoaInexistente ||
+        erro instanceof TransicaoInvalida ||
+        erro instanceof TemSessaoFutura
       ) {
         return falha(erro.message);
       }
@@ -234,5 +252,141 @@ export async function criarParceiroAcao(
       email,
       senha,
     });
+  });
+}
+
+/** "Salvo. Mudou: chamada, áreas." — ou o aviso de que nada mudou. */
+function resumoDaEdicao(campos: string[]): FormState {
+  if (campos.length === 0) return sucesso("Nada para salvar: os dados já eram estes.");
+  return sucesso(`Salvo. Mudou: ${campos.map(rotuloDoCampo).join(", ")}.`);
+}
+
+export async function editarParceiroAcao(
+  _anterior: FormState,
+  form: FormData,
+): Promise<FormState> {
+  const ator = await exigeOperadora();
+
+  return executando(async () => {
+    const id = campoId(form, "id", "A pessoa");
+
+    const { campos } = await editarParceiro(
+      id,
+      {
+        nome: texto(form, "nome", "o nome", 160),
+        email: campoEmail(form, "email"),
+        fuso: campoFuso(form),
+        headline: textoOpcional(form, "headline", 160),
+        bio: textoOpcional(form, "bio", 2000),
+        areas: lista(form, "areas"),
+        habilidades: lista(form, "habilidades"),
+        senioridade: campoSenioridade(form),
+        engajamento: opcao(form, "engajamento", "o vínculo", ENGAJAMENTOS),
+        maxPorSemana: inteiro(form, "maxPorSemana", "O teto semanal", 1, 40),
+        bufferMin: inteiro(form, "bufferMin", "O descanso entre sessões", 0, 120),
+        confirmaSozinho: marcado(form, "confirmaSozinho"),
+      },
+      ator,
+    );
+
+    refresh();
+    return resumoDaEdicao(campos);
+  });
+}
+
+const MENSAGEM_DE_STATUS: Record<(typeof STATUS_OPERAVEIS)[number], string> = {
+  active: "Reativado. Volta a aparecer na busca e a entrar normalmente.",
+  paused: "Pausado. Some da busca; o acesso e as sessões já marcadas continuam.",
+  archived: "Arquivado. Some da busca e perde o acesso. Dá para reativar depois.",
+};
+
+export async function alterarStatusParceiroAcao(
+  _anterior: FormState,
+  form: FormData,
+): Promise<FormState> {
+  const ator = await exigeOperadora();
+
+  return executando(async () => {
+    const id = campoId(form, "id", "A pessoa");
+    const status = opcao(form, "status", "o status", STATUS_OPERAVEIS);
+
+    await alterarStatusDoParceiro(id, status, ator);
+
+    refresh();
+    return sucesso(MENSAGEM_DE_STATUS[status]);
+  });
+}
+
+export async function editarProfissionalAcao(
+  _anterior: FormState,
+  form: FormData,
+): Promise<FormState> {
+  const ator = await exigeOperadora();
+
+  return executando(async () => {
+    const orgId = campoId(form, "orgId", "A empresa");
+    const id = campoId(form, "id", "A pessoa");
+
+    const { campos } = await editarProfissional(
+      id,
+      orgId,
+      {
+        nome: texto(form, "nome", "o nome", 160),
+        email: campoEmail(form, "email"),
+        cargo: textoOpcional(form, "cargo", 120),
+        area: textoOpcional(form, "area", 120),
+      },
+      ator,
+    );
+
+    refresh();
+    return resumoDaEdicao(campos);
+  });
+}
+
+export async function alterarAcessoAcao(
+  _anterior: FormState,
+  form: FormData,
+): Promise<FormState> {
+  const ator = await exigeOperadora();
+
+  return executando(async () => {
+    const orgId = campoId(form, "orgId", "A empresa");
+    const id = campoId(form, "id", "A pessoa");
+    const ativo = opcao(form, "ativo", "o estado do acesso", ["sim", "nao"] as const) === "sim";
+
+    const { mudou } = await alterarAcesso(id, orgId, ativo, ator);
+
+    refresh();
+    if (!mudou) return sucesso(ativo ? "O acesso já estava ativo." : "O acesso já estava desativado.");
+    return sucesso(
+      ativo
+        ? "Acesso reativado. A próxima entrada já funciona."
+        : "Acesso desativado. A próxima entrada é recusada; a carteira e o histórico ficam.",
+    );
+  });
+}
+
+export async function novaSenhaAcao(
+  _anterior: FormState,
+  form: FormData,
+): Promise<FormState> {
+  const ator = await exigeOperadora();
+
+  return executando(async () => {
+    const id = campoId(form, "id", "A pessoa");
+    const papel = opcao(form, "papel", "o tipo de conta", ["partner", "professional"] as const);
+    const alvo =
+      papel === "partner"
+        ? ({ papel } as const)
+        : ({ papel, orgId: campoId(form, "orgId", "A empresa") } as const);
+
+    const credencial = await novaSenhaProvisoria(id, alvo, ator);
+
+    refresh();
+    return sucesso(
+      "Senha nova gerada. A anterior deixou de valer — repasse esta, que aparece uma vez só.",
+      credencial,
+    );
   });
 }

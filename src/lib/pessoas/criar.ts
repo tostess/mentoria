@@ -38,6 +38,11 @@ export class EmailJaUsado extends Error {
   }
 }
 
+/** O servidor de auth não distingue e-mail repetido por código, só por mensagem. */
+export function ehEmailRepetido(mensagem: string): boolean {
+  return /already|registered|exists/i.test(mensagem);
+}
+
 /**
  * Senha provisória de 16 caracteres, para o admin repassar.
  *
@@ -99,8 +104,7 @@ async function comIdentidade(
   });
 
   if (error !== null) {
-    // O servidor de auth não distingue o caso por código, só por mensagem.
-    if (/already|registered|exists/i.test(error.message)) throw new EmailJaUsado();
+    if (ehEmailRepetido(error.message)) throw new EmailJaUsado();
     throw new Error(`não foi possível criar a conta: ${error.message}`);
   }
 

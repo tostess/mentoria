@@ -1,7 +1,6 @@
 "use server";
 
 import { refresh } from "next/cache";
-import { IANAZone } from "luxon";
 import { requireRole } from "@/lib/auth/session";
 import {
   CampoInvalido,
@@ -16,6 +15,7 @@ import {
 } from "@/lib/forms";
 import { createClient } from "@/lib/supabase/server";
 import { paraMinutos } from "./horarios";
+import { fuso as campoFuso, senioridade as campoSenioridade } from "./validacao";
 
 /**
  * O que o Parceiro muda em si mesmo.
@@ -115,8 +115,6 @@ export async function limparDisponibilidadeAcao(): Promise<FormState> {
   });
 }
 
-const SENIORIDADES = ["", "pleno", "senior", "especialista", "executivo"] as const;
-
 export async function salvarPerfilAcao(
   _anterior: FormState,
   form: FormData,
@@ -124,15 +122,8 @@ export async function salvarPerfilAcao(
   const userId = await exigeParceiro();
 
   return validando(async () => {
-    const fuso = texto(form, "fuso", "o fuso horário", 64);
-    if (!IANAZone.isValidZone(fuso)) {
-      throw new CampoInvalido("Fuso horário desconhecido. Use algo como America/Sao_Paulo.");
-    }
-
-    const senioridade = textoOpcional(form, "senioridade", 40);
-    if (senioridade !== null && !(SENIORIDADES as readonly string[]).includes(senioridade)) {
-      throw new CampoInvalido("Senioridade inválida.");
-    }
+    const fuso = campoFuso(form);
+    const senioridade = campoSenioridade(form);
 
     const supabase = await createClient();
 

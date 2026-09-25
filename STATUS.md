@@ -4,6 +4,7 @@ Uma linha por sessão, mais recente no topo. Atualizar **antes** do commit final
 
 | Data | Etapa | O que foi feito | Pendências | Commit |
 |---|---|---|---|---|
+| 2026-09-25 | Polimento | **Exceção pedida à regra de uma feature por sessão.** `lucide-react` com mapa de ícones por nome (`components/ui/icones.ts`) na navegação dos quatro papéis, cards, números e estados vazios; catálogo tipado de ações auditadas (`lib/admin/atividade.ts`) — o painel e a nova `/admin/atividade` mostram frase com ícone e tempo relativo em vez de `alocar_fichas`; livro-caixa em português; edição de Parceiro (`/admin/parceiros/[id]`: dados, e-mail com login, status pausar/arquivar/reativar) e de Profissional (`/admin/empresas/[id]/pessoas/[userId]`: dados, desativar/reativar acesso, atalho de alocação), senha provisória nova com botão de copiar, confirmação em dois passos, histórico por pessoa; busca e filtro nas listas com linha clicável; sidebar vira barra com menu no celular; migalhas, `loading` e `not-found` do admin, título da aba por tela; fim dos números fixos na sidebar do admin; `lib/pessoas/edicao.ts` + `editar.ts`, `lib/formato.ts`; protótipo em `docs/prototipo-polimento.html`; 74 testes novos (360 no total), incluindo varredura de `snake_case` no JSX; fluxos de e-mail, senha e acesso exercitados contra o servidor de auth do `mentoria-dev` | Telas do Profissional e do RH ainda são esqueleto com número de exemplo na sidebar (P3/F2); editar empresa ficou fora | — |
 | 2026-09-25 | 5 + P2 | Motor de agenda em `src/lib/scheduling/` (faixas, dias, slots) — TypeScript puro, 103 testes, **travado**: regra semanal no fuso do Parceiro, exceções, descanso, teto semanal de domingo a sábado, aviso mínimo, horizonte e hora inexistente na virada do horário de verão; `avaliarSlots` devolve o motivo de cada recusa. P2: `/parceiro/disponibilidade` (modo rápido + prévia dos horários que o motor calcula + por que os outros não entraram) e `/parceiro/perfil` (dados, áreas, descanso, teto, confirmar sozinho), escrevendo **pela RLS** com a sessão do Parceiro; `lib/parceiro/` e helpers `inteiros`/`marcado` em `lib/forms`; 124 testes novos (286 no total) | Exceções (férias/bloqueio) o motor suporta mas a tela ainda não expõe — F3 | `c6af6a8` |
 | 2026-09-25 | P1 | Painel do admin funcional: `/admin/painel` com números do livro-caixa e da view `org_usage`, `/admin/empresas` (lista + criar), `/admin/empresas/[id]` (contrato, colaboradores, alocação, livro-caixa) e `/admin/parceiros` (lista + criar Parceiro ativo); `lib/ledger` (compra e alocação transacionais, chaves de idempotência, tradução de erro do Postgres), `lib/pessoas` (empresa, Profissional, Parceiro com compensação da identidade), `lib/audit` (invariante 12), `lib/forms` (validação de borda); `Field`, `Table`, `ButtonLink` e `FormFeedback` no design system; `npm run seed:admin`; protótipo em `docs/prototipo-admin-p1.html`; 73 testes novos (162 no total); **hook ligado e fluxo inteiro percorrido pela interface** | Dados de demonstração ficaram no `mentoria-dev` e o livro-caixa não deixa apagar | `33a28bf` |
 | 2026-09-18 | 4 | Hook `custom_access_token_hook` (invariante 19) e `app_config` com `copy` e `branding`; `src/proxy.ts` renovando sessão e roteando por papel; `lib/auth/` (claims, rotas, sessão, ações) e `lib/config/` (parse puro + carga no servidor); entrada real por Server Action, sair, `requireRole()` nos quatro layouts; vocabulário e marca vindos do banco, com sobrescrita por empresa; 49 testes novos (89 no total) | **Hook desligado no painel** — sem ativar, ninguém entra | `938cd0c` |
@@ -37,6 +38,42 @@ Uma linha por sessão, mais recente no topo. Atualizar **antes** do commit final
 
 ## Decisões de sessão
 _(dependência escolhida, atalho tomado, dívida assumida — o que não merece o CLAUDE.md)_
+
+- **2026-09-25 (Polimento):** a regra de uma feature por sessão foi quebrada **a pedido** — ícones,
+  vocabulário, edição e polimento geral saíram juntos. Anotado para a próxima sessão não tomar isso
+  como precedente.
+- **2026-09-25 (Polimento, verificação):** a checagem ponta a ponta achou um defeito que os testes de
+  banco não alcançavam: trocar o e-mail para um que já existe fazia o servidor de auth responder
+  `500 Error updating user`, e a operadora leria "não foi possível trocar o e-mail". Corrigido
+  conferindo `auth.users` antes. O exercício rodou as funções reais de `pessoas/editar.ts` com um
+  config de Vitest fora do repositório (`server-only` apontado para módulo vazio) e entrou de verdade
+  com as credenciais novas, decodificando o JWT.
+- **2026-09-25 (Polimento, verificação):** a primeira rodada parou no meio com o e-mail da Mariana
+  trocado para um endereço `@teste.local`. O original foi recuperado do `before` em `audit_logs` —
+  que é exatamente para isso que ele existe — e restaurado nos dois lugares. Ficaram no histórico dela
+  as linhas das duas rodadas (e-mail, senha, desativar, reativar), e duas de pausar/reativar na
+  Helena; o livro-caixa é imutável e o `audit_logs` também.
+- **2026-09-25 (Polimento, verificação):** **a senha da Mariana Costa no `mentoria-dev` mudou** e não
+  foi guardada. Para entrar como ela, gere outra na tela dela — é o fluxo novo.
+- **2026-09-25 (Polimento, verificação):** havia um `next` de pé na porta 3000 desde 18h32 (PID 7308),
+  provavelmente o `npm run dev` do usuário; não foi tocado. A verificação usou `next start` do build
+  na porta 3100.
+- **2026-09-25 (Polimento):** `notFound()` dentro do admin responde **200**, não 404 — o
+  `loading.tsx` abre o streaming antes de a página decidir. A tela certa aparece; o código HTTP não
+  importa atrás de login. Se um dia importar, o `loading` sai do segmento.
+- **2026-09-25 (Polimento):** pausar **não** é recusado com sessão futura, ao contrário do plano
+  aprovado. Pausar é o que se faz antes de férias justamente para honrar o que já está marcado; só
+  arquivar e desativar, que tiram o acesso, são recusados.
+- **2026-09-25 (Polimento):** `SENIORIDADES`, `humanizar` e os tipos de linha de lista
+  (`lib/admin/tipos.ts`) moram em módulos próprios por causa do cliente: os dois primeiros evitam
+  arrastar o `luxon` para o bundle, e o terceiro porque o teste da invariante 5 lê o `from` de
+  `consultas.ts` — que é `server-only` — mesmo num `import type`.
+- **2026-09-25 (Polimento):** o projeto não é formatado pelo Prettier de ponta a ponta. Só os
+  arquivos novos passaram por ele (largura 100); nos existentes, as mudanças foram à mão para não
+  gerar diff de ruído.
+- **2026-09-25 (Polimento):** ids de rota passam por `ehId()` antes da consulta. Sem isso,
+  `/admin/empresas/abc` virava `invalid input syntax for type uuid` e erro 500 — defeito que já
+  existia na tela de empresa da P1.
 
 - **2026-09-25 (Etapa 5):** duas asserções minhas nasceram erradas por contar mal a janela de 14
   dias — uma sexta e um domingo a mais do que eu imaginava. O motor estava certo nas duas. Lição

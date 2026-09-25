@@ -95,6 +95,7 @@ const DEFAULT_TERMS_PERMITIDO = [
   "lib/config/app-config.ts", // monta o resolvido por cima do default
   "lib/config/app-config.test.ts",
   "lib/auth/routes.test.ts", // navegação é comparada com vocabulário fixo
+  "lib/admin/atividade.test.ts", // a frase é comparada com o vocabulário default
   "components/config/TermsProvider.tsx", // valor do contexto fora de um provider
 ];
 

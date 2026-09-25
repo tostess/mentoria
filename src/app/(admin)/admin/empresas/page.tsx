@@ -1,15 +1,21 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { NovaEmpresaForm } from "@/components/admin/NovaEmpresaForm";
 import { PageHeader } from "@/components/shell/PageHeader";
-import { ButtonLink } from "@/components/ui/ButtonLink";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Icone } from "@/components/ui/Icone";
 import { Pill } from "@/components/ui/Pill";
 import { CellStack, Table, Td, Th } from "@/components/ui/Table";
 import { listarEmpresas } from "@/lib/admin/consultas";
 import { requireRole } from "@/lib/auth/session";
 import { loadTerms } from "@/lib/config/load";
+import { cnpj } from "@/lib/formato";
 import { cap } from "@/lib/terms";
+
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: (await loadTerms()).orgs };
+}
 
 /**
  * As empresas contratantes.
@@ -37,7 +43,8 @@ export default async function Page() {
 
       <div className="grid grid-cols-1 items-start gap-[18px] lg:grid-cols-[1.55fr_1fr]">
         <Card
-          title={contagem(empresas.length, t.org, t.orgs)}
+          title={cap(contagem(empresas.length, t.org, t.orgs))}
+          icone="building"
           action={
             <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-[#8E7C86]">
               Saldo = não alocadas
@@ -46,6 +53,7 @@ export default async function Page() {
         >
           {empresas.length === 0 ? (
             <EmptyState
+              icone="building"
               title={`Nenhuma ${t.org.toLowerCase()} ainda`}
               description={
                 ehOperadora
@@ -66,14 +74,17 @@ export default async function Page() {
               </thead>
               <tbody>
                 {empresas.map((empresa) => (
-                  <tr key={empresa.id} className="transition-colors hover:bg-[#FDF8FB]">
+                  <tr
+                    key={empresa.id}
+                    className="group relative transition-colors hover:bg-[#FDF8FB] focus-within:bg-[#FDF8FB]"
+                  >
                     <Td>
                       <div className="flex items-center gap-2.5">
                         <CellStack
                           title={
                             <Link
                               href={`/admin/empresas/${empresa.id}`}
-                              className="hover:text-[#C2317A]"
+                              className="outline-none after:absolute after:inset-0 after:content-[''] focus-visible:underline"
                             >
                               {empresa.nome}
                             </Link>
@@ -85,7 +96,7 @@ export default async function Page() {
                     </Td>
                     <Td>
                       <span className="font-mono text-[12px] text-[#8E7C86]">
-                        {cnpj(empresa.cnpj)}
+                        {empresa.cnpj === null ? "—" : cnpj(empresa.cnpj)}
                       </span>
                     </Td>
                     <Td align="right">
@@ -94,10 +105,11 @@ export default async function Page() {
                     <Td align="right">
                       <span className="font-mono tabular-nums">{empresa.saldo}</span>
                     </Td>
-                    <Td align="right">
-                      <ButtonLink href={`/admin/empresas/${empresa.id}`} variant="ghost" size="sm">
-                        Abrir
-                      </ButtonLink>
+                    <Td align="right" className="w-8">
+                      <Icone
+                        nome="chevron-right"
+                        className="text-[#D9C3CF] transition-colors group-hover:text-[#C2317A]"
+                      />
                     </Td>
                   </tr>
                 ))}
@@ -107,7 +119,7 @@ export default async function Page() {
         </Card>
 
         {ehOperadora ? (
-          <Card title={`Nova ${t.org.toLowerCase()}`}>
+          <Card title={`Nova ${t.org.toLowerCase()}`} icone="building">
             <NovaEmpresaForm termoEmpresa={t.org} />
             <p className="mt-3.5 text-[12px] leading-[1.45] text-[#8E7C86]">
               {cap(t.org)} nasce com contrato zero. O bloco de {t.fichas} é registrado depois, na
@@ -129,11 +141,4 @@ export default async function Page() {
 /** "1 empresa" / "4 empresas" — plural sem `Intl.PluralRules` para dois casos. */
 function contagem(n: number, singular: string, plural: string): string {
   return `${n} ${n === 1 ? singular.toLowerCase() : plural.toLowerCase()}`;
-}
-
-/** Os 14 dígitos guardados voltam formatados só na borda de UI. */
-function cnpj(digitos: string | null): string {
-  if (digitos === null) return "—";
-  if (digitos.length !== 14) return digitos;
-  return `${digitos.slice(0, 2)}.${digitos.slice(2, 5)}.${digitos.slice(5, 8)}/${digitos.slice(8, 12)}-${digitos.slice(12)}`;
 }
