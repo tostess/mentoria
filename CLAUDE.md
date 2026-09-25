@@ -456,13 +456,13 @@ foto, e-mail e telefone; livros-caixa, `bookings` e `audit_logs` permanecem — 
 
 ## Roadmap
 
-**Base (Etapas 0–5):** contrato e limpeza · design system e cascas · conexão Supabase/Drizzle ·
+**Base (Etapas 0–5):** ✅ contrato e limpeza · design system e cascas · conexão Supabase/Drizzle ·
 esquema, constraints e RLS · auth, papéis e config · motor de agenda.
 
 **Piloto fechado — alvo 10/11/2026.** Tudo operado pelo admin, nada self-service.
 - **P1** ✅ Painel do admin: criar empresa, registrar contrato, criar Parceiro direto, criar
   Profissional, alocar fichas
-- **P2** Disponibilidade do Parceiro (só modo rápido "esta semana") e perfil básico
+- **P2** ✅ Disponibilidade do Parceiro (só modo rápido "esta semana") e perfil básico
 - **P3** Carteiras, `allocate-monthly`, `POST /api/bookings` transacional
 - **P4** Busca simples, agendamento, agenda das duas visões, `expire-pending`, `close-sessions`,
   `send-reminders`
@@ -590,6 +590,35 @@ F16 formato grupo · F18 dashboards e exclusão de conta.
   `prepare`). São três ambientes e o teste só visita um. Quando o modo de falha vive fora do
   alcance do Vitest — como o `tx.json()` — o que impede a volta é teste estático sobre o
   código-fonte, na mesma linha do que já guarda a invariante 5 e o vocabulário.
+- **A grade do motor é de 30 em 30 minutos; o descanso é conferido contra o que já está marcado.**
+  A alternativa — espaçar os candidatos por duração mais buffer — produziria horários fixos de 45 em
+  45 e desperdiçaria a agenda. Do jeito escolhido, a faixa das 9h às 12h oferece seis horários, e é
+  a reserva de um deles que apaga os vizinhos. O passo é parâmetro, e o default é a duração.
+- **A semana do teto vai de domingo a sábado.** `partner_rules.weekday` usa 0 para domingo, que é a
+  convenção do `dow` do Postgres e do calendário brasileiro. Contar `max_per_week` numa fronteira e
+  escrever a regra em outra faria "4 sessões por semana" significar duas coisas diferentes na mesma
+  tela. A ISO, que começa na segunda, ficou de fora por isso.
+- **Hora que não existiu no relógio local não vira horário.** Na virada do horário de verão para a
+  frente o relógio salta, e Luxon, pedido um horário do buraco, empurra para o instante seguinte em
+  vez de recusar — o motor ofereceria 0h30 e a tela mostraria 1h30. `instanteLocal` confere se o
+  relógio devolvido bate com o que se pediu. O Brasil não tem horário de verão desde 2019; o campo é
+  IANA e o motor fica travado, então o custo de acertar agora é zero e o de errar é uma sessão
+  perdida quando o primeiro Parceiro de fora entrar.
+- **O motor devolve o motivo da recusa, não só a lista.** `avaliarSlots` marca cada candidato com
+  `ocupado`, `descanso`, `teto-semanal`, `fora-do-aviso-minimo` ou `fora-do-horizonte`. É o que
+  permite a tela do Parceiro responder "por que não tem horário?" com uma frase em vez de um vazio —
+  e é o que deixa o teste afirmar a causa, e não a ausência.
+- **O Parceiro escreve pela RLS, com o cliente da sessão dele.** É o único lugar do produto em que o
+  papel autenticado escreve: a Etapa 3 deu a ele policy de `all` nas próprias regras e privilégio de
+  coluna no próprio perfil. Usar `service_role` aqui funcionaria e desperdiçaria o desenho — do jeito
+  que está, policy errada quebra a tela na hora, em vez de só aparecer quando alguém ler o que não
+  devia. E o `partner_id` nunca é parâmetro: vem do JWT.
+- **Parceiro mexendo em si não grava `audit_logs`.** A invariante 12 pede registro de ação de admin,
+  moderador e RH — ação sobre terceiro. Ajustar a própria agenda não é. A exceção é a invariante 18,
+  correção de presença, que chega na P5.
+- **O modo rápido substitui a rotina inteira, não acrescenta.** É o que "modo rápido" significa: o
+  Parceiro está descrevendo a semana dele, não somando uma linha. Quando a grade detalhada da F3
+  chegar, esta tela precisa avisar antes de sobrescrever o que a outra montou.
 
 ## Descartado
 
@@ -608,29 +637,30 @@ F16 formato grupo · F18 dashboards e exclusão de conta.
 
 ## Estado atual
 
-Fase: **P1 — painel do admin**. Base (Etapas 0–4) fechada; cinco migrações versionadas em
-`mentoria-dev`: prólogo, esquema base, epílogo, `auth_claims` (o `custom_access_token_hook`,
-invariante 19) e `copy_e_branding`.
+Fase: **P2 fechada**. Base completa (Etapas 0–5) e duas fases do piloto no ar.
 
-O piloto já é operável de ponta a ponta pela operadora: criar empresa, registrar contrato
-(`purchase`), criar Parceiro ativo, criar Profissional com carteira e alocar ficha — cada escrita
-de dinheiro numa transação só, com `idempotency_key` e `audit_logs`. Quatro telas reais em
-`/admin/painel`, `/admin/empresas`, `/admin/empresas/[id]` e `/admin/parceiros`; o moderador
-divide a casca e vê só leitura. `npm run seed:admin` cria a primeira conta de operadora — a única
-que ninguém tem como criar por dentro do produto.
+A operadora opera o piloto inteiro por tela: criar empresa, registrar contrato, criar Parceiro
+ativo, criar Profissional com carteira e alocar ficha — cada escrita de dinheiro numa transação só,
+com `idempotency_key` e `audit_logs`. O Parceiro configura a própria rotina em `/parceiro/
+disponibilidade` e o próprio perfil em `/parceiro/perfil`, escrevendo pela RLS com a sessão dele.
 
-162 testes em 11 arquivos. Os 73 novos cobrem as chaves de idempotência (invariante 16), a
-validação de borda das Server Actions e as transações da P1 chamando **as mesmas funções que a
-aplicação chama** (`src/lib/ledger/transacoes.test.ts`): alocação atômica, crédito que falha
-desfazendo o débito, teto de carteira, carteira de outra empresa e auditoria. Invariante 19 segue
-coberta das duas pontas em `src/lib/auth/hook.test.ts`; invariantes 3, 4, 7, 8, 9, 10 e 16 em
-`src/lib/db/invariantes.test.ts`. Invariante 5 travada por `server-only` mais teste estático, agora
-cobrindo também `lib/ledger`, `lib/pessoas/criar` e `lib/admin/consultas`.
+O **motor de agenda** (`src/lib/scheduling/`) está travado: TypeScript puro, sem banco e sem rede,
+transformando regra semanal mais exceções mais o que já está marcado numa lista de instantes. Ele
+respeita descanso, teto semanal, aviso mínimo e horizonte, converte minutos locais no fuso do
+Parceiro e pula hora que não existiu na virada do horário de verão. A tela de disponibilidade mostra
+o resultado dele ao lado do formulário — invariante 14 visível: o Parceiro vê os mesmos horários que
+o Profissional verá.
 
-**O hook está ligado desde 25/09/2026** e o piloto foi percorrido inteiro pela interface, com
-sessão de admin de verdade: criar empresa → registrar contrato de 120 → criar Profissional →
-alocar 2 → criar Parceiro. O livro-caixa fechou (120 compradas, 2 alocadas, 118 no contrato, 2 na
-carteira), as cinco ações gravaram `audit_logs`, e o segundo envio do mesmo formulário de alocação
-foi recusado com "Este lançamento já foi registrado" — invariante 16 exercitada pela tela.
+286 testes em 15 arquivos. O motor sozinho tem 103, divididos entre a aritmética de faixas, a
+tradução de regra semanal em dia concreto e a geração de horários. Invariante 19 coberta das duas
+pontas em `src/lib/auth/hook.test.ts`; invariantes 3, 4, 7, 8, 9, 10 e 16 em
+`src/lib/db/invariantes.test.ts`; as transações da P1 em `src/lib/ledger/transacoes.test.ts`,
+chamando as mesmas funções que a aplicação chama. Invariante 5 travada por `server-only` mais teste
+estático.
 
-Próxima: Etapa 5 (motor de agenda), que a P1 não exigia. Motor de agenda: **não travado**.
+O hook de access token está ligado desde 25/09/2026, e os dois fluxos foram percorridos na
+interface com sessão real — o da operadora e o do Parceiro, incluindo as recusas.
+
+Próxima: **P3** — carteiras, `allocate-monthly` e `POST /api/bookings` transacional. O motor já
+existe para validar o horário da reserva, e `lib/ledger` já tem a transação que o `spend` vai usar.
+Motor de agenda: **travado**.

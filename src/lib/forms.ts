@@ -160,6 +160,35 @@ export function lista(form: FormData, nome: string, max = 12): string[] {
   return itens;
 }
 
+/**
+ * Vários valores inteiros do mesmo campo — caixas de seleção com o mesmo
+ * `name`. Descarta repetido e ordena, porque "Ter, Seg, Ter" e "Seg, Ter" são a
+ * mesma escolha e não podem virar duas linhas diferentes no banco.
+ */
+export function inteiros(
+  form: FormData,
+  nome: string,
+  rotulo: string,
+  min: number,
+  max: number,
+): number[] {
+  const brutos = form.getAll(nome).filter((v): v is string => typeof v === "string");
+  const numeros = brutos.map((valor) => {
+    if (!/^-?\d+$/.test(valor.trim())) {
+      throw new CampoInvalido(`${rotulo} tem um valor inválido.`);
+    }
+    const n = Number(valor);
+    if (n < min || n > max) throw new CampoInvalido(`${rotulo} tem um valor fora da faixa.`);
+    return n;
+  });
+  return [...new Set(numeros)].sort((a, b) => a - b);
+}
+
+/** Caixa marcada. `<input type="checkbox">` só envia o campo quando marcado. */
+export function marcado(form: FormData, nome: string): boolean {
+  return form.get(nome) !== null;
+}
+
 /** Valor que precisa estar num conjunto fechado — `select` de enum. */
 export function opcao<T extends string>(
   form: FormData,

@@ -4,7 +4,8 @@ Uma linha por sessão, mais recente no topo. Atualizar **antes** do commit final
 
 | Data | Etapa | O que foi feito | Pendências | Commit |
 |---|---|---|---|---|
-| 2026-09-25 | P1 | Painel do admin funcional: `/admin/painel` com números do livro-caixa e da view `org_usage`, `/admin/empresas` (lista + criar), `/admin/empresas/[id]` (contrato, colaboradores, alocação, livro-caixa) e `/admin/parceiros` (lista + criar Parceiro ativo); `lib/ledger` (compra e alocação transacionais, chaves de idempotência, tradução de erro do Postgres), `lib/pessoas` (empresa, Profissional, Parceiro com compensação da identidade), `lib/audit` (invariante 12), `lib/forms` (validação de borda); `Field`, `Table`, `ButtonLink` e `FormFeedback` no design system; `npm run seed:admin`; protótipo em `docs/prototipo-admin-p1.html`; 73 testes novos (162 no total); **hook ligado e fluxo inteiro percorrido pela interface** | Dados de demonstração ficaram no `mentoria-dev` e o livro-caixa não deixa apagar | — |
+| 2026-09-25 | 5 + P2 | Motor de agenda em `src/lib/scheduling/` (faixas, dias, slots) — TypeScript puro, 103 testes, **travado**: regra semanal no fuso do Parceiro, exceções, descanso, teto semanal de domingo a sábado, aviso mínimo, horizonte e hora inexistente na virada do horário de verão; `avaliarSlots` devolve o motivo de cada recusa. P2: `/parceiro/disponibilidade` (modo rápido + prévia dos horários que o motor calcula + por que os outros não entraram) e `/parceiro/perfil` (dados, áreas, descanso, teto, confirmar sozinho), escrevendo **pela RLS** com a sessão do Parceiro; `lib/parceiro/` e helpers `inteiros`/`marcado` em `lib/forms`; 124 testes novos (286 no total) | Exceções (férias/bloqueio) o motor suporta mas a tela ainda não expõe — F3 | — |
+| 2026-09-25 | P1 | Painel do admin funcional: `/admin/painel` com números do livro-caixa e da view `org_usage`, `/admin/empresas` (lista + criar), `/admin/empresas/[id]` (contrato, colaboradores, alocação, livro-caixa) e `/admin/parceiros` (lista + criar Parceiro ativo); `lib/ledger` (compra e alocação transacionais, chaves de idempotência, tradução de erro do Postgres), `lib/pessoas` (empresa, Profissional, Parceiro com compensação da identidade), `lib/audit` (invariante 12), `lib/forms` (validação de borda); `Field`, `Table`, `ButtonLink` e `FormFeedback` no design system; `npm run seed:admin`; protótipo em `docs/prototipo-admin-p1.html`; 73 testes novos (162 no total); **hook ligado e fluxo inteiro percorrido pela interface** | Dados de demonstração ficaram no `mentoria-dev` e o livro-caixa não deixa apagar | `33a28bf` |
 | 2026-09-18 | 4 | Hook `custom_access_token_hook` (invariante 19) e `app_config` com `copy` e `branding`; `src/proxy.ts` renovando sessão e roteando por papel; `lib/auth/` (claims, rotas, sessão, ações) e `lib/config/` (parse puro + carga no servidor); entrada real por Server Action, sair, `requireRole()` nos quatro layouts; vocabulário e marca vindos do banco, com sobrescrita por empresa; 49 testes novos (89 no total) | **Hook desligado no painel** — sem ativar, ninguém entra | `938cd0c` |
 | 2026-09-10 | 3 | Esquema em `src/lib/db/schema/` (7 módulos, 27 tabelas); três migrações versionadas — prólogo, base gerada, epílogo; RLS nas 27 com 36 policies; `bookings_no_overlap`; triggers de saldo e imutabilidade; privilégio de coluna em `partners.status` e `profiles.role`; view `org_usage`; `app_config` semeada; 20 testes de invariante contra o Postgres, incluindo RLS exercitada como usuário logado | `org_admin` ainda não tem caminho de leitura além de `org_usage` — confirmar na Etapa 4 | `1e8b744` |
 | 2026-09-10 | 2 | `.env.local.example`; `env.ts` público e `env.server.ts` com `server-only`; clientes `supabase/client`, `server` e `admin`; Drizzle sobre postgres.js com pool cacheado; `drizzle.config.ts` gerando em `supabase/migrations/` com prefixo `supabase`; `vercel.json` em `gru1`; `GET /api/health`; `npm run check:supabase`; teste estático da invariante 5 | — conexão verificada ponta a ponta contra `mentoria-dev` | `7b308da` |
@@ -36,6 +37,33 @@ Uma linha por sessão, mais recente no topo. Atualizar **antes** do commit final
 
 ## Decisões de sessão
 _(dependência escolhida, atalho tomado, dívida assumida — o que não merece o CLAUDE.md)_
+
+- **2026-09-25 (Etapa 5):** duas asserções minhas nasceram erradas por contar mal a janela de 14
+  dias — uma sexta e um domingo a mais do que eu imaginava. O motor estava certo nas duas. Lição
+  para o próximo teste de agenda: escrever a lista de datas da janela antes de escrever o número
+  esperado.
+- **2026-09-25 (Etapa 5):** o horizonte é inclusivo no instante exato — um horário que começa
+  precisamente em `agora + 14 dias` entra. É `>` e não `>=` no motor, e tem teste próprio, porque é
+  o tipo de ponta que alguém "corrige" sem perceber.
+- **2026-09-25 (Etapa 5):** `instanteLocal` constrói a hora alvo direto em vez de somar minutos à
+  meia-noite. A primeira versão somava, e teria recusado horários válidos em fusos cuja virada
+  acontece à meia-noite — a própria base já nasceria deslocada.
+- **2026-09-25 (P2):** `carregarPerfil` usa `Promise.all`, e isso **não** contraria a regra do
+  travamento: aquelas consultas vão por HTTP ao PostgREST, não pela conexão Drizzle de `max: 1`. A
+  regra vale para Drizzle; está comentado no arquivo para ninguém "consertar" depois.
+- **2026-09-25 (P2):** salvar disponibilidade apaga e reinsere em duas idas ao banco, sem transação.
+  O pior caso é o Parceiro ficar um instante sem regra nenhuma — o que não desmarca sessão nem
+  perde dinheiro. Transação exigiria função no banco e o ganho não paga.
+- **2026-09-25 (P2):** a tela não expõe exceções (férias, bloqueio pontual) embora o motor já as
+  calcule e tenha teste para elas. Fica para a F3, junto da grade detalhada. Anotado porque "o motor
+  suporta e a tela não mostra" é o tipo de coisa que se esquece.
+- **2026-09-25 (P2, verificação):** um `next dev` antigo continuava rodando e recusou o novo
+  (`run taskkill /PID …`). Como ele carregava a conexão entalada da sessão anterior, as telas do
+  Parceiro pareciam travar — depois de matar e subir limpo, 1,1s. Antes de investigar lentidão em
+  dev, conferir se há mais de um servidor de pé.
+- **2026-09-25 (P2, verificação):** o Parceiro de teste do `mentoria-dev` teve a senha redefinida
+  para `Parceiro!Teste2026` para eu conseguir exercitar as telas. Agora há dois Parceiros chamados
+  "Helena Braga" no banco de desenvolvimento — um deles era o "teste" que você criou.
 
 - **2026-09-25 (P1, verificação):** a conferência do hook feita segundos depois do clique no painel
   ainda acusou desligado; meia dúzia de minutos depois o mesmo token saiu com `user_role: admin`. É
