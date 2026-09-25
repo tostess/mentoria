@@ -1,0 +1,238 @@
+"use server";
+
+import { refresh } from "next/cache";
+import { redirect } from "next/navigation";
+import { requireRole } from "@/lib/auth/session";
+import { loadAppConfig } from "@/lib/config/load";
+import {
+  CampoInvalido,
+  cnpjOpcional,
+  dataOpcional,
+  email as campoEmail,
+  falha,
+  id as campoId,
+  inteiro,
+  lista,
+  opcao,
+  sucesso,
+  texto,
+  textoOpcional,
+  validando,
+  type FormState,
+} from "@/lib/forms";
+import {
+  LancamentoRepetido,
+  SaldoInsuficiente,
+  TetoDaCarteira,
+  alocarFichas,
+  registrarCompra,
+} from "@/lib/ledger";
+import {
+  EmailJaUsado,
+  ENGAJAMENTOS,
+  criarEmpresa,
+  criarParceiro,
+  criarProfissional,
+} from "@/lib/pessoas/criar";
+import { normalizeHex } from "@/lib/theme";
+import { ehColaboradorDaEmpresa } from "./consultas";
+
+/**
+ * As ações do painel da operadora.
+ *
+ * Toda escrita privilegiada passa por aqui e cada função repete a autorização
+ * do zero. A tela só renderizar o formulário para quem é `admin` não protege
+ * nada: Server Action é um POST contra a rota, e quem souber o ID da ação
+ * manda o POST sem abrir tela nenhuma.
+ *
+ * Só `admin`, nunca `moderator`. O moderador divide a casca com a operadora
+ * mas não mexe em contrato — esse recorte vive aqui e na tela, não no matcher
+ * de rota, porque os dois usam as mesmas URLs.
+ *
+ * Invariante 4: nenhuma destas funções escreve direto do cliente. O que elas
+ * chamam é `lib/ledger` e `lib/pessoas`, onde vivem as transações.
+ */
+
+async function exigeOperadora() {
+  const sessao = await requireRole("admin");
+  return { id: sessao.userId, role: sessao.role };
+}
+
+/**
+ * Traduz o que o banco recusou na frase que o admin lê.
+ *
+ * As quatro exceções conhecidas são recusas legítimas — saldo que não dá,
+ * carteira no teto, clique repetido, e-mail já usado. Qualquer outra coisa é
+ * defeito, e é relançada para virar erro de verdade em vez de "não foi
+ * possível" genérico que ninguém consegue depurar.
+ */
+async function executando(fn: () => Promise<FormState>): Promise<FormState> {
+  return validando(async () => {
+    try {
+      return await fn();
+    } catch (erro) {
+      if (
+        erro instanceof SaldoInsuficiente ||
+        erro instanceof TetoDaCarteira ||
+        erro instanceof LancamentoRepetido ||
+        erro instanceof EmailJaUsado
+      ) {
+        return falha(erro.message);
+      }
+      throw erro;
+    }
+  });
+}
+
+/** Fuso do Parceiro. Fixo no piloto; a tela de perfil abre isso na P2. */
+const FUSO_PADRAO = "America/Sao_Paulo";
+
+export async function criarEmpresaAcao(
+  _anterior: FormState,
+  form: FormData,
+): Promise<FormState> {
+  const ator = await exigeOperadora();
+
+  return executando(async () => {
+    const accentBruto = textoOpcional(form, "accent", 9);
+    const accent = accentBruto === null ? null : normalizeHex(accentBruto);
+    if (accentBruto !== null && accent === null) {
+      throw new CampoInvalido("Cor da marca precisa ser um hex como #C2317A.");
+    }
+
+    const inicio = dataOpcional(form, "inicio", "A data de início");
+    const fim = dataOpcional(form, "fim", "A data de fim");
+    if (inicio !== null && fim !== null && fim < inicio) {
+      throw new CampoInvalido("O fim do contrato não pode ser antes do início.");
+    }
+
+    const { id } = await criarEmpresa({
+      nome: texto(form, "nome", "o nome da empresa", 160),
+      cnpj: cnpjOpcional(form, "cnpj"),
+      inicio,
+      fim,
+      accent,
+      ator,
+    });
+
+    // Redirect vem depois da escrita e substitui o `refresh()`: a tela de
+    // destino é renderizada do zero e já mostra a empresa criada.
+    redirect(`/admin/empresas/${id}`);
+  });
+}
+
+export async function registrarContratoAcao(
+  _anterior: FormState,
+  form: FormData,
+): Promise<FormState> {
+  const ator = await exigeOperadora();
+
+  return executando(async () => {
+    const orgId = campoId(form, "orgId", "A empresa");
+    const fichas = inteiro(form, "fichas", "A quantidade de fichas", 1, 100_000);
+
+    const { saldo } = await registrarCompra({
+      orgId,
+      fichas,
+      referencia: textoOpcional(form, "referencia", 160),
+      token: texto(form, "token", "o token do formulário", 64),
+      ator,
+    });
+
+    refresh();
+    return sucesso(`${fichas} fichas registradas. O contrato tem ${saldo} disponíveis.`);
+  });
+}
+
+export async function criarProfissionalAcao(
+  _anterior: FormState,
+  form: FormData,
+): Promise<FormState> {
+  const ator = await exigeOperadora();
+
+  return executando(async () => {
+    const orgId = campoId(form, "orgId", "A empresa");
+    const email = campoEmail(form, "email");
+
+    const { senha } = await criarProfissional({
+      orgId,
+      nome: texto(form, "nome", "o nome", 160),
+      email,
+      cargo: textoOpcional(form, "cargo", 120),
+      area: textoOpcional(form, "area", 120),
+      ator,
+    });
+
+    refresh();
+    return sucesso("Profissional criado. Repasse o acesso abaixo — ele aparece uma vez só.", {
+      email,
+      senha,
+    });
+  });
+}
+
+export async function alocarFichasAcao(
+  _anterior: FormState,
+  form: FormData,
+): Promise<FormState> {
+  const ator = await exigeOperadora();
+  const { fichaPolicy } = await loadAppConfig();
+
+  return executando(async () => {
+    const orgId = campoId(form, "orgId", "A empresa");
+    const userId = campoId(form, "userId", "O colaborador");
+
+    // A tela manda quem; o banco confirma que esse quem é da empresa. Sem esta
+    // conferência, um POST forjado moveria ficha de um contrato para a carteira
+    // de outra empresa — a carteira é travada de novo dentro da transação, e
+    // esta checagem é o que produz a mensagem legível em vez do erro cru.
+    if (!(await ehColaboradorDaEmpresa(orgId, userId))) {
+      throw new CampoInvalido("Este colaborador não pertence à empresa.");
+    }
+
+    const quantidade = inteiro(form, "quantidade", "A quantidade", 1, fichaPolicy.maxBalance);
+
+    const { saldoContrato, saldoCarteira } = await alocarFichas({
+      orgId,
+      userId,
+      quantidade,
+      tetoCarteira: fichaPolicy.maxBalance,
+      token: texto(form, "token", "o token do formulário", 64),
+      ator,
+    });
+
+    refresh();
+    return sucesso(
+      `Alocadas. A carteira ficou com ${saldoCarteira} e o contrato com ${saldoContrato}.`,
+    );
+  });
+}
+
+export async function criarParceiroAcao(
+  _anterior: FormState,
+  form: FormData,
+): Promise<FormState> {
+  const ator = await exigeOperadora();
+
+  return executando(async () => {
+    const email = campoEmail(form, "email");
+
+    const { senha } = await criarParceiro({
+      nome: texto(form, "nome", "o nome", 160),
+      email,
+      headline: textoOpcional(form, "headline", 160),
+      bio: textoOpcional(form, "bio", 2000),
+      areas: lista(form, "areas"),
+      engajamento: opcao(form, "engajamento", "o vínculo", ENGAJAMENTOS),
+      maxPorSemana: inteiro(form, "maxPorSemana", "As sessões por semana", 1, 40),
+      fuso: FUSO_PADRAO,
+      ator,
+    });
+
+    refresh();
+    return sucesso("Parceiro criado e ativo. Repasse o acesso abaixo — ele aparece uma vez só.", {
+      email,
+      senha,
+    });
+  });
+}

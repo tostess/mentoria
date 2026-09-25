@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 
 type Props = {
-  eyebrow?: string;
+  /** `ReactNode` e não `string`: a trilha de migalhas entra por aqui, com link. */
+  eyebrow?: ReactNode;
   title: string;
   description?: ReactNode;
   actions?: ReactNode;

@@ -460,7 +460,7 @@ foto, e-mail e telefone; livros-caixa, `bookings` e `audit_logs` permanecem — 
 esquema, constraints e RLS · auth, papéis e config · motor de agenda.
 
 **Piloto fechado — alvo 10/11/2026.** Tudo operado pelo admin, nada self-service.
-- **P1** Painel do admin: criar empresa, registrar contrato, criar Parceiro direto, criar
+- **P1** ✅ Painel do admin: criar empresa, registrar contrato, criar Parceiro direto, criar
   Profissional, alocar fichas
 - **P2** Disponibilidade do Parceiro (só modo rápido "esta semana") e perfil básico
 - **P3** Carteiras, `allocate-monthly`, `POST /api/bookings` transacional
@@ -530,6 +530,66 @@ F16 formato grupo · F18 dashboards e exclusão de conta.
   `branding`, junto de accent e logotipo — o mesmo lugar que a empresa sobrescreve.
 - **Configuração degrada para o default; dado falha alto.** `app_config` fora do ar devolve os
   defaults e a tela sobe. Saldo, agenda e sessão não têm esse direito.
+- **Escrita privilegiada por Server Action, com a transação num módulo à parte.** A invariante 4
+  diz que o cliente não escreve nos livros-caixa — e Server Action é servidor, não cliente. O que
+  ela proíbe continua proibido: não há policy de `insert` para papel autenticado. A transação em si
+  mora em `lib/ledger`, não na ação, porque a alocação mensal do cron (P3) e a alocação manual do
+  admin **têm** de ser a mesma escrita; Route Handler e Server Action passam a ser só duas portas
+  para a mesma função.
+- **A operação transacional é separada de quem abre a conexão.** `ledger/operacoes.ts` e
+  `pessoas/operacoes.ts` recebem a transação e não têm `server-only`; `ledger/index.ts` e
+  `pessoas/criar.ts` abrem a transação e têm. É isso que deixa o teste chamar a **mesma** função que
+  a aplicação chama e desfazer tudo por `rollback` — que não é `delete` e por isso passa pelo
+  trigger de imutabilidade. Teste que reescrevesse o SQL provaria que o banco funciona, não que a
+  aplicação usa o banco certo.
+- **A ação manual do admin tem chave de idempotência própria.** O cron usa
+  `alloc_{userId}_{YYYYMM}`; a mão humana usa `allocmanual_{userId}_{token}`, com o token sorteado
+  quando o formulário é montado. Se as duas colidissem, a primeira alocação manual do mês faria o
+  cron daquele mês achar que já rodou — e o colaborador ficaria sem ficha sem erro nenhum aparecer.
+  Reenviar o formulário colide (é o que se quer); reabrir a tela sorteia outro token.
+- **Identidade e perfil não cabem numa transação.** `auth.users` é chamada HTTP ao servidor de auth
+  e `profiles` é SQL. A ordem é criar a identidade primeiro e apagá-la se o SQL falhar: o inverso
+  deixaria perfil sem login, invisível até alguém tentar entrar. O `id` é sorteado pela aplicação
+  para a compensação saber o que apagar mesmo se a resposta se perder.
+- **Senha provisória mostrada uma vez, até o convite existir.** Sem Resend não há convite por link,
+  e deixar o admin inventar a senha produziria "mentoria123" em todas as contas. O alfabeto exclui
+  caractere ambíguo porque essa senha vai ser ditada por telefone.
+- **Carteira é criada junto da empresa e da pessoa, não por trigger.** O trigger de saldo só sabe
+  somar: `apply_org_entry` e `apply_wallet_entry` levantam exceção quando a carteira não existe. Sem
+  a linha no mesmo `insert`, a primeira compra falharia com "carteira inexistente" — erro certo,
+  momento errado.
+- **`max_balance` é conferido em código, com `for update`.** O teto por carteira vive em
+  `app_config` e muda por empresa, então o banco não tem como saber o número. Travar a linha antes
+  de ler é o que impede duas alocações simultâneas de passarem do teto juntas. O que **não** é
+  conferido em código é o saldo: quem recusa o débito indevido é o `check (balance >= 0)`, porque
+  checagem prévia perde a corrida com o segundo clique e constraint não perde.
+- **Parceiro criado pelo admin nasce `active`, não `invited`.** No piloto não há onboarding para ele
+  percorrer — quem preenche o formulário já falou com a pessoa. A invariante 8 continua de pé:
+  `status` só muda por `service_role`, e `approved_by` registra quem decidiu.
+- **A P1 veio antes da Etapa 5.** O motor de agenda é TypeScript puro e não produz tela; o painel do
+  admin não depende dele e é o que semeia o dado de que toda tela posterior precisa. Ordem do
+  roadmap trocada de propósito, uma vez.
+- **Nunca duas consultas Drizzle em paralelo na conexão de runtime.** O pooler de transação roda
+  com `max: 1`, e um `Promise.all` de duas consultas Drizzle sobre uma conexão **já usada** entala a
+  conexão para sempre — não é lentidão, é `state = active` em `pg_stat_activity` esperando o cliente
+  para sempre. E como a conexão vive no `globalThis`, o processo inteiro para junto: toda requisição
+  seguinte fica na fila atrás dela, inclusive as que nem tocam no banco. O sintoma engana, porque a
+  tela que trava não é a que tem o defeito. Serializar não custa nada: numa conexão só as consultas
+  já seriam sequenciais. Medido com `execute` e com o construtor, com `prepare` ligado e desligado.
+  Cuidado com o caso indireto — `Promise.all([f(), g()])` é seguro se `g()` esperar a promessa de
+  `f()` antes de consultar, que é o que salva o `app/layout.tsx`.
+- **Coluna `jsonb` se escreve com `paraJsonb()` e `::text::jsonb`, nunca com `tx.json()`.** As duas
+  alternativas óbvias falham, cada uma em um ambiente: `tx.json()` é o que a documentação do
+  postgres.js manda usar, passa em todo teste, e **estoura dentro do bundle do Next** com
+  `ERR_INVALID_ARG_TYPE`; `${JSON.stringify(x)}::jsonb` grava a string JSON *como* valor jsonb, sem
+  erro nenhum, e só aparece quando alguém lê `branding->>'accent'` e recebe nada. O `::text` no meio
+  tira a inferência de tipo do driver e dá o mesmo resultado nos três ambientes. A tabela da medição
+  está em `src/lib/db/jsonb.ts`.
+- **O que os testes não alcançam vira varredura de código.** Vitest roda em Node contra `DIRECT_URL`
+  (5432, `prepare` ligado); a aplicação roda no bundle do Next contra `DATABASE_URL` (6543, sem
+  `prepare`). São três ambientes e o teste só visita um. Quando o modo de falha vive fora do
+  alcance do Vitest — como o `tx.json()` — o que impede a volta é teste estático sobre o
+  código-fonte, na mesma linha do que já guarda a invariante 5 e o vocabulário.
 
 ## Descartado
 
@@ -548,22 +608,29 @@ F16 formato grupo · F18 dashboards e exclusão de conta.
 
 ## Estado atual
 
-Etapa: **4** — auth, papéis e config. Cinco migrações versionadas em `mentoria-dev`: prólogo,
-esquema base, epílogo, `auth_claims` (o `custom_access_token_hook`, invariante 19) e
-`copy_e_branding` (`app_config` ganhou as chaves `copy` e `branding`).
+Fase: **P1 — painel do admin**. Base (Etapas 0–4) fechada; cinco migrações versionadas em
+`mentoria-dev`: prólogo, esquema base, epílogo, `auth_claims` (o `custom_access_token_hook`,
+invariante 19) e `copy_e_branding`.
 
-Entrada por e-mail e senha em Server Action, `proxy.ts` renovando a sessão e mandando cada papel
-para a sua casca, `requireRole()` repetindo a regra dentro de cada layout, e `app_config`
-alimentando vocabulário e marca — com sobrescrita por empresa via `orgs.branding`.
+O piloto já é operável de ponta a ponta pela operadora: criar empresa, registrar contrato
+(`purchase`), criar Parceiro ativo, criar Profissional com carteira e alocar ficha — cada escrita
+de dinheiro numa transação só, com `idempotency_key` e `audit_logs`. Quatro telas reais em
+`/admin/painel`, `/admin/empresas`, `/admin/empresas/[id]` e `/admin/parceiros`; o moderador
+divide a casca e vê só leitura. `npm run seed:admin` cria a primeira conta de operadora — a única
+que ninguém tem como criar por dentro do produto.
 
-89 testes em 7 arquivos. Invariante 19 coberta das duas pontas
-(`src/lib/auth/hook.test.ts`, 12 casos contra o Postgres de verdade): o hook escreve as claims, e
-`auth_role()` / `auth_org_id()` leem exatamente o que ele escreveu. Invariantes 3, 4, 7, 8, 9, 10
-e 16 seguem em `src/lib/db/invariantes.test.ts`. Invariante 5 travada por `server-only` mais teste
-estático, agora cobrindo também `lib/auth/session.ts` e `lib/config/load.ts`.
+162 testes em 11 arquivos. Os 73 novos cobrem as chaves de idempotência (invariante 16), a
+validação de borda das Server Actions e as transações da P1 chamando **as mesmas funções que a
+aplicação chama** (`src/lib/ledger/transacoes.test.ts`): alocação atômica, crédito que falha
+desfazendo o débito, teto de carteira, carteira de outra empresa e auditoria. Invariante 19 segue
+coberta das duas pontas em `src/lib/auth/hook.test.ts`; invariantes 3, 4, 7, 8, 9, 10 e 16 em
+`src/lib/db/invariantes.test.ts`. Invariante 5 travada por `server-only` mais teste estático, agora
+cobrindo também `lib/ledger`, `lib/pessoas/criar` e `lib/admin/consultas`.
 
-**Pendência que bloqueia o login:** o hook está no banco e testado, mas **desligado no painel**.
-Sem ativar em Authentication → Hooks → Customize Access Token, o token sai sem `user_role` e todo
-mundo cai em "acesso inativo". Verificado end-to-end em 18/09/2026.
+**O hook está ligado desde 25/09/2026** e o piloto foi percorrido inteiro pela interface, com
+sessão de admin de verdade: criar empresa → registrar contrato de 120 → criar Profissional →
+alocar 2 → criar Parceiro. O livro-caixa fechou (120 compradas, 2 alocadas, 118 no contrato, 2 na
+carteira), as cinco ações gravaram `audit_logs`, e o segundo envio do mesmo formulário de alocação
+foi recusado com "Este lançamento já foi registrado" — invariante 16 exercitada pela tela.
 
-Próxima: Etapa 5 (motor de agenda). Motor de agenda: **não travado**.
+Próxima: Etapa 5 (motor de agenda), que a P1 não exigia. Motor de agenda: **não travado**.

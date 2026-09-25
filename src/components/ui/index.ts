@@ -14,3 +14,6 @@ export { Rail } from "./Rail";
 export type { RailSlot } from "./Rail";
 export { Note } from "./Note";
 export { EmptyState } from "./EmptyState";
+export { Field, FieldRow, CONTROLE, CONTROLE_MONO, ROTULO } from "./Field";
+export { FormFeedback } from "./FormFeedback";
+export { Table, Th, Td, CellStack } from "./Table";

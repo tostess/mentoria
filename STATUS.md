@@ -4,6 +4,7 @@ Uma linha por sessão, mais recente no topo. Atualizar **antes** do commit final
 
 | Data | Etapa | O que foi feito | Pendências | Commit |
 |---|---|---|---|---|
+| 2026-09-25 | P1 | Painel do admin funcional: `/admin/painel` com números do livro-caixa e da view `org_usage`, `/admin/empresas` (lista + criar), `/admin/empresas/[id]` (contrato, colaboradores, alocação, livro-caixa) e `/admin/parceiros` (lista + criar Parceiro ativo); `lib/ledger` (compra e alocação transacionais, chaves de idempotência, tradução de erro do Postgres), `lib/pessoas` (empresa, Profissional, Parceiro com compensação da identidade), `lib/audit` (invariante 12), `lib/forms` (validação de borda); `Field`, `Table`, `ButtonLink` e `FormFeedback` no design system; `npm run seed:admin`; protótipo em `docs/prototipo-admin-p1.html`; 73 testes novos (162 no total); **hook ligado e fluxo inteiro percorrido pela interface** | Dados de demonstração ficaram no `mentoria-dev` e o livro-caixa não deixa apagar | — |
 | 2026-09-18 | 4 | Hook `custom_access_token_hook` (invariante 19) e `app_config` com `copy` e `branding`; `src/proxy.ts` renovando sessão e roteando por papel; `lib/auth/` (claims, rotas, sessão, ações) e `lib/config/` (parse puro + carga no servidor); entrada real por Server Action, sair, `requireRole()` nos quatro layouts; vocabulário e marca vindos do banco, com sobrescrita por empresa; 49 testes novos (89 no total) | **Hook desligado no painel** — sem ativar, ninguém entra | `938cd0c` |
 | 2026-09-10 | 3 | Esquema em `src/lib/db/schema/` (7 módulos, 27 tabelas); três migrações versionadas — prólogo, base gerada, epílogo; RLS nas 27 com 36 policies; `bookings_no_overlap`; triggers de saldo e imutabilidade; privilégio de coluna em `partners.status` e `profiles.role`; view `org_usage`; `app_config` semeada; 20 testes de invariante contra o Postgres, incluindo RLS exercitada como usuário logado | `org_admin` ainda não tem caminho de leitura além de `org_usage` — confirmar na Etapa 4 | `1e8b744` |
 | 2026-09-10 | 2 | `.env.local.example`; `env.ts` público e `env.server.ts` com `server-only`; clientes `supabase/client`, `server` e `admin`; Drizzle sobre postgres.js com pool cacheado; `drizzle.config.ts` gerando em `supabase/migrations/` com prefixo `supabase`; `vercel.json` em `gru1`; `GET /api/health`; `npm run check:supabase`; teste estático da invariante 5 | — conexão verificada ponta a ponta contra `mentoria-dev` | `7b308da` |
@@ -12,11 +13,18 @@ Uma linha por sessão, mais recente no topo. Atualizar **antes** do commit final
 
 ## Bloqueios abertos
 
-- **Hook de access token desligado no painel do `mentoria-dev`.** Authentication → Hooks →
-  Customize Access Token → `public.custom_access_token_hook`. A função existe, está testada e é
-  chamada pelo GoTrue, não pela aplicação — enquanto o gancho não for ligado o token sai sem
-  `user_role`, `parseClaims()` devolve null e todo login termina em "acesso inativo". Verificado
-  em 18/09 criando usuário pela API de admin, entrando e decodificando o JWT: só `sub`.
+- **Dados de demonstração no `mentoria-dev`, e eles não saem fácil.** O fluxo de verificação criou
+  "Faculdade Aurora" (contrato de 120, accent `#2E6B52`), a profissional Mariana Costa com 2 fichas
+  e a parceira Helena Braga. Apagar a empresa esbarra no `on delete restrict` do `org_ledger`, e o
+  livro-caixa é imutável por trigger — remover exige desligar o gatilho como `postgres`. Não é
+  defeito, é a invariante 3 funcionando; só não dá para "limpar o banco" sem intenção explícita.
+  As senhas provisórias das duas contas foram descartadas com os arquivos temporários.
+
+- ~~**Hook de access token desligado no painel do `mentoria-dev`.**~~ **Resolvido em 25/09/2026** —
+  ligado no painel, conferido por entrada real com o token decodificado (`user_role: admin`). O
+  `seed:admin` faz essa conferência sozinho a cada execução. Fica o registro do sintoma original:
+  a mudança em Authentication → Hooks leva alguns segundos para o GoTrue propagar, e uma conferência
+  feita logo depois do clique ainda acusa desligado.
 - **Produção (`mentoria`) criada e vazia.** Ref `dtqylmvexaoybkdfzsna`, `sa-east-1`, pooler em
   `aws-0-sa-east-1.pooler.supabase.com` (determinado por sonda). As cinco migrações **ainda não
   foram aplicadas** lá, e o hook de access token também precisa ser ligado nesse projeto.
@@ -28,6 +36,78 @@ Uma linha por sessão, mais recente no topo. Atualizar **antes** do commit final
 
 ## Decisões de sessão
 _(dependência escolhida, atalho tomado, dívida assumida — o que não merece o CLAUDE.md)_
+
+- **2026-09-25 (P1, verificação):** a conferência do hook feita segundos depois do clique no painel
+  ainda acusou desligado; meia dúzia de minutos depois o mesmo token saiu com `user_role: admin`. É
+  propagação do GoTrue, não erro de configuração. Se o `seed:admin` disser que está desligado logo
+  após você ligar, rode de novo antes de investigar.
+- **2026-09-25 (P1, verificação):** para exercitar a interface sem navegador, a sessão foi produzida
+  chamando `createServerClient` da própria `@supabase/ssr` com um cofre de cookies em memória, e o
+  cookie resultante foi replayado por `curl`. Vale lembrar para a próxima: imitar o formato do
+  cookie à mão daria errado em silêncio; usar a mesma biblioteca não.
+- **2026-09-25 (P1, verificação):** o primeiro POST de Server Action por `curl` invocou a ação
+  **errada**. A página tem dois formulários e o primeiro é o "Sair" da sidebar — o
+  `$ACTION_ID_…` solto pertence a ele, enquanto o formulário de `useActionState` usa
+  `$ACTION_REF_n` + `$ACTION_n:0` + `$ACTION_n:1` + `$ACTION_KEY`. Resultado: eu me deslogava a cada
+  tentativa e culpava a sessão. Escolher o formulário pelo campo que ele contém resolve.
+- **2026-09-25 (P1, verificação):** `Origin` ausente faz o Next recusar a Server Action com
+  `⚠ Missing origin header from a forwarded Server Actions request`. Só aparece no log do servidor —
+  a resposta não diz nada.
+- **2026-09-25 (P1, verificação):** `pg_stat_activity` foi o que desatou o diagnóstico do
+  travamento. `state = active` há 17 minutos numa tabela vazia é a assinatura da conexão entalada;
+  ler o log do Next sozinho levava para a conclusão errada, porque ele registra a requisição como
+  `200` no instante em que o **cliente** desiste.
+- **2026-09-25 (P1, verificação):** a primeira correção do travamento pareceu não funcionar porque a
+  conexão entalada sobrevive ao HMR — ela mora no `globalThis`. Corrigir código e testar sem
+  reiniciar o `next dev` mede o servidor antigo.
+- **2026-09-25 (P1, verificação):** pasta `src/app/api/_diag` não vira rota — prefixo `_` é pasta
+  privada no App Router. Custou um 404 confuso no meio da depuração.
+
+- **2026-09-25 (P1):** o `mentoria-dev` respondeu "tenant/user não encontrado" no pooler nas
+  primeiras tentativas e voltou sozinho — é **cold start**, não região errada nem projeto pausado.
+  Probei os 15 hosts de pooler de 7 regiões: só `aws-0-sa-east-1` registra o tenant, e o
+  `db.<ref>.supabase.co` direto estoura timeout (IPv6). O `.env.local` já estava certo; a lição é
+  que a primeira falha de conexão do dia não significa nada.
+- **2026-09-25 (P1):** o PostgREST devolveu `PGRST205 — could not find the table 'public.app_config'`
+  na primeira consulta e acertou na segunda. É cache de esquema frio, não esquema faltando. Vale
+  saber antes de sair investigando migração.
+- **2026-09-25 (P1):** hook reconferido por comportamento, não por documentação — criei usuário pela
+  API de admin, entrei com senha e decodifiquei o JWT. Voltou só
+  `aal, amr, app_metadata, aud, email, exp, iat, is_anonymous, iss, phone, role, session_id, sub,
+  user_metadata`: **sem `user_role`**. Essa conferência virou parte do `seed:admin`, porque é o
+  único erro do projeto que não produz mensagem nenhuma em lugar nenhum.
+- **2026-09-25 (P1):** existe um plano B se o gancho do painel virar problema — aceitar
+  `app_metadata.user_role` como origem alternativa em `parseClaims()`, já que `app_metadata` também
+  só é escrito por `service_role` e também viaja no JWT. **Não** foi feito: duplicaria a fonte da
+  verdade da invariante 19 para poupar um clique.
+- **2026-09-25 (P1):** `audit.ts`, `ledger/operacoes.ts` e `pessoas/operacoes.ts` **não** levam
+  `server-only`. Nenhum lê segredo ou abre conexão — recebem a transação de quem já a tem. Marcá-los
+  travaria o teste que exercita a auditoria junto da operação sem proteger nada que `lib/db` e
+  `lib/supabase/admin` já não protejam. O teste estático ganhou os três módulos que **sim** precisam
+  do selo: `lib/ledger/index.ts`, `lib/pessoas/criar.ts`, `lib/admin/consultas.ts`.
+- **2026-09-25 (P1):** `lib/admin/acoes.ts` ficou fora da lista de módulos proibidos ao cliente, de
+  propósito: é `"use server"` e componente cliente **tem** de importá-lo — o que cruza a fronteira é
+  uma referência de ação, não o código. Anotado no próprio teste para ninguém "consertar" depois.
+- **2026-09-25 (P1):** o primeiro teste de "crédito que falha desfaz o débito" estava furado. Ele
+  apagava a carteira, mas a alocação tranca a carteira **antes** de debitar, então falhava cedo e as
+  asserções passavam pelo motivo errado. A versão que vale ocupa antes a `idempotency_key` que o
+  `wallet_ledger` vai usar: o débito no `org_ledger` passa, o crédito bate na unicidade, e o que
+  sobra mede a invariante 6 de verdade.
+- **2026-09-25 (P1):** `criar empresa` não tem chave de idempotência. Duplo clique cria duas
+  empresas — o botão desabilita durante o envio e a ação redireciona para a tela da empresa criada,
+  o que torna a duplicata visível na hora. Dívida consciente: não vale um token onde não há dinheiro
+  envolvido, e `orgs.name` não é único de propósito (duas unidades podem ter o mesmo nome).
+- **2026-09-25 (P1):** `PageHeader.eyebrow` passou de `string` para `ReactNode`, para a trilha de
+  migalhas da tela de empresa caber lá com link.
+- **2026-09-25 (P1):** `ButtonLink` nasceu porque o painel precisava de botão que navega. Duplica as
+  classes de `Button` — as duas têm de mudar juntas. A alternativa (um `<button>` com
+  `router.push`) perderia meio-clique, nova aba e endereço na barra de status.
+- **2026-09-25 (P1):** a faixa de cor da taxa de utilização (verde >=70%, ouro 40-70, vermelho <40)
+  é chute informado e está no componente, não em `app_config`. Quando alguém souber qual é o número
+  bom, a decisão muda de lugar.
+- **2026-09-25 (P1):** conta de operadora criada no `mentoria-dev` —
+  `jpferreiratostes@gmail.com`, `user_id f09749ae-9944-4c49-a639-9f67eecd0a43`, senha provisória
+  `Mentoria!Piloto2026`. Trocar depois de o hook ligar.
 
 - **2026-09-18 (Etapa 4):** o `mentoria-dev` estava fora do ar no começo da sessão — gateway
   devolvendo 521 e o pooler dizendo "tenant not found" nas duas regiões, sintoma de projeto

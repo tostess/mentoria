@@ -23,6 +23,24 @@ function buildDb() {
   // statement quebra. Conexão direta ou session pooler (5432) aceita.
   const pooled = url.includes("pgbouncer=true") || url.includes(":6543");
 
+  /**
+   * ATENÇÃO — nunca dispare duas consultas Drizzle em paralelo nesta conexão.
+   *
+   * No pooler `max` é 1, e num `Promise.all` de duas consultas Drizzle sobre uma
+   * conexão **já usada** as duas travam para sempre: a primeira resolve e as
+   * outras nunca voltam. Medido contra o `mentoria-dev`, com `execute` e com o
+   * construtor de consultas, com `prepare` ligado e desligado. Template cru do
+   * postgres.js escapa; Drizzle não.
+   *
+   * Isso não é perda de desempenho nenhuma: numa conexão só as consultas
+   * serializam de qualquer jeito. `await` uma depois da outra.
+   *
+   * Cuidado com o caso indireto: `Promise.all([f(), g()])` é seguro se `g()`
+   * esperar a promessa de `f()` antes de consultar — é o que salva o
+   * `app/layout.tsx`, onde `loadTheme()` espera o `loadAppConfig()` cacheado.
+   * Reordenar aquele `loadTheme` reintroduz o travamento.
+   */
+
   const sql =
     globalForDb.__mentoriaSql ??
     postgres(url, {

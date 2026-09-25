@@ -17,7 +17,13 @@ const SECRET_ENV_NAMES = ["SUPABASE_SECRET_KEY", "SUPABASE_SERVICE_ROLE_KEY"];
 /** Onde o segredo pode ser lido, e em nenhum outro lugar. */
 const SECRET_ALLOWED = ["lib/env.server.ts", "lib/supabase/server-only.test.ts"];
 
-/** Módulos que carregam segredo ou conexão direta ao banco. */
+/**
+ * Módulos que carregam segredo ou conexão direta ao banco.
+ *
+ * `lib/admin/acoes.ts` fica de fora de propósito: é `"use server"`, e componente
+ * cliente **tem** de poder importá-lo — o que cruza a fronteira é uma
+ * referência de ação, não o código. O mesmo vale para `lib/auth/actions.ts`.
+ */
 const SERVER_ONLY_MODULES = [
   "@/lib/env.server",
   "@/lib/supabase/admin",
@@ -25,6 +31,9 @@ const SERVER_ONLY_MODULES = [
   "@/lib/db",
   "@/lib/auth/session",
   "@/lib/config/load",
+  "@/lib/ledger",
+  "@/lib/pessoas/criar",
+  "@/lib/admin/consultas",
 ];
 
 function sourceFiles(dir: string): string[] {
@@ -83,6 +92,9 @@ describe("invariante 5 — service_role só no servidor", () => {
       "lib/db/index.ts",
       "lib/auth/session.ts",
       "lib/config/load.ts",
+      "lib/ledger/index.ts",
+      "lib/pessoas/criar.ts",
+      "lib/admin/consultas.ts",
     ];
     const missing = guarded.filter((id) => {
       const file = files.find((f) => f.id === id);

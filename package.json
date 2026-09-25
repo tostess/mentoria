@@ -12,7 +12,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:check": "drizzle-kit check",
     "db:studio": "drizzle-kit studio",
-    "check:supabase": "node --env-file-if-exists=.env.local scripts/check-supabase.mts"
+    "check:supabase": "node --env-file-if-exists=.env.local scripts/check-supabase.mts",
+    "seed:admin": "node --env-file-if-exists=.env.local scripts/seed-admin.mts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
