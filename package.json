@@ -10,7 +10,9 @@
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "db:migrate:prod": "node -e \"process.env.DRIZZLE_ENV='production';require('child_process').execSync('npx drizzle-kit migrate',{stdio:'inherit'})\"",
     "db:check": "drizzle-kit check",
+    "db:check:prod": "node -e \"process.env.DRIZZLE_ENV='production';require('child_process').execSync('npx drizzle-kit check',{stdio:'inherit'})\"",
     "db:studio": "drizzle-kit studio",
     "check:supabase": "node --env-file-if-exists=.env.local scripts/check-supabase.mts",
     "seed:admin": "node --env-file-if-exists=.env.local scripts/seed-admin.mts"

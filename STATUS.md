@@ -31,9 +31,13 @@ Uma linha por sessão, mais recente no topo. Atualizar **antes** do commit final
 - **Produção (`mentoria`) criada e vazia.** Ref `dtqylmvexaoybkdfzsna`, `sa-east-1`, pooler em
   `aws-0-sa-east-1.pooler.supabase.com` (determinado por sonda). As cinco migrações **ainda não
   foram aplicadas** lá, e o hook de access token também precisa ser ligado nesse projeto.
-- **`drizzle.config.ts` não sabe migrar produção.** Ele carrega `.env.local` com `override: true`,
-  então variável passada na linha de comando é ignorada. Migrar o `mentoria` exige um caminho
-  explícito para o segundo ambiente antes de rodar `db:migrate`.
+- ~~**`drizzle.config.ts` não sabe migrar produção.**~~ **Resolvido em 26/09/2026** — um arquivo por
+  ambiente, escolhido por `DRIZZLE_ENV`: `.env.local` no desenvolvimento e `.env.production.local` na
+  produção, com `npm run db:migrate:prod` e `db:check:prod`. Tirar o `override` teria sido pior:
+  com precedência de shell, um `DIRECT_URL` esquecido no terminal migra o banco errado sem avisar.
+  Agora tocar produção exige **duas** decisões explícitas — criar o arquivo e passar o ambiente — e o
+  config anuncia host e ref antes de agir. Sem o arquivo, `db:check:prod` instrui em vez de migrar o
+  dev calado (conferido).
 - **Variáveis ainda não cadastradas na Vercel.** Só existem em `.env.local`. Invariante 17:
   Production aponta para `mentoria`, Preview e Development para `mentoria-dev`.
 
