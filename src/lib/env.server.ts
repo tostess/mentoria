@@ -28,7 +28,26 @@ export function requireDatabaseUrl(): string {
   return url;
 }
 
+/**
+ * Segredo que autentica o trabalho agendado. A Vercel manda
+ * `Authorization: Bearer $CRON_SECRET` quando a variável existe, e é por isso
+ * que ela tem esse nome exato.
+ *
+ * Sem o segredo configurado, os endpoints de cron **fecham** em vez de abrir: um
+ * deploy com variável faltando não pode virar uma porta pela qual qualquer um
+ * recarrega a carteira de todo mundo. Mesma escolha do `proxy.ts` quando falta
+ * variável do Supabase.
+ */
+export function requireCronSecret(): string {
+  const segredo = process.env.CRON_SECRET;
+  if (!segredo) {
+    throw new Error("CRON_SECRET ausente. Veja `.env.local.example`.");
+  }
+  return segredo;
+}
+
 export const hasSecretKey = Boolean(
   process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY,
 );
 export const hasDatabaseUrl = Boolean(process.env.DATABASE_URL);
+export const hasCronSecret = Boolean(process.env.CRON_SECRET);

@@ -6,6 +6,7 @@ import { Note } from "@/components/ui/Note";
 import { Pill } from "@/components/ui/Pill";
 import { requireRole } from "@/lib/auth/session";
 import { loadAppConfig } from "@/lib/config/load";
+import { DURACAO_DA_SESSAO_MIN, limitesDoMotor } from "@/lib/config/limites";
 import {
   carregarExcecoes,
   carregarOcupacoes,
@@ -58,12 +59,7 @@ export default async function Page() {
       excecoes,
     },
     ocupacoes,
-    limites: {
-      horizonteDias: config.limits.bookingHorizonDays,
-      avisoMinimoHoras: config.limits.minNoticeHours,
-      duracaoMin: 30,
-      passoMin: 30,
-    },
+    limites: limitesDoMotor(config),
   });
 
   const livres = avaliacoes.filter((a) => a.recusa === null).map((a) => a.slot);
@@ -95,7 +91,7 @@ export default async function Page() {
             inicioInicial={paraTexto(primeira?.inicioMin ?? 540)}
             fimInicial={paraTexto(primeira?.fimMin ?? 720)}
             maxPorSemana={perfil.maxPorSemana}
-            duracaoMin={30}
+            duracaoMin={DURACAO_DA_SESSAO_MIN}
           />
         </Card>
 

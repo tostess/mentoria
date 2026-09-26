@@ -28,6 +28,7 @@ import {
   alocarFichas,
   registrarCompra,
 } from "@/lib/ledger";
+import { chaveAlocacaoManual } from "@/lib/ledger/keys";
 import {
   EmailJaUsado,
   ENGAJAMENTOS,
@@ -215,7 +216,10 @@ export async function alocarFichasAcao(
       userId,
       quantidade,
       tetoCarteira: fichaPolicy.maxBalance,
-      token: texto(form, "token", "o token do formulário", 64),
+      // A chave é montada aqui, e não dentro da operação: o cron da alocação
+      // mensal monta a dele com outro formato, e é essa diferença que impede um
+      // caminho de silenciar o outro.
+      chave: chaveAlocacaoManual(userId, texto(form, "token", "o token do formulário", 64)),
       ator,
     });
 

@@ -250,7 +250,7 @@ run("alocação de fichas — invariante 6", () => {
         userId,
         quantidade: 2,
         tetoCarteira: 6,
-        token: token(),
+        chave: chaveAlocacaoManual(userId, token()),
         ator,
       });
 
@@ -306,7 +306,7 @@ run("alocação de fichas — invariante 6", () => {
             userId,
             quantidade: 2,
             tetoCarteira: 6,
-            token: mesmo,
+            chave: chaveAlocacaoManual(userId, mesmo),
             ator,
           });
           return false;
@@ -358,7 +358,7 @@ run("alocação de fichas — invariante 6", () => {
             userId,
             quantidade: 5,
             tetoCarteira: 6,
-            token: token(),
+            chave: chaveAlocacaoManual(userId, token()),
             ator,
           });
           return null;
@@ -396,7 +396,7 @@ run("alocação de fichas — invariante 6", () => {
         userId,
         quantidade: 5,
         tetoCarteira: 6,
-        token: token(),
+        chave: chaveAlocacaoManual(userId, token()),
         ator,
       });
 
@@ -407,7 +407,7 @@ run("alocação de fichas — invariante 6", () => {
             userId,
             quantidade: 3,
             tetoCarteira: 6,
-            token: token(),
+            chave: chaveAlocacaoManual(userId, token()),
             ator,
           });
           return null;
@@ -448,7 +448,7 @@ run("alocação de fichas — invariante 6", () => {
             userId,
             quantidade: 1,
             tetoCarteira: 6,
-            token: token(),
+            chave: chaveAlocacaoManual(userId, token()),
             ator,
           });
           return null;
@@ -477,7 +477,7 @@ run("alocação de fichas — invariante 6", () => {
         userId,
         quantidade: 2,
         tetoCarteira: 6,
-        token: token(),
+        chave: chaveAlocacaoManual(userId, token()),
         ator,
       });
 

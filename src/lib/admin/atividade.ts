@@ -143,6 +143,27 @@ export const ACOES = {
       ];
     },
   },
+  /**
+   * A recarga do dia 1º. Separada da alocação manual de propósito: quem lê o
+   * histórico precisa distinguir "a operadora decidiu" de "o mês virou" sem ter
+   * de interpretar a chave de idempotência.
+   */
+  alocar_fichas_mensal: {
+    icone: () => "calendar-clock",
+    tom: () => "gold",
+    predicado: (ev, t) => {
+      const quantidade = numero(ev.depois, "quantidade");
+      const periodo = textoDe(ev.depois, "periodo");
+      return [
+        fraco("recarregou "),
+        forte(quantidade === null ? t.fichas : countFichas(quantidade, t)),
+        fraco(" para "),
+        forte(nomeDoAlvo(ev)),
+        ...(periodo === null ? [] : [fraco(` · ${periodo}`)]),
+        ...daEmpresa(ev),
+      ];
+    },
+  },
   criar_profissional: {
     icone: () => "user-plus",
     tom: () => "accent",
@@ -255,6 +276,7 @@ export function rotuloDaAcao(acao: AcaoAuditada, t: Terms): string {
     criar_empresa: `Criar ${t.org.toLowerCase()}`,
     registrar_compra: "Registrar contrato",
     alocar_fichas: `Alocar ${t.fichas}`,
+    alocar_fichas_mensal: `Recarga mensal de ${t.fichas}`,
     criar_profissional: `Criar ${t.professional}`,
     criar_parceiro: `Criar ${t.partner}`,
     editar_parceiro: `Editar ${t.partner}`,

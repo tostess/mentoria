@@ -466,7 +466,7 @@ esquema, constraints e RLS · auth, papéis e config · motor de agenda.
 - **P2** ✅ Disponibilidade do Parceiro (só modo rápido "esta semana") e perfil básico
 - **Polimento** ✅ Ícones, vocabulário humano no lugar de código de banco, edição de Parceiro e
   Profissional, status, acesso e senha provisória pelo admin, busca nas listas, menu no celular
-- **P3** Carteiras, `allocate-monthly`, `POST /api/bookings` transacional
+- **P3** ✅ Carteiras, `allocate-monthly`, `POST /api/bookings` transacional
 - **P4** Busca simples, agendamento, agenda das duas visões, `expire-pending`, `close-sessions`,
   `send-reminders`
 - **P5** Sala Daily, webhook de presença, extensão de 30 min dentro da sala
@@ -654,6 +654,52 @@ F16 formato grupo · F18 dashboards e exclusão de conta.
   uma consulta Drizzle ali é o `Promise.all` que entala a conexão. Os reais estão no painel.
 - **Carregando é forma parada, não movimento.** `loading.tsx` mostra blocos estáticos; nada de
   spinner nem `animate-pulse`. O sistema de design reserva animação para presente e extensão.
+- **Instante vai por `paraInstante()` com `::text::timestamptz`, nunca como `Date`.** Segunda
+  armadilha da mesma família do `tx.json()`, achada do mesmo jeito — rodando. Interpolar um `Date`
+  no template do postgres.js funciona em Node puro, passa em toda a suíte, e **estoura dentro do
+  bundle do Next** com `ERR_INVALID_ARG_TYPE: Received an instance of Date`. A tabela da medição
+  está em `src/lib/db/instantes.ts`. A lição maior: quando o teste roda num ambiente e a aplicação
+  em outro, "os testes passam" não é notícia sobre a aplicação.
+- **A reserva recalcula a agenda antes de escrever.** O instante que chega do cliente é palpite: o
+  motor roda de novo dentro da transação e o horário tem de estar entre os livres. Sem isso a
+  validação inteira — descanso, teto semanal, aviso mínimo, férias — viraria enfeite de tela,
+  contornável por um `curl`. É a invariante 14 aplicada na escrita.
+- **A reserva roda privilegiada, e tem de rodar.** Não dá para reusar `lib/parceiro/dados.ts`: a
+  policy de `bookings` não deixa um Profissional ver sessão de terceiro, o que é correto. Quem
+  agenda precisa saber que o horário está ocupado sem poder saber por quem — e isso só acontece do
+  lado do servidor.
+- **A carteira é travada antes de tudo na reserva.** Dois efeitos, os dois necessários: ler o saldo
+  sem corrida, e serializar todas as reservas daquele Profissional. Sem o segundo, dois pedidos
+  simultâneos dele passariam os dois pela contagem de pendentes e o
+  `max_pending_per_professional` valeria como sugestão.
+- **A alocação recebe a chave de idempotência pronta, não o token.** `alocacaoNaTransacao` não monta
+  mais a chave: quem chama monta. É o que garante que `alloc_{user}_{YYYYMM}` (cron) e
+  `allocmanual_{user}_{token}` (admin) não possam se tornar a mesma coisa por um refator distraído.
+- **A recarga mensal é uma transação por pessoa.** Carteira no teto, contrato que acabou no meio da
+  lista ou dado corrompido de uma empresa não podem impedir as outras de receber. Em troca a rodada
+  pode parar no meio — e isso é seguro justamente por causa da chave: a próxima execução retoma,
+  porque quem já recebeu colide e quem não recebeu passa.
+- **A recarga soma o valor do mês, parcialmente se não couber.** Saldo 5 com teto 6 recebe 1, não
+  zero: fichas acumulam e o teto não é motivo para deixar ficha na mesa. Quem está no teto é pulado
+  antes de abrir transação — mais barato, e o relatório distingue "já recebeu" de "carteira cheia".
+- **Cron sem segredo responde 503, não 401.** Não é credencial errada, é servidor sem condição de
+  rodar trabalho agendado. De fora os dois são indistinguíveis; no log e no painel da Vercel dizem
+  coisas diferentes, e isso decide se alguém vai procurar a variável ou o segredo.
+- **Auditoria aceita autor nulo.** Cron não tem pessoa por trás, e inventar um usuário de sistema
+  faria o histórico afirmar algo falso. As colunas já eram anuláveis e o feed já escrevia "Trabalho
+  agendado" — só o tipo precisava deixar.
+- **A carteira do Profissional é lida pela sessão dele, por PostgREST.** `wallets` e `wallet_ledger`
+  têm policy de `select` do próprio `user_id` e nenhuma de escrita: ler por ali é ler exatamente o
+  que a policy permite, e policy frouxa apareceria na hora. De quebra o saldo pode ser lido no
+  layout sem entalar a conexão Drizzle de `max: 1`.
+- **O extrato não mostra quem lançou.** Quem aloca é a operadora ou o RH, e a policy de `profiles`
+  não deixa o Profissional ler perfil de fora da empresa dele (invariante 9). Tentar mostrar o nome
+  daria coluna vazia e cara de defeito. O que importa ali é o movimento da ficha.
+- **O cenário dos testes de banco mora em `src/lib/db/cenario-de-teste.ts`.** Três suítes montam a
+  mesma empresa, o mesmo Profissional com carteira e o mesmo Parceiro com rotina; a terceira cópia
+  dos seeds seria a terceira chance de divergirem sem ninguém notar. A cerca é
+  `cenario-de-teste.test.ts`, que recusa importação fora de teste e `insert into auth.users` em
+  qualquer outro lugar.
 
 ## Descartado
 
@@ -672,37 +718,36 @@ F16 formato grupo · F18 dashboards e exclusão de conta.
 
 ## Estado atual
 
-Fase: **P2 fechada, polimento feito**. Base completa (Etapas 0–5) e duas fases do piloto no ar.
+Fase: **P3 fechada**. Base completa (Etapas 0–5) e três fases do piloto no ar.
 
-A operadora opera o piloto inteiro por tela: criar empresa, registrar contrato, criar Parceiro
-ativo, criar Profissional com carteira e alocar ficha — cada escrita de dinheiro numa transação só,
-com `idempotency_key` e `audit_logs`. O Parceiro configura a própria rotina em `/parceiro/
-disponibilidade` e o próprio perfil em `/parceiro/perfil`, escrevendo pela RLS com a sessão dele.
+A economia da plataforma anda sozinha de ponta a ponta. A operadora compra o bloco e aloca à mão; o
+cron `allocate-monthly` recarrega no dia 1º somando o valor do mês até o teto, idempotente por
+`alloc_{userId}_{YYYYMM}`; e `POST /api/bookings` transforma ficha em sessão numa transação só —
+recalculando a agenda no motor antes de escrever, travando a carteira para serializar as reservas
+daquele Profissional, e deixando a sobreposição para a constraint do banco decidir.
 
-Depois de criar, a operadora corrige: `/admin/parceiros/[id]` e `/admin/empresas/[id]/pessoas/
-[userId]` editam dados (inclusive e-mail, com o login junto), movem status, ligam e desligam acesso e
-geram senha provisória nova — tudo com confirmação em dois passos onde tira algo de alguém, e com
-histórico da pessoa na própria tela. `/admin/atividade` mostra cada decisão como frase. As listas têm
-busca e filtro no cliente, a linha inteira é clicável, e abaixo de 1024px a sidebar vira barra com
-menu.
+O Profissional finalmente vê o próprio dinheiro em `/fichas`: saldo, extrato do `wallet_ledger` com
+rótulo em português, e o que a ficha vale. A sidebar dele mostra o saldo real — os números de
+exemplo da Etapa 1 saíram de todas as cascas, sem serem trocados por falsos onde a fase ainda não
+chegou.
 
-O **motor de agenda** (`src/lib/scheduling/`) está travado: TypeScript puro, sem banco e sem rede,
-transformando regra semanal mais exceções mais o que já está marcado numa lista de instantes. Ele
-respeita descanso, teto semanal, aviso mínimo e horizonte, converte minutos locais no fuso do
-Parceiro e pula hora que não existiu na virada do horário de verão. A tela de disponibilidade mostra
-o resultado dele ao lado do formulário — invariante 14 visível: o Parceiro vê os mesmos horários que
-o Profissional verá.
+O **motor de agenda** (`src/lib/scheduling/`) segue travado, e agora tem dois consumidores: a tela
+de disponibilidade do Parceiro e a reserva. Os limites de `app_config` chegam aos dois pela mesma
+função, `limitesDoMotor`.
 
-360 testes em 20 arquivos. O motor sozinho tem 103, divididos entre a aritmética de faixas, a
-tradução de regra semanal em dia concreto e a geração de horários. Invariante 19 coberta das duas
-pontas em `src/lib/auth/hook.test.ts`; invariantes 3, 4, 7, 8, 9, 10 e 16 em
-`src/lib/db/invariantes.test.ts`; as transações da P1 em `src/lib/ledger/transacoes.test.ts` e as
-edições em `src/lib/pessoas/edicao.test.ts`, chamando as mesmas funções que a aplicação chama. Invariante 5 travada por `server-only` mais teste
-estático.
+404 testes em 24 arquivos. Os 44 novos cobrem a reserva contra o Postgres de verdade (gasto que não
+sobrevive a booking que falha, horário fora da grade, aviso mínimo, descanso, ocupado, teto de
+pendentes, carteira de outra empresa, acesso desativado, Parceiro pausado), a recarga mensal
+(parcial, teto, contrato que acaba no meio, segunda execução que não duplica, auditoria sem autor) e
+a tradução dos limites. Invariante 19 em `src/lib/auth/hook.test.ts`; invariantes 3, 4, 7, 8, 9, 10 e
+16 em `src/lib/db/invariantes.test.ts`; as transações em `ledger/transacoes.test.ts`,
+`bookings/reserva.test.ts` e `ledger/mensal.test.ts`, todas chamando as funções que a aplicação
+chama. Invariante 5 travada por `server-only` mais teste estático.
 
-O hook de access token está ligado desde 25/09/2026, e os dois fluxos foram percorridos na
-interface com sessão real — o da operadora e o do Parceiro, incluindo as recusas.
+Os três caminhos foram percorridos com sessão real: painel da operadora, telas do Parceiro, e agora
+`/fichas` mais os dois endpoints — reserva criando sessão confirmada e descontando ficha, e a recarga
+mensal reportando `jaFeitas` na segunda execução sem duplicar lançamento.
 
-Próxima: **P3** — carteiras, `allocate-monthly` e `POST /api/bookings` transacional. O motor já
-existe para validar o horário da reserva, e `lib/ledger` já tem a transação que o `spend` vai usar.
-Motor de agenda: **travado**.
+Próxima: **P4** — busca simples, agendamento, agenda das duas visões, `expire-pending`,
+`close-sessions`, `send-reminders`. `POST /api/bookings` já existe e ainda não tem tela que o chame;
+é ela que a P4 traz. Motor de agenda: **travado**.

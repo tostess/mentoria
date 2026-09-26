@@ -34,6 +34,14 @@ function exigeToken(token: string): string {
   return valor;
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function exigeId(valor: string): string {
+  const id = valor.trim().toLowerCase();
+  if (!UUID.test(id)) throw new ChaveInvalida(`identificador fora do formato: ${valor}`);
+  return id;
+}
+
 /** `YYYYMM` a partir de uma data, no fuso que quem chama já resolveu. */
 export function periodo(ano: number, mes: number): string {
   if (!Number.isInteger(ano) || ano < 2000 || ano > 9999) {
@@ -66,6 +74,22 @@ export function chaveAlocacaoManual(userId: string, token: string): string {
 /** Alocação mensal automática. Formato fixado pela invariante 16. */
 export function chaveAlocacaoMensal(userId: string, ano: number, mes: number): string {
   return `alloc_${userId}_${periodo(ano, mes)}`;
+}
+
+/**
+ * Gasto de ficha numa sessão.
+ *
+ * A chave é o próprio `booking_id`, e não um token de formulário, porque a
+ * reserva **tem** um identificador natural: uma sessão, um gasto. O id é
+ * sorteado pela aplicação antes da transação — como já se faz com a identidade
+ * em `pessoas/criar.ts` — justamente para a chave existir antes da linha e o
+ * `wallet_ledger.booking_id` poder apontar para ela no mesmo insert.
+ *
+ * Não passa por `exigeToken`: uuid do banco não é token de formulário, e exigir
+ * o formato do outro só produziria uma validação que nunca falha.
+ */
+export function chaveGasto(bookingId: string): string {
+  return `spend_${exigeId(bookingId)}`;
 }
 
 /** Ajuste de correção (invariante 3: corrige-se lançando, nunca editando). */

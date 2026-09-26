@@ -1,7 +1,9 @@
 import "server-only";
 
 import { getSql } from "@/lib/db";
+import type { FichaPolicy } from "@/lib/config/app-config";
 import { comTraducao } from "./erros";
+import { acessoDaConexao, recargaNaConexao, type ResultadoDaRecarga } from "./mensal";
 import { alocacaoNaTransacao, compraNaTransacao, type Alocacao, type Compra } from "./operacoes";
 
 /**
@@ -18,6 +20,7 @@ import { alocacaoNaTransacao, compraNaTransacao, type Alocacao, type Compra } fr
 
 export { SaldoInsuficiente, LancamentoRepetido, TetoDaCarteira } from "./erros";
 export type { Alocacao, Compra } from "./operacoes";
+export type { ResultadoDaRecarga, ResultadoPorEmpresa } from "./mensal";
 
 export async function registrarCompra(
   compra: Compra,
@@ -37,4 +40,18 @@ export async function alocarFichas(
     () => sql.begin((tx) => alocacaoNaTransacao(tx, alocacao)),
     "O contrato da empresa não tem fichas suficientes.",
   );
+}
+
+/**
+ * A recarga do dia 1º, na conexão de verdade.
+ *
+ * Sem `comTraducao` em volta: a rodada trata cada recusa por pessoa lá dentro —
+ * chave repetida é "já recebeu", saldo insuficiente é "contrato acabou" — e
+ * traduzir aqui transformaria a primeira recusa individual em falha da rodada.
+ */
+export async function alocarMesTodo(opcoes: {
+  agora: Date;
+  fichaPolicy: FichaPolicy;
+}): Promise<ResultadoDaRecarga> {
+  return recargaNaConexao(acessoDaConexao(getSql()), opcoes);
 }

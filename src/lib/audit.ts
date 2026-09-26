@@ -20,7 +20,15 @@ import { paraJsonb } from "@/lib/db/jsonb";
  * reconstruir o que mudou meses depois, quando ninguém lembra do formulário.
  */
 export type Auditoria = {
-  ator: { id: string; role: Role };
+  /**
+   * Quem fez, ou `null` quando foi o trabalho agendado.
+   *
+   * Nulo não é lacuna: cron não tem pessoa por trás, e inventar um usuário de
+   * sistema para preencher a coluna faria o histórico afirmar algo falso. As
+   * duas colunas são anuláveis desde a Etapa 3, e `descrever` em
+   * `lib/admin/atividade.ts` já escreve "Trabalho agendado" nesse caso.
+   */
+  ator: { id: string; role: Role } | null;
   /** Empresa afetada, quando a ação é de uma. Ação de plataforma vai sem. */
   orgId?: string | null;
   /**
@@ -42,8 +50,8 @@ export async function registrarAuditoria(
   await tx`
     insert into audit_logs (actor_id, actor_role, org_id, action, entity, entity_id, before, after)
     values (
-      ${evento.ator.id},
-      ${evento.ator.role}::user_role,
+      ${evento.ator?.id ?? null},
+      ${evento.ator?.role ?? null}::user_role,
       ${evento.orgId ?? null},
       ${evento.acao},
       ${evento.entidade},

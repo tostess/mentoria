@@ -2,7 +2,7 @@ import type postgres from "postgres";
 import { registrarAuditoria } from "@/lib/audit";
 import type { Role } from "@/lib/auth/claims";
 import { TetoDaCarteira } from "./erros";
-import { chaveAlocacaoManual, chaveCompra } from "./keys";
+import { chaveCompra } from "./keys";
 
 /**
  * O movimento da ficha, escrito dentro de uma transação que já existe.
@@ -79,8 +79,30 @@ export type Alocacao = {
   quantidade: number;
   /** Teto por carteira, de `app_config.ficha_policy.max_balance`. */
   tetoCarteira: number;
-  token: string;
-  ator: Ator;
+  /**
+   * A `idempotency_key` pronta, montada por quem chama.
+   *
+   * Não é o token do formulário: os dois chamadores constroem chaves de
+   * formatos diferentes de propósito — `chaveAlocacaoManual` na ação do admin e
+   * `chaveAlocacaoMensal` no cron. Se esta função montasse a chave, as duas
+   * seriam iguais, e a primeira alocação manual do mês faria o cron daquele mês
+   * achar que já rodou — sem erro nenhum aparecer.
+   */
+  chave: string;
+  /** Nulo quando foi o trabalho agendado. */
+  ator: Ator | null;
+  /**
+   * Qual ação vai para `audit_logs`. O default é a alocação feita à mão; o cron
+   * passa `alocar_fichas_mensal`, para o histórico distinguir uma da outra sem
+   * ter de ler a chave de idempotência.
+   */
+  acao?: "alocar_fichas" | "alocar_fichas_mensal";
+  /**
+   * `YYYYMM` da recarga mensal, quando é uma. Vai para o `after` da auditoria
+   * para o histórico poder dizer "recarregou 2 fichas · 202610" sem obrigar
+   * quem lê a decifrar a chave de idempotência.
+   */
+  periodo?: string;
 };
 
 /**
@@ -97,8 +119,8 @@ export async function alocacaoNaTransacao(
   const [naEmpresa] = await tx<{ balance_after: number }[]>`
     insert into org_ledger (org_id, type, amount, balance_after, to_user_id, by_user_id, idempotency_key)
     values (${alocacao.orgId}, 'allocate', ${-alocacao.quantidade}, 0,
-            ${alocacao.userId}, ${alocacao.ator.id},
-            ${chaveAlocacaoManual(alocacao.userId, alocacao.token)})
+            ${alocacao.userId}, ${alocacao.ator?.id ?? null},
+            ${alocacao.chave})
     returning balance_after`;
 
   // Mesma chave nos dois livros, de propósito: as constraints são de tabelas
@@ -107,19 +129,20 @@ export async function alocacaoNaTransacao(
   const [naCarteira] = await tx<{ balance_after: number }[]>`
     insert into wallet_ledger (user_id, org_id, type, amount, balance_after, by_user_id, idempotency_key)
     values (${alocacao.userId}, ${alocacao.orgId}, 'allocate', ${alocacao.quantidade}, 0,
-            ${alocacao.ator.id}, ${chaveAlocacaoManual(alocacao.userId, alocacao.token)})
+            ${alocacao.ator?.id ?? null}, ${alocacao.chave})
     returning balance_after`;
 
   await registrarAuditoria(tx, {
     ator: alocacao.ator,
     orgId: alocacao.orgId,
-    acao: "alocar_fichas",
+    acao: alocacao.acao ?? "alocar_fichas",
     entidade: "wallet_ledger",
     entidadeId: alocacao.userId,
     depois: {
       quantidade: alocacao.quantidade,
       saldo_contrato_depois: naEmpresa.balance_after,
       saldo_carteira_depois: naCarteira.balance_after,
+      ...(alocacao.periodo === undefined ? {} : { periodo: alocacao.periodo }),
     },
   });
 

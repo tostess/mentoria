@@ -4,6 +4,7 @@ Uma linha por sessão, mais recente no topo. Atualizar **antes** do commit final
 
 | Data | Etapa | O que foi feito | Pendências | Commit |
 |---|---|---|---|---|
+| 2026-09-26 | P3 | Carteira do Profissional em `/fichas` (saldo, extrato, o que a ficha vale) lida pela sessão dele via PostgREST, e saldo real na sidebar — fim dos números de exemplo em todas as cascas; `allocate-monthly` (`lib/ledger/mensal.ts` + `/api/cron/allocate-monthly` + `crons` no `vercel.json`), uma transação por pessoa, soma parcial até o teto, idempotente por `alloc_{userId}_{YYYYMM}`, com guarda de `CRON_SECRET` em tempo constante; `POST /api/bookings` transacional (`lib/bookings/`) recalculando a agenda no motor antes de escrever, travando a carteira, traduzindo `23P01` em frase; `lib/config/limites.ts` unificando a tradução de `app_config` para o motor; `paraInstante()` em `lib/db/instantes.ts`; `audit.ts` aceitando autor nulo; cenário de teste compartilhado com cerca estática; 44 testes novos (404 no total) | Nenhuma tela chama o endpoint de reserva ainda — é a P4 | — |
 | 2026-09-25 | Polimento | **Exceção pedida à regra de uma feature por sessão.** `lucide-react` com mapa de ícones por nome (`components/ui/icones.ts`) na navegação dos quatro papéis, cards, números e estados vazios; catálogo tipado de ações auditadas (`lib/admin/atividade.ts`) — o painel e a nova `/admin/atividade` mostram frase com ícone e tempo relativo em vez de `alocar_fichas`; livro-caixa em português; edição de Parceiro (`/admin/parceiros/[id]`: dados, e-mail com login, status pausar/arquivar/reativar) e de Profissional (`/admin/empresas/[id]/pessoas/[userId]`: dados, desativar/reativar acesso, atalho de alocação), senha provisória nova com botão de copiar, confirmação em dois passos, histórico por pessoa; busca e filtro nas listas com linha clicável; sidebar vira barra com menu no celular; migalhas, `loading` e `not-found` do admin, título da aba por tela; fim dos números fixos na sidebar do admin; `lib/pessoas/edicao.ts` + `editar.ts`, `lib/formato.ts`; protótipo em `docs/prototipo-polimento.html`; 74 testes novos (360 no total), incluindo varredura de `snake_case` no JSX; fluxos de e-mail, senha e acesso exercitados contra o servidor de auth do `mentoria-dev` | Telas do Profissional e do RH ainda são esqueleto com número de exemplo na sidebar (P3/F2); editar empresa ficou fora | `157b8ed` |
 | 2026-09-25 | 5 + P2 | Motor de agenda em `src/lib/scheduling/` (faixas, dias, slots) — TypeScript puro, 103 testes, **travado**: regra semanal no fuso do Parceiro, exceções, descanso, teto semanal de domingo a sábado, aviso mínimo, horizonte e hora inexistente na virada do horário de verão; `avaliarSlots` devolve o motivo de cada recusa. P2: `/parceiro/disponibilidade` (modo rápido + prévia dos horários que o motor calcula + por que os outros não entraram) e `/parceiro/perfil` (dados, áreas, descanso, teto, confirmar sozinho), escrevendo **pela RLS** com a sessão do Parceiro; `lib/parceiro/` e helpers `inteiros`/`marcado` em `lib/forms`; 124 testes novos (286 no total) | Exceções (férias/bloqueio) o motor suporta mas a tela ainda não expõe — F3 | `c6af6a8` |
 | 2026-09-25 | P1 | Painel do admin funcional: `/admin/painel` com números do livro-caixa e da view `org_usage`, `/admin/empresas` (lista + criar), `/admin/empresas/[id]` (contrato, colaboradores, alocação, livro-caixa) e `/admin/parceiros` (lista + criar Parceiro ativo); `lib/ledger` (compra e alocação transacionais, chaves de idempotência, tradução de erro do Postgres), `lib/pessoas` (empresa, Profissional, Parceiro com compensação da identidade), `lib/audit` (invariante 12), `lib/forms` (validação de borda); `Field`, `Table`, `ButtonLink` e `FormFeedback` no design system; `npm run seed:admin`; protótipo em `docs/prototipo-admin-p1.html`; 73 testes novos (162 no total); **hook ligado e fluxo inteiro percorrido pela interface** | Dados de demonstração ficaram no `mentoria-dev` e o livro-caixa não deixa apagar | `33a28bf` |
@@ -38,6 +39,44 @@ Uma linha por sessão, mais recente no topo. Atualizar **antes** do commit final
 
 ## Decisões de sessão
 _(dependência escolhida, atalho tomado, dívida assumida — o que não merece o CLAUDE.md)_
+
+- **2026-09-26 (P3):** de novo um defeito que só aparece rodando. Interpolar `Date` no template do
+  postgres.js passa em Node e estoura no bundle do Next (`ERR_INVALID_ARG_TYPE: Received an instance
+  of Date`) — a mesma assimetria do `tx.json()`, o mesmo sintoma de 500 sem pista, e os 404 testes
+  verdes enquanto toda reserva falhava. Virou `paraInstante()` com `::text::timestamptz`. **É a
+  segunda vez**: vale tratar "o teste roda em Node, a aplicação roda no bundle" como regra de
+  desconfiança, não como curiosidade.
+- **2026-09-26 (P3):** não dá para travar essa família de armadilha por teste, porque o teste roda no
+  ambiente que funciona. O `tx.json()` virou varredura de código; `Date` não dá — não é detectável
+  por regex de forma confiável. A proteção real passou a ser exercitar o endpoint no Next durante a
+  verificação, e está anotado como tal.
+- **2026-09-26 (P3):** `alocacaoNaTransacao` mudou de assinatura — recebe `chave` pronta em vez de
+  `token`, e `ator` pode ser nulo. Os sete pontos de chamada nos testes foram ajustados pelo próprio
+  compilador, que apontou todos.
+- **2026-09-26 (P3):** a segunda rodada do cron no mesmo mês reporta `noTeto`, não `jaFeitas`, quando
+  a carteira já está cheia — a checagem barata acontece antes de abrir transação. As duas respostas
+  são verdadeiras; `jaFeitas` só aparece para quem está abaixo do teto, e foi exercitado assim na
+  verificação (gastei uma ficha antes de rodar de novo).
+- **2026-09-26 (P3):** a sobreposição de horário não é testada pelo caminho da reserva — quando as
+  duas chegam em sequência, o motor vê a ocupação e recusa antes de a constraint agir. A constraint em
+  si já tem teste em `db/invariantes.test.ts`; o que a suíte da reserva cobre é a **tradução** do
+  `23P01`, com um erro fabricado. Anotado porque parece lacuna e não é.
+- **2026-09-26 (P3):** `CRON_SECRET` entrou no `.env.local` desta máquina, gerado com 32 bytes
+  aleatórios. Precisa ser cadastrado na Vercel (Production, Preview e Development) antes do deploy,
+  senão o endpoint responde 503 — de propósito.
+- **2026-09-26 (P3):** a mensagem de log do guarda de cron **não** escreve o nome da variável. O teste
+  da invariante 5 varre o código à procura de quem lê segredo e uma menção em log dava falso
+  positivo; preferi manter o guarda afiado e apontar o leitor para `env.server.ts`.
+- **2026-09-26 (P3, verificação):** a senha da Mariana Costa no `mentoria-dev` mudou de novo, para
+  `Profissional!Teste2026`, para eu exercitar `/fichas` e a reserva. Ela agora tem **duas sessões
+  confirmadas** com a Helena Braga (29/09 e 01/10, 9h) e 5 fichas. O `wallet_ledger` dela tem o
+  histórico das duas rodadas de alocação manual, a recarga mensal de 1 e os dois gastos.
+- **2026-09-26 (P3, verificação):** o extrato aparecia como ausente numa conferência por regex porque
+  o React insere `<!-- -->` entre texto e expressão no SSR — `saldo {n}` sai como `saldo <!-- -->5`.
+  Não era defeito da tela.
+- **2026-09-26 (P3):** `SidebarTop` não mostra mais nada para Parceiro e RH. Presente é F8 e saldo do
+  contrato é F2; mostrar número inventado na casca de quem cuida de dinheiro é pior que não mostrar,
+  e é a decisão que já valia para o admin.
 
 - **2026-09-25 (Polimento):** a regra de uma feature por sessão foi quebrada **a pedido** — ícones,
   vocabulário, edição e polimento geral saíram juntos. Anotado para a próxima sessão não tomar isso

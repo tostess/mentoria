@@ -12,7 +12,7 @@ import { describe, expect, it } from "vitest";
 const SRC = join(process.cwd(), "src");
 
 /** Nomes que carregam a chave que ignora RLS — o novo e o legado. */
-const SECRET_ENV_NAMES = ["SUPABASE_SECRET_KEY", "SUPABASE_SERVICE_ROLE_KEY"];
+const SECRET_ENV_NAMES = ["SUPABASE_SECRET_KEY", "SUPABASE_SERVICE_ROLE_KEY", "CRON_SECRET"];
 
 /** Onde o segredo pode ser lido, e em nenhum outro lugar. */
 const SECRET_ALLOWED = ["lib/env.server.ts", "lib/supabase/server-only.test.ts"];

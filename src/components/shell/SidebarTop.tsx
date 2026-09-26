@@ -4,40 +4,47 @@ import type { Shell } from "@/lib/roles";
 import { cap, type Terms } from "@/lib/terms";
 
 /**
- * Bloco de topo da sidebar, por papel. Os números do Profissional, do
- * Parceiro e do RH ainda são placeholder da Etapa 1 — passam a vir do banco
- * quando cada papel ganhar sua fase (carteira na P3).
+ * Bloco de topo da sidebar, por papel.
+ *
+ * Só aparece onde há número verdadeiro para mostrar. Os placeholders da Etapa 1
+ * saíram: presente do Parceiro é F8 e saldo do contrato do RH é F2, e um número
+ * inventado na tela de quem cuida do dinheiro é pior que nenhum — a mesma
+ * decisão já tomada para o admin.
+ *
+ * O saldo do Profissional chega por prop, lido no layout pelo cliente da sessão
+ * dele (PostgREST, sob RLS). Não pode ser lido aqui: a sidebar renderiza em
+ * paralelo com a página, e consulta Drizzle concorrente entala a conexão de
+ * `max: 1`.
  */
-export function SidebarTop({ shell, terms }: { shell: Shell; terms: Terms }) {
-  switch (shell) {
-    case "professional":
-      return (
-        <Purse label={`${terms.fichas} disponíveis`} value={2}>
-          <Ficha size="l" />
-        </Purse>
-      );
-    case "partner":
-      return (
-        <Purse label="presentes este mês" value="3 de 3">
-          <Ficha size="l" />
-        </Purse>
-      );
-    case "org":
-      return (
-        <Purse label={`${terms.fichas} no contrato`} value={48}>
-          <Ficha size="l" />
-        </Purse>
-      );
-    case "admin":
-      // Sem bloco. Aqui havia três números fixos da Etapa 1 — dado falso na
-      // tela de quem opera o dinheiro. Os reais estão no painel, e trazê-los
-      // para cá exigiria uma consulta Drizzle concorrente com a da página, que
-      // é justamente o que entala a conexão de `max: 1`.
-      return null;
+export function SidebarTop({
+  shell,
+  terms,
+  saldo,
+}: {
+  shell: Shell;
+  terms: Terms;
+  /** Fichas na carteira do Profissional. `null` quando não há carteira. */
+  saldo?: number | null;
+}) {
+  if (shell === "professional" && saldo !== null && saldo !== undefined) {
+    return (
+      <Purse label={`${terms.fichas} disponíveis`} value={saldo}>
+        <Ficha size="l" />
+      </Purse>
+    );
   }
+  return null;
 }
 
-function Purse({ label, value, children }: { label: string; value: number | string; children: ReactNode }) {
+function Purse({
+  label,
+  value,
+  children,
+}: {
+  label: string;
+  value: number | string;
+  children: ReactNode;
+}) {
   return (
     <div className="rounded-[12px] border border-[#F3E4EC] bg-white px-3 py-[11px]">
       <div className="flex items-center gap-[9px]">

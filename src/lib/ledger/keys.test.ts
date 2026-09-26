@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   ChaveInvalida,
   chaveAjuste,
+  chaveGasto,
   chaveAlocacaoManual,
   chaveAlocacaoMensal,
   chaveCompra,
@@ -98,5 +99,32 @@ describe("chaves por tipo de lançamento", () => {
 
   it("ajuste tem prefixo próprio — correção é lançamento novo (invariante 3)", () => {
     expect(chaveAjuste(USER, TOKEN)).toBe(`adjust_${USER}_${TOKEN}`);
+  });
+});
+
+describe("chave do gasto", () => {
+  const BOOKING = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
+
+  /**
+   * A reserva tem identificador natural — uma sessão, um gasto —, então a chave
+   * é o próprio `booking_id` e não um token de formulário. Reenviar o mesmo
+   * pedido de reserva colide, que é o que se quer.
+   */
+  it("é o booking_id, com prefixo próprio", () => {
+    expect(chaveGasto(BOOKING)).toBe(`spend_${BOOKING}`);
+  });
+
+  it("normaliza a caixa — o mesmo id não pode virar duas chaves", () => {
+    expect(chaveGasto(BOOKING.toUpperCase())).toBe(chaveGasto(BOOKING));
+  });
+
+  it("recusa o que não é uuid", () => {
+    expect(() => chaveGasto("123")).toThrow(ChaveInvalida);
+    expect(() => chaveGasto("")).toThrow(ChaveInvalida);
+  });
+
+  it("não colide com as outras chaves do mesmo identificador", () => {
+    expect(chaveGasto(BOOKING)).not.toBe(chaveAjuste(BOOKING, TOKEN));
+    expect(chaveGasto(BOOKING).startsWith("alloc")).toBe(false);
   });
 });

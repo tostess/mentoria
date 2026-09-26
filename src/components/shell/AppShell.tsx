@@ -10,15 +10,18 @@ import type { Shell } from "@/lib/roles";
 export function AppShell({
   shell,
   session,
+  saldo,
   children,
 }: {
   shell: Shell;
   session: Session;
+  /** Saldo da carteira, quando a casca tem um para mostrar (Profissional). */
+  saldo?: number | null;
   children: ReactNode;
 }) {
   return (
     <div className="grid min-h-screen grid-cols-1 lg:grid-cols-[246px_1fr]">
-      <Sidebar shell={shell} session={session} />
+      <Sidebar shell={shell} session={session} saldo={saldo} />
       <main className="w-full max-w-[1140px] px-[18px] pb-[60px] pt-6 lg:px-10 lg:pb-[70px] lg:pt-[34px]">
         {children}
       </main>

@@ -8,12 +8,20 @@ import type { Session } from "@/lib/auth/claims";
 import { loadTerms } from "@/lib/config/load";
 import { navFor, shellLabel, type Shell } from "@/lib/roles";
 
-export async function Sidebar({ shell, session }: { shell: Shell; session: Session }) {
+export async function Sidebar({
+  shell,
+  session,
+  saldo,
+}: {
+  shell: Shell;
+  session: Session;
+  saldo?: number | null;
+}) {
   const t = await loadTerms();
 
   return (
     <SidebarRecolhivel topo={<Brand sub={shellLabel(shell, t)} />}>
-      <SidebarTop shell={shell} terms={t} />
+      <SidebarTop shell={shell} terms={t} saldo={saldo} />
       <NavLinks items={navFor(shell, t)} />
 
       <div className="mt-auto flex flex-col gap-2 px-[5px]">
