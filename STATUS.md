@@ -39,10 +39,24 @@ Uma linha por sessão, mais recente no topo. Atualizar **antes** do commit final
   config anuncia host e ref antes de agir. Sem o arquivo, `db:check:prod` instrui em vez de migrar o
   dev calado (conferido).
 - **Variáveis ainda não cadastradas na Vercel.** Só existem em `.env.local`. Invariante 17:
-  Production aponta para `mentoria`, Preview e Development para `mentoria-dev`.
+  Production aponta para `mentoria`, Preview e Development para `mentoria-dev`. **Confirmado pelo
+  primeiro deploy (26/09):** sem elas todas as rotas davam 500; agora a tela de entrada sobe e diz o
+  que falta, mas o ambiente continua sem funcionar até serem cadastradas **e o deploy refeito** —
+  `NEXT_PUBLIC_*` é embutida no build.
 
 ## Decisões de sessão
 _(dependência escolhida, atalho tomado, dívida assumida — o que não merece o CLAUDE.md)_
+
+- **2026-09-26 (primeiro deploy):** o deploy do commit `c128d2b` subiu e **toda** rota devolveu 500
+  (`ERROR 3150590241` na tela da Vercel). Causa: sem as variáveis do Supabase no projeto, o layout
+  raiz estourava em `getSession()` → `createClient()`. Reproduzido localmente movendo o `.env.local`
+  e servindo o build com `next start`; corrigido com guarda em `getSession()` e tela de ambiente
+  incompleto em `/entrar`, e reconferido no mesmo runtime — `/` dá 307, `/entrar` dá 200 nomeando as
+  variáveis, e `/api/health` responde `{"supabaseUrl":false,...}`. O `.env.local` foi copiado para o
+  scratchpad antes e conferido byte a byte depois.
+- **2026-09-26 (primeiro deploy):** `/api/health` provou o valor que justificava sua existência — é a
+  única rota que responde com tudo quebrado, porque Route Handler não passa pelo layout raiz nem
+  pelo proxy. Primeiro lugar a olhar em deploy que não sobe.
 
 - **2026-09-26 (P3):** de novo um defeito que só aparece rodando. Interpolar `Date` no template do
   postgres.js passa em Node e estoura no bundle do Next (`ERR_INVALID_ARG_TYPE: Received an instance

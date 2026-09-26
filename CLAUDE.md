@@ -700,6 +700,17 @@ F16 formato grupo · F18 dashboards e exclusão de conta.
   dos seeds seria a terceira chance de divergirem sem ninguém notar. A cerca é
   `cenario-de-teste.test.ts`, que recusa importação fora de teste e `insert into auth.users` em
   qualquer outro lugar.
+- **Falta de variável de ambiente degrada; não derruba a aplicação inteira.** A decisão da Etapa 4
+  dizia que o proxy fecha e "a tela de entrada continua de pé" — e ela nunca ficou: o layout raiz lê
+  a sessão em toda requisição, `createClient()` estourava, e o resultado era 500 opaco em **todas**
+  as rotas, inclusive `/entrar`. Descoberto no primeiro deploy de verdade, em 26/09/2026.
+  `getSession()` agora devolve `null` quando o Supabase não está configurado — sem auth não há
+  sessão, e isso é a verdade e não uma falha —, e `/entrar` nomeia as variáveis que faltam. É a
+  regra de sempre aplicada à configuração: config degrada, dado falha alto.
+- **`NEXT_PUBLIC_*` é embutida em tempo de build.** Cadastrar a variável no painel da Vercel e não
+  redeployar deixa o bundle antigo com string vazia — a tela continua quebrada e parece que a
+  variável não pegou. Vale para qualquer ambiente, e é a primeira coisa a conferir quando o valor
+  "não chegou".
 
 ## Descartado
 

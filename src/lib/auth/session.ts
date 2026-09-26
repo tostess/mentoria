@@ -2,6 +2,7 @@ import "server-only";
 
 import { cache } from "react";
 import { redirect } from "next/navigation";
+import { hasSupabasePublicEnv } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 import { parseClaims, type Role, type Session } from "./claims";
 import { HOME_BY_ROLE } from "./routes";
@@ -19,6 +20,21 @@ import { HOME_BY_ROLE } from "./routes";
  * `cache()` é por requisição: layout, página e ação leem a mesma sessão.
  */
 export const getSession = cache(async (): Promise<Session | null> => {
+  /**
+   * Sem Supabase configurado não há sessão — e isso é a verdade, não uma falha.
+   *
+   * Deixar `createClient()` estourar aqui derruba **toda** tela, inclusive a de
+   * entrada, porque o layout raiz lê a sessão em cada requisição. A decisão da
+   * Etapa 4 era o contrário: o proxy fecha e a tela de entrada continua de pé,
+   * dizendo o que falta. Sem esta guarda ela nunca ficou — e um deploy com
+   * variável faltando vira 500 opaco em todas as rotas, que foi exatamente o
+   * que aconteceu no primeiro deploy de 26/09/2026.
+   *
+   * É a regra de sempre, aplicada à configuração: config degrada, dado falha
+   * alto. Saldo e agenda continuam sem esse direito.
+   */
+  if (!hasSupabasePublicEnv) return null;
+
   const supabase = await createClient();
   const { data, error } = await supabase.auth.getClaims();
   if (error !== null || !data) return null;
