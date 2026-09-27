@@ -24,7 +24,8 @@ function sourceFiles(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const full = join(dir, entry.name);
     if (entry.isDirectory()) return sourceFiles(full);
-    return /\.(ts|tsx)$/.test(entry.name) ? [full] : [];
+    // `.mjs` entra por causa dos scripts de `_medicao/`, que leem a chave.
+    return /\.(ts|tsx|mjs)$/.test(entry.name) ? [full] : [];
   });
 }
 
@@ -109,7 +110,17 @@ describe("cerca do lab de vídeo — 404 em produção", () => {
 
 describe("cerca do lab de vídeo — segredos só no servidor", () => {
   const NOMES = ["DAILY_API_KEY", "DAILY_WEBHOOK_SECRET"];
-  const PERMITIDOS = [`${API_LAB}_lib/servidor.ts`, `${API_LAB}_lib/lab.test.ts`];
+  /**
+   * `_medicao/comum.mjs` é a exceção, e é explícita: é script de linha de comando
+   * que lê o `.env.local` da máquina de quem mede, como `scripts/seed-admin.mts`.
+   * Não entra em bundle nenhum — o teste do fim do arquivo garante que nada o
+   * importa.
+   */
+  const PERMITIDOS = [
+    `${API_LAB}_lib/servidor.ts`,
+    `${API_LAB}_lib/lab.test.ts`,
+    `${API_LAB}_medicao/comum.mjs`,
+  ];
 
   it("só `servidor.ts` lê a chave e o segredo do Daily", () => {
     const leitores = files
@@ -141,6 +152,15 @@ describe("cerca do lab de vídeo — segredos só no servidor", () => {
 });
 
 describe("cerca do lab de vídeo — o spike morre inteiro", () => {
+  it("os scripts de medição não são importados por nada fora deles", () => {
+    const importadores = files
+      .filter((f) => !f.id.startsWith(`${API_LAB}_medicao/`))
+      .filter((f) => /from ["'][^"']*_medicao/.test(f.code))
+      .map((f) => f.id);
+
+    expect(importadores).toEqual([]);
+  });
+
   it("nada fora do lab importa código do lab", () => {
     const dependentes = files
       .filter((f) => !doLab(f.id))
