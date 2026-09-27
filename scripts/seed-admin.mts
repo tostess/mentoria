@@ -151,7 +151,9 @@ async function principal() {
     ${criada ? "identidade criada agora" : "identidade já existia"} · ${perfil.criado ? "perfil criado agora" : "perfil atualizado"}
 `);
 
-  await avisarSobreOHook();
+  // A senha só é conhecida quando foi sorteada agora ou passada por `--senha`;
+  // conta reaproveitada sem `--senha` mantém a dela, e aí não há como entrar.
+  await avisarSobreOHook(criada || senhaEscolhida !== null ? senha : null);
 }
 
 /**
@@ -162,10 +164,10 @@ async function principal() {
  * nenhuma: esquema certo, conta certa, hook desligado, e todo login termina em
  * "acesso inativo" sem nada nos logs.
  */
-async function avisarSobreOHook() {
+async function avisarSobreOHook(senhaConhecida: string | null) {
   const publishable =
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!publishable || senhaEscolhida === null) {
+  if (!publishable || senhaConhecida === null) {
     console.log(
       "  Confira em Authentication > Hooks se o Customize Access Token está ligado\n" +
         "  em public.custom_access_token_hook. Sem isso, o login termina em acesso inativo.\n",
@@ -176,7 +178,7 @@ async function avisarSobreOHook() {
   const cliente = createClient(url, publishable, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
-  const { data, error } = await cliente.auth.signInWithPassword({ email, password: senhaEscolhida });
+  const { data, error } = await cliente.auth.signInWithPassword({ email, password: senhaConhecida });
   if (error || !data.session) {
     console.log(`  Não foi possível conferir o hook (entrada falhou: ${error?.message}).\n`);
     return;

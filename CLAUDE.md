@@ -797,17 +797,12 @@ conferido por consulta: 27 tabelas, todas com RLS, 37 policies, os quatro trigge
 `bookings_no_overlap`, as cinco chaves de `app_config` e o `custom_access_token_hook` executável
 pelo `supabase_auth_admin`.
 
-Falta, nesta ordem — nenhum passo é código:
-
-1. **Ligar o `custom_access_token_hook`** em Supabase → `mentoria` → Authentication → Hooks. Sem
-   ele todo login termina em "acesso inativo", sem erro em lugar nenhum. O GoTrue leva alguns
-   segundos para propagar.
-2. **Criar a operadora:** preencher `SUPABASE_SECRET_KEY` no `.env.production.local` (na Vercel ela
-   é *sensitive* e não sai) e rodar `npm run seed:admin:prod -- <e-mail> "<nome>"`. O script entra
-   de verdade e confere o hook no JWT.
-3. **Trocar a senha do banco `mentoria`** — foi escrita em texto numa conversa em 27/09. Depois
-   da troca: atualizar `DATABASE_URL` e `DIRECT_URL` no `.env.production.local` (o `@` vira `%40`),
-   `vercel env rm` + `vercel env add` das duas em Production, e `redeploy`.
+Ainda em 27/09: hook ligado no painel do `mentoria`; senha do banco trocada (a anterior tinha sido
+escrita numa conversa) e propagada para o arquivo e para a Vercel, com redeploy e `/api/health`
+de volta a `ok: true`; operadora `tostess` criada por `seed:admin:prod`. **Falta confirmar o hook
+por entrada real** em `/entrar` — o seed só passou a conferir com senha sorteada depois dessa
+execução. Trocar a senha de uma credencial de produção é sempre: painel → arquivo → `vercel env rm`
++ `vercel env add` → `redeploy`; entre o painel e o redeploy a produção fica sem banco.
 
 `/api/health` é a primeira coisa a olhar quando um deploy não sobe: Route Handler não passa pelo
 layout raiz nem pelo proxy, então responde mesmo com tudo quebrado e diz qual variável falta.
