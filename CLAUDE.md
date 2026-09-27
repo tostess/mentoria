@@ -35,7 +35,10 @@ Dev: `drizzle-kit` (gera migração), `dotenv` (só o `drizzle.config.ts` — o 
 repositório `github.com/tostess/mentoria` e publicando a `main`. Domínio provisório
 `mentoria-bay.vercel.app` — o definitivo depende do nome da plataforma, que está em aberto.
 Seis variáveis de ambiente, uma delas nova na P3: `CRON_SECRET`, que a Vercel manda sozinha como
-`Authorization: Bearer` para as rotas de `/api/cron/*`.
+`Authorization: Bearer` para as rotas de `/api/cron/*`. As seis estão cadastradas nos três
+ambientes desde 27/09/2026 — Production com o `mentoria`, Preview e Development com o
+`mentoria-dev` — e os segredos de Production e Preview são *sensitive*: não saem da Vercel.
+A pasta está ligada ao projeto por `vercel link` (`.vercel/`, ignorada pelo git).
 
 Escolhida por RLS (protege o multi-tenant), constraints (garantem o livro-caixa) e SQL (relatório
 vira query, não cron de pré-agregação).
@@ -724,6 +727,27 @@ F16 formato grupo · F18 dashboards e exclusão de conta.
   migrava o dev calado. Tirar o `override` seria mais curto e pior — com precedência de shell, uma
   variável esquecida no terminal migra o banco errado sem avisar, e migração é a operação que menos
   perdoa. Tocar produção exige **duas** decisões explícitas: criar o arquivo e passar o ambiente.
+  `npm run seed:admin:prod` segue o mesmo desenho: carrega `.env.production.local`, exige
+  `--producao` (o script do `package.json` passa) e anuncia o ref antes de agir.
+- **O `.env.production.local` também é lido pelo `next build` local — e vence o `.env.local`.** É
+  convenção do Next: build roda com `NODE_ENV=production` e esse arquivo tem a maior precedência.
+  Um `next build` + `next start` na máquina com o arquivo presente sobe a aplicação **escrevendo
+  em produção**. `next dev` e o Vitest não o leem, então o dia a dia está seguro; o perigo é o
+  build local para reproduzir defeito de deploy. Nesse caso, mover o arquivo antes e apagar o
+  `.next` depois.
+- **Vercel se opera pelo CLI; o Supabase, pelo MCP em modo leitura.** O MCP da Vercel não conecta
+  no Claude Code 2.1.283 — o cliente não consegue ler a descoberta OAuth de `vercel.com`, que
+  responde normalmente ao Node e ao `curl`; o contorno por `mcp-remote` autentica e trava depois do
+  handshake. `npx vercel` (sem instalar, não é dependência do projeto) cadastra variável com o
+  valor vindo por *pipe* direto do arquivo, sem passar pelo chat, e faz `redeploy`. O MCP do
+  Supabase fica em `.mcp.json` com `read_only=true` de propósito: migração é `db:migrate:prod`,
+  porque aplicar pelo MCP gravaria no registro do Supabase e deixaria o `drizzle.__drizzle_migrations`
+  desatualizado.
+- **Build sem cache na Vercel pode falhar em `next/font/google` sem defeito no código.** O
+  primeiro `redeploy` depois de cadastrar as variáveis rodou sem cache e o Turbopack falhou na
+  Instrument Sans (`next/font/google queries have exactly one entry`); o build local limpo do mesmo
+  commit passou, e o segundo `redeploy` também. É a fonte baixada do Google durante o build.
+  Primeira coisa a tentar: refazer o deploy.
 
 ## Descartado
 
@@ -742,7 +766,8 @@ F16 formato grupo · F18 dashboards e exclusão de conta.
 
 ## Estado atual
 
-Fase: **P3 fechada**, e **existe produção — ainda não configurada**.
+Fase: **P3 fechada** e **produção no ar** desde 27/09/2026 — falta ligar o hook e criar a
+operadora (abaixo). Próxima feature: **P4**.
 
 A economia da plataforma anda sozinha de ponta a ponta. A operadora compra o bloco e aloca à mão; o
 cron `allocate-monthly` recarrega no dia 1º somando o valor do mês até o teto, idempotente por
@@ -763,28 +788,74 @@ função, `limitesDoMotor`.
 `bookings/reserva.test.ts` e `ledger/mensal.test.ts`, todas chamando as funções que a aplicação
 chama. Invariante 5 travada por `server-only` mais teste estático.
 
-### O que falta para a produção subir
+### Produção
 
-O primeiro deploy saiu em 26/09/2026 e está **Ready** na Vercel, publicando a `main`. A aplicação
-sobe, mas o ambiente está vazio — medido em `mentoria-bay.vercel.app/api/health` em 27/09:
-`{"supabaseUrl":false,"secretKey":false,"databaseUrl":false}`, e o cron respondendo 503 por falta de
-segredo. Quatro passos, nesta ordem, e nenhum deles é código:
+No ar desde 27/09/2026 em `mentoria-bay.vercel.app`, medido depois do redeploy: `/api/health`
+responde `ok: true` (três variáveis presentes, banco em 89 ms, Supabase ok), o cron sem segredo
+responde 401 e `/entrar` sobe sem aviso de ambiente. O `mentoria` recebeu as cinco migrações e foi
+conferido por consulta: 27 tabelas, todas com RLS, 37 policies, os quatro triggers dos livros-caixa,
+`bookings_no_overlap`, as cinco chaves de `app_config` e o `custom_access_token_hook` executável
+pelo `supabase_auth_admin`.
 
-1. **As seis variáveis no projeto da Vercel**, com o recorte da invariante 17 — Production apontando
-   para `mentoria`, Preview e Development para `mentoria-dev`.
-2. **Redeploy sem cache de build.** `NEXT_PUBLIC_*` é embutida no bundle; cadastrar sem redeployar
-   deixa o bundle antigo com string vazia.
-3. **`npm run db:migrate:prod`.** O banco `mentoria` (ref `dtqylmvexaoybkdfzsna`) está vazio — as
-   cinco migrações nunca foram aplicadas lá. Conferir o destino com `db:check:prod` antes.
-4. **Ligar o `custom_access_token_hook`** no painel do `mentoria`. Sem ele o token sai sem
-   `user_role` e todo login termina em "acesso inativo", sem erro em lugar nenhum.
+Falta, nesta ordem — nenhum passo é código:
 
-Depois, `npm run seed:admin` apontado para produção cria a conta de operadora — e confere o hook
-sozinho, entrando de verdade e decodificando o JWT.
+1. **Ligar o `custom_access_token_hook`** em Supabase → `mentoria` → Authentication → Hooks. Sem
+   ele todo login termina em "acesso inativo", sem erro em lugar nenhum. O GoTrue leva alguns
+   segundos para propagar.
+2. **Criar a operadora:** preencher `SUPABASE_SECRET_KEY` no `.env.production.local` (na Vercel ela
+   é *sensitive* e não sai) e rodar `npm run seed:admin:prod -- <e-mail> "<nome>"`. O script entra
+   de verdade e confere o hook no JWT.
+3. **Trocar a senha do banco `mentoria`** — foi escrita em texto numa conversa em 27/09. Depois
+   da troca: atualizar `DATABASE_URL` e `DIRECT_URL` no `.env.production.local` (o `@` vira `%40`),
+   `vercel env rm` + `vercel env add` das duas em Production, e `redeploy`.
 
 `/api/health` é a primeira coisa a olhar quando um deploy não sobe: Route Handler não passa pelo
 layout raiz nem pelo proxy, então responde mesmo com tudo quebrado e diz qual variável falta.
 
-Próxima feature: **P4** — busca simples, agendamento, agenda das duas visões, `expire-pending`,
-`close-sessions`, `send-reminders`. `POST /api/bookings` já existe e ainda não tem tela que o chame;
-é ela que a P4 traz. Motor de agenda: **travado**.
+### Próxima feature: P4 — preparação
+
+Escopo do roadmap: busca simples, agendamento, agenda das duas visões, `expire-pending`,
+`close-sessions`, `send-reminders`. Motor de agenda: **travado** — a P4 consome, não altera.
+
+**O que já existe e a P4 usa:** `reservar()` em `lib/bookings` atrás de `POST /api/bookings`, sem
+tela que o chame; `limitesDoMotor`; `avaliarSlots` com motivo de recusa; `carregarRegras`,
+`carregarExcecoes` e `carregarOcupacoes` em `lib/parceiro/dados.ts` (escopo do próprio Parceiro,
+pela RLS). Quatro telas são `StubPage` marcadas P4: `/parceiros` e `/agenda` do Profissional,
+`/parceiro/sessoes` e `/parceiro/inicio`.
+
+**Ordem proposta:**
+
+1. **Protótipo HTML** em `docs/prototipo-p4.html` antes de qualquer tela (regra de trabalho):
+   busca, página do Parceiro com horários, confirmação da reserva, agenda do Profissional, sessões
+   do Parceiro com confirmar/recusar.
+2. **Horários livres vistos pelo Profissional.** É a peça que falta: ele precisa ver ocupado sem
+   ver de quem, e a policy de `bookings` não deixa. A leitura é privilegiada, no servidor, e deve
+   ser **a mesma leitura** que a reserva usa para recalcular — hoje `lerOcupacoes`, privada em
+   `lib/bookings/operacoes.ts`, junto das leituras de regra e exceção; exportá-las em vez de
+   copiar. Se a tela e a escrita lerem ocupação por caminhos diferentes, a tela oferece horário
+   que a reserva recusa. Devolve só intervalos, nunca
+   `professional_id`. Invariante 14: todo horário exibido sai do motor.
+3. **Busca** em `/parceiros`: lista de ativos lida pela RLS (`select` de `partners` ativos é
+   aberto a autenticado) e filtro no cliente, sem serviço externo.
+4. **Agendar** a partir da página do Parceiro, chamando `POST /api/bookings`; instante exibido no
+   fuso do Profissional (`profiles.timezone`), convertido só na borda.
+5. **Agenda das duas visões:** `/agenda` do Profissional e `/parceiro/sessoes` pela RLS de
+   `bookings` (dono ou Parceiro da sessão), e confirmar `pending → confirmed` pelo Parceiro, em
+   Route Handler com `service_role` (invariante 4).
+6. **Crons**, cada um com teste chamando a função da aplicação, uma transação por sessão:
+   `expire-pending` (horário) e `close-sessions` (15 min), registrados no `vercel.json`.
+
+**Decisões a tomar antes de codar:**
+
+- **Recusa do Parceiro.** A máquina de estados não tem aresta para "Parceiro recusou pedido
+  pendente", e cancelamento com estorno está fora do piloto. Opções: recusar vira `cancelled` com
+  `refund` imediato, ou o piloto não tem recusa e o pedido expira em 48h com estorno.
+- **`close-sessions` sem presença.** Presença só existe na P5 (webhook do Daily). Até lá não há
+  como distinguir `done` de `no_show_*`. Proposta: na P4, `confirmed` passado de `end_at` + 15 min
+  vira `done`, e a P5 troca a regra pela presença real.
+- **Chave de idempotência do estorno por expiração.** Proposta `expire_{bookingId}`, na família
+  da invariante 16; a transação faz `update` do status e `insert` do `refund` juntos.
+- **`send-reminders` está bloqueado por infraestrutura.** Não há Resend configurado (nem chave, nem
+  domínio remetente — e o domínio depende do nome da plataforma, em aberto), nem Z-API. Opções:
+  adiar o lembrete para depois da P5, ou configurar Resend com domínio provisório. Se entrar,
+  `RESEND_API_KEY` é a sétima variável e precisa ir nos três ambientes.

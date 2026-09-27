@@ -31,16 +31,23 @@ function senhaProvisoria(tamanho = 16): string {
   return senha;
 }
 
+const argumentos = process.argv.slice(2);
+
+/**
+ * Produção é `npm run seed:admin:prod`, que carrega `.env.production.local` e
+ * passa `--producao`. Mesmo desenho do `db:migrate:prod`: tocar em produção
+ * exige o arquivo **e** a bandeira, e o destino é anunciado antes de agir.
+ */
+const arquivo = argumentos.includes("--producao") ? ".env.production.local" : ".env.local";
+
 function exigir(nome: string): string {
   const valor = process.env[nome];
   if (!valor) {
-    console.error(`\n  Falta ${nome} no .env.local.\n`);
+    console.error(`\n  Falta ${nome} no ${arquivo}.\n`);
     process.exit(1);
   }
   return valor;
 }
-
-const argumentos = process.argv.slice(2);
 const indiceSenha = argumentos.indexOf("--senha");
 const senhaEscolhida = indiceSenha === -1 ? null : argumentos[indiceSenha + 1];
 
@@ -71,10 +78,13 @@ if (!email || !email.includes("@")) {
 const url = exigir("NEXT_PUBLIC_SUPABASE_URL");
 const secret = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
 if (!secret) {
-  console.error("\n  Falta SUPABASE_SECRET_KEY no .env.local.\n");
+  console.error(`\n  Falta SUPABASE_SECRET_KEY no ${arquivo}.\n`);
   process.exit(1);
 }
 const direct = exigir("DIRECT_URL");
+
+const ref = /https:\/\/([a-z0-9]+)\.supabase\.co/.exec(url)?.[1] ?? "ref desconhecida";
+console.log(`\n  seed:admin · ${arquivo} · projeto ${ref}`);
 
 const admin = createClient(url, secret, {
   auth: { autoRefreshToken: false, persistSession: false },

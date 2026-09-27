@@ -15,7 +15,8 @@
     "db:check:prod": "node -e \"process.env.DRIZZLE_ENV='production';require('child_process').execSync('npx drizzle-kit check',{stdio:'inherit'})\"",
     "db:studio": "drizzle-kit studio",
     "check:supabase": "node --env-file-if-exists=.env.local scripts/check-supabase.mts",
-    "seed:admin": "node --env-file-if-exists=.env.local scripts/seed-admin.mts"
+    "seed:admin": "node --env-file-if-exists=.env.local scripts/seed-admin.mts",
+    "seed:admin:prod": "node --env-file=.env.production.local scripts/seed-admin.mts --producao"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

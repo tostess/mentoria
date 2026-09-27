@@ -4,6 +4,7 @@ Uma linha por sessão, mais recente no topo. Atualizar **antes** do commit final
 
 | Data | Etapa | O que foi feito | Pendências | Commit |
 |---|---|---|---|---|
+| 2026-09-27 | Produção | Seis variáveis na Vercel nos três ambientes pelo CLI (`npx vercel`, valores por *pipe* do arquivo, segredos *sensitive*), com o recorte da invariante 17; `CRON_SECRET` de produção sorteado direto para a Vercel; chave pública de produção conferida contra os dois projetos; `.env.production.local` criado (pooler `aws-0` confirmado por sonda); `db:migrate:prod` aplicou as cinco migrações no `mentoria` e a conferência por consulta bateu (27 tabelas com RLS, 37 policies, triggers, exclusão, `app_config`, hook); redeploy — o primeiro, sem cache, falhou em `next/font/google`, o segundo subiu; `/api/health` `ok: true`, cron 401; `seed:admin:prod` com `--producao` e anúncio do ref; `.mcp.json` com Supabase em modo leitura e Vercel (MCP da Vercel não conecta — ver CLAUDE.md); preparação da P4 no CLAUDE.md | Ligar o hook no `mentoria`; `seed:admin:prod` (falta `SUPABASE_SECRET_KEY` no arquivo); **trocar a senha do banco `mentoria`**, exposta em conversa; decisões da P4 listadas no CLAUDE.md | — |
 | 2026-09-26 | P3 | Carteira do Profissional em `/fichas` (saldo, extrato, o que a ficha vale) lida pela sessão dele via PostgREST, e saldo real na sidebar — fim dos números de exemplo em todas as cascas; `allocate-monthly` (`lib/ledger/mensal.ts` + `/api/cron/allocate-monthly` + `crons` no `vercel.json`), uma transação por pessoa, soma parcial até o teto, idempotente por `alloc_{userId}_{YYYYMM}`, com guarda de `CRON_SECRET` em tempo constante; `POST /api/bookings` transacional (`lib/bookings/`) recalculando a agenda no motor antes de escrever, travando a carteira, traduzindo `23P01` em frase; `lib/config/limites.ts` unificando a tradução de `app_config` para o motor; `paraInstante()` em `lib/db/instantes.ts`; `audit.ts` aceitando autor nulo; cenário de teste compartilhado com cerca estática; 44 testes novos (404 no total) | Nenhuma tela chama o endpoint de reserva ainda — é a P4; `CRON_SECRET` não está na Vercel | `6718144` |
 | 2026-09-25 | Polimento | **Exceção pedida à regra de uma feature por sessão.** `lucide-react` com mapa de ícones por nome (`components/ui/icones.ts`) na navegação dos quatro papéis, cards, números e estados vazios; catálogo tipado de ações auditadas (`lib/admin/atividade.ts`) — o painel e a nova `/admin/atividade` mostram frase com ícone e tempo relativo em vez de `alocar_fichas`; livro-caixa em português; edição de Parceiro (`/admin/parceiros/[id]`: dados, e-mail com login, status pausar/arquivar/reativar) e de Profissional (`/admin/empresas/[id]/pessoas/[userId]`: dados, desativar/reativar acesso, atalho de alocação), senha provisória nova com botão de copiar, confirmação em dois passos, histórico por pessoa; busca e filtro nas listas com linha clicável; sidebar vira barra com menu no celular; migalhas, `loading` e `not-found` do admin, título da aba por tela; fim dos números fixos na sidebar do admin; `lib/pessoas/edicao.ts` + `editar.ts`, `lib/formato.ts`; protótipo em `docs/prototipo-polimento.html`; 74 testes novos (360 no total), incluindo varredura de `snake_case` no JSX; fluxos de e-mail, senha e acesso exercitados contra o servidor de auth do `mentoria-dev` | Telas do Profissional e do RH ainda são esqueleto com número de exemplo na sidebar (P3/F2); editar empresa ficou fora | `157b8ed` |
 | 2026-09-25 | 5 + P2 | Motor de agenda em `src/lib/scheduling/` (faixas, dias, slots) — TypeScript puro, 103 testes, **travado**: regra semanal no fuso do Parceiro, exceções, descanso, teto semanal de domingo a sábado, aviso mínimo, horizonte e hora inexistente na virada do horário de verão; `avaliarSlots` devolve o motivo de cada recusa. P2: `/parceiro/disponibilidade` (modo rápido + prévia dos horários que o motor calcula + por que os outros não entraram) e `/parceiro/perfil` (dados, áreas, descanso, teto, confirmar sozinho), escrevendo **pela RLS** com a sessão do Parceiro; `lib/parceiro/` e helpers `inteiros`/`marcado` em `lib/forms`; 124 testes novos (286 no total) | Exceções (férias/bloqueio) o motor suporta mas a tela ainda não expõe — F3 | `c6af6a8` |
@@ -28,9 +29,13 @@ Uma linha por sessão, mais recente no topo. Atualizar **antes** do commit final
   `seed:admin` faz essa conferência sozinho a cada execução. Fica o registro do sintoma original:
   a mudança em Authentication → Hooks leva alguns segundos para o GoTrue propagar, e uma conferência
   feita logo depois do clique ainda acusa desligado.
-- **Produção (`mentoria`) criada e vazia.** Ref `dtqylmvexaoybkdfzsna`, `sa-east-1`, pooler em
-  `aws-0-sa-east-1.pooler.supabase.com` (determinado por sonda). As cinco migrações **ainda não
-  foram aplicadas** lá, e o hook de access token também precisa ser ligado nesse projeto.
+- ~~**Produção (`mentoria`) criada e vazia.**~~ **Migrada em 27/09/2026** — as cinco migrações
+  aplicadas por `db:migrate:prod` e conferidas por consulta. Ref `dtqylmvexaoybkdfzsna`,
+  `sa-east-1`, pooler em `aws-0-sa-east-1.pooler.supabase.com` (o `aws-1` responde "tenant not
+  found"). **Continua aberto:** ligar o hook de access token nesse projeto e criar a operadora.
+- **Senha do banco `mentoria` exposta.** Foi escrita em texto numa conversa em 27/09/2026 para
+  montar o `.env.production.local`. Trocar no painel e reescrever `DATABASE_URL`/`DIRECT_URL` no
+  arquivo e na Vercel (Production), seguido de redeploy.
 - ~~**`drizzle.config.ts` não sabe migrar produção.**~~ **Resolvido em 26/09/2026** — um arquivo por
   ambiente, escolhido por `DRIZZLE_ENV`: `.env.local` no desenvolvimento e `.env.production.local` na
   produção, com `npm run db:migrate:prod` e `db:check:prod`. Tirar o `override` teria sido pior:
@@ -38,7 +43,8 @@ Uma linha por sessão, mais recente no topo. Atualizar **antes** do commit final
   Agora tocar produção exige **duas** decisões explícitas — criar o arquivo e passar o ambiente — e o
   config anuncia host e ref antes de agir. Sem o arquivo, `db:check:prod` instrui em vez de migrar o
   dev calado (conferido).
-- **Variáveis ainda não cadastradas na Vercel.** Só existem em `.env.local`. Invariante 17:
+- ~~**Variáveis ainda não cadastradas na Vercel.**~~ **Resolvido em 27/09/2026** — as seis nos três
+  ambientes, e o redeploy feito. Registro original: só existiam em `.env.local`. Invariante 17:
   Production aponta para `mentoria`, Preview e Development para `mentoria-dev`. **Confirmado pelo
   primeiro deploy (26/09):** sem elas todas as rotas davam 500; agora a tela de entrada sobe e diz o
   que falta, mas o ambiente continua sem funcionar até serem cadastradas **e o deploy refeito** —
