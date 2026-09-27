@@ -766,8 +766,8 @@ F16 formato grupo · F18 dashboards e exclusão de conta.
 
 ## Estado atual
 
-Fase: **P3 fechada** e **produção no ar** desde 27/09/2026 — falta ligar o hook e criar a
-operadora (abaixo). Próxima feature: **P4**.
+Fase: **P3 fechada** e **produção completa** desde 27/09/2026 — hook ligado e operadora entrando
+de verdade em `/entrar`. Próxima feature: **P4**, preparada abaixo.
 
 A economia da plataforma anda sozinha de ponta a ponta. A operadora compra o bloco e aloca à mão; o
 cron `allocate-monthly` recarrega no dia 1º somando o valor do mês até o teto, idempotente por
@@ -788,69 +788,83 @@ função, `limitesDoMotor`.
 `bookings/reserva.test.ts` e `ledger/mensal.test.ts`, todas chamando as funções que a aplicação
 chama. Invariante 5 travada por `server-only` mais teste estático.
 
+
 ### Produção
 
-No ar desde 27/09/2026 em `mentoria-bay.vercel.app`, medido depois do redeploy: `/api/health`
-responde `ok: true` (três variáveis presentes, banco em 89 ms, Supabase ok), o cron sem segredo
-responde 401 e `/entrar` sobe sem aviso de ambiente. O `mentoria` recebeu as cinco migrações e foi
-conferido por consulta: 27 tabelas, todas com RLS, 37 policies, os quatro triggers dos livros-caixa,
-`bookings_no_overlap`, as cinco chaves de `app_config` e o `custom_access_token_hook` executável
-pelo `supabase_auth_admin`.
+No ar em `mentoria-bay.vercel.app` e completa desde 27/09/2026. O `mentoria` tem as cinco
+migrações, conferidas por consulta (27 tabelas com RLS, 37 policies, triggers dos livros-caixa,
+`bookings_no_overlap`, `app_config`, hook); o hook está ligado e a operadora `tostess` entrou pela
+tela. As seis variáveis estão nos três ambientes, com o recorte da invariante 17. A única conta em
+produção é a da operadora; os dados de demonstração (Faculdade Aurora, Mariana Costa, Helena Braga)
+existem só no `mentoria-dev`.
 
-Ainda em 27/09: hook ligado no painel do `mentoria`; senha do banco trocada (a anterior tinha sido
-escrita numa conversa) e propagada para o arquivo e para a Vercel, com redeploy e `/api/health`
-de volta a `ok: true`; operadora `tostess` criada por `seed:admin:prod`. **Falta confirmar o hook
-por entrada real** em `/entrar` — o seed só passou a conferir com senha sorteada depois dessa
-execução. Trocar a senha de uma credencial de produção é sempre: painel → arquivo → `vercel env rm`
-+ `vercel env add` → `redeploy`; entre o painel e o redeploy a produção fica sem banco.
+Operação, para não redescobrir:
 
-`/api/health` é a primeira coisa a olhar quando um deploy não sobe: Route Handler não passa pelo
-layout raiz nem pelo proxy, então responde mesmo com tudo quebrado e diz qual variável falta.
+- **Push na `main` publica em produção.** Os commits do dia 27/09 ficaram locais, sem push.
+- **`/api/health`** é o primeiro lugar a olhar quando um deploy não sobe.
+- **Vercel pelo CLI** (`npx vercel`), já com login e com a pasta vinculada ao projeto. Trocar uma
+  credencial de produção: painel → `.env.production.local` → `vercel env rm` + `vercel env add` →
+  `vercel redeploy`. Entre o painel e o redeploy a produção fica sem banco.
+- **Supabase pelo MCP** (`.mcp.json`, modo leitura) aparece a partir de uma sessão nova — lê os dois
+  projetos; não configura autenticação nem migra.
 
-### Próxima feature: P4 — preparação
+### Próxima feature: P4 — roteiro
 
 Escopo do roadmap: busca simples, agendamento, agenda das duas visões, `expire-pending`,
-`close-sessions`, `send-reminders`. Motor de agenda: **travado** — a P4 consome, não altera.
+`close-sessions`, `send-reminders`. Motor de agenda **travado** — a P4 consome, não altera.
 
-**O que já existe e a P4 usa:** `reservar()` em `lib/bookings` atrás de `POST /api/bookings`, sem
-tela que o chame; `limitesDoMotor`; `avaliarSlots` com motivo de recusa; `carregarRegras`,
-`carregarExcecoes` e `carregarOcupacoes` em `lib/parceiro/dados.ts` (escopo do próprio Parceiro,
-pela RLS). Quatro telas são `StubPage` marcadas P4: `/parceiros` e `/agenda` do Profissional,
-`/parceiro/sessoes` e `/parceiro/inicio`.
+**Primeiro passo da sessão: fechar as quatro decisões abaixo com o usuário.** Nenhuma tem resposta
+no código, e três mudam o esquema de estados ou o livro-caixa. Cada uma tem recomendação; se
+aceitas, viram "Decisões tomadas".
 
-**Ordem proposta:**
+1. **Recusa do Parceiro.** A máquina de estados não tem aresta "Parceiro recusou pedido pendente".
+   *Recomendação:* recusar vira `cancelled` com `refund` imediato, `cancelled_by` = Parceiro. A
+   alternativa — sem recusa, o pedido expira em 48h — prende uma das duas vagas de
+   `max_pending_per_professional` e faz o Profissional esperar dois dias por um "não" já dado.
+2. **`close-sessions` sem presença.** Presença só existe na P5 (webhook do Daily); até lá não há
+   como distinguir `done` de `no_show_*`. *Recomendação:* na P4, `confirmed` passado de `end_at` +
+   `session_grace_minutes` vira `done`; a P5 troca a regra pela presença real.
+3. **Chave de idempotência do estorno.** *Recomendação:* uma chave só por sessão,
+   `refund_{bookingId}`, seja qual for o caminho — expiração, recusa ou, depois, cancelamento. Assim
+   o Parceiro recusando no mesmo minuto em que o cron expira o pedido produz **um** estorno, e quem
+   perde a corrida colide na `unique`. Chaves por caminho (`expire_…`, `decline_…`) devolveriam a
+   ficha duas vezes.
+4. **`send-reminders`.** Não há Resend (nem chave, nem domínio remetente — que depende do nome da
+   plataforma) nem Z-API. *Recomendação:* sair da P4 e ir para depois da P5; o piloto é operado à
+   mão. Se ficar, `RESEND_API_KEY` é a sétima variável, nos três ambientes.
 
-1. **Protótipo HTML** em `docs/prototipo-p4.html` antes de qualquer tela (regra de trabalho):
-   busca, página do Parceiro com horários, confirmação da reserva, agenda do Profissional, sessões
-   do Parceiro com confirmar/recusar.
-2. **Horários livres vistos pelo Profissional.** É a peça que falta: ele precisa ver ocupado sem
-   ver de quem, e a policy de `bookings` não deixa. A leitura é privilegiada, no servidor, e deve
-   ser **a mesma leitura** que a reserva usa para recalcular — hoje `lerOcupacoes`, privada em
-   `lib/bookings/operacoes.ts`, junto das leituras de regra e exceção; exportá-las em vez de
-   copiar. Se a tela e a escrita lerem ocupação por caminhos diferentes, a tela oferece horário
-   que a reserva recusa. Devolve só intervalos, nunca
+**Depois, nesta ordem:**
+
+1. **Protótipo** `docs/prototipo-p4.html`, aprovado antes de qualquer tela: busca, página do
+   Parceiro com horários, confirmação da reserva, `/agenda` do Profissional, `/parceiro/sessoes` com
+   confirmar (e recusar, se a decisão 1 passar), `/parceiro/inicio`.
+2. **Estorno no livro-caixa.** Nada no código grava `refund` ainda: `lib/ledger` faz `purchase` e
+   `allocate`, e o `spend` mora dentro da reserva (`lib/bookings/operacoes.ts`). Criar `estornoNaTransacao` em `ledger/operacoes.ts` (recebe a transação,
+   sem `server-only`), no mesmo desenho de `alocacaoNaTransacao`, com teste em
+   `ledger/transacoes.test.ts`. É dela que dependem os crons e a recusa.
+3. **Horários livres vistos pelo Profissional.** Ele precisa ver ocupado sem ver de quem, e a policy
+   de `bookings` não deixa — a leitura é privilegiada, no servidor. Tem de ser **a mesma leitura**
+   que a reserva usa para recalcular: `lerOcupacoes` e as leituras de regra e exceção, hoje
+   privadas em `lib/bookings/operacoes.ts`; exportar, não copiar. Leituras diferentes na tela e na
+   escrita fazem a tela oferecer horário que a reserva recusa. Devolve só intervalos, nunca
    `professional_id`. Invariante 14: todo horário exibido sai do motor.
-3. **Busca** em `/parceiros`: lista de ativos lida pela RLS (`select` de `partners` ativos é
-   aberto a autenticado) e filtro no cliente, sem serviço externo.
-4. **Agendar** a partir da página do Parceiro, chamando `POST /api/bookings`; instante exibido no
-   fuso do Profissional (`profiles.timezone`), convertido só na borda.
-5. **Agenda das duas visões:** `/agenda` do Profissional e `/parceiro/sessoes` pela RLS de
-   `bookings` (dono ou Parceiro da sessão), e confirmar `pending → confirmed` pelo Parceiro, em
-   Route Handler com `service_role` (invariante 4).
-6. **Crons**, cada um com teste chamando a função da aplicação, uma transação por sessão:
-   `expire-pending` (horário) e `close-sessions` (15 min), registrados no `vercel.json`.
+4. **Busca** em `/parceiros`: ativos lidos pela RLS (`select` de `partners` ativos é aberto a
+   autenticado), filtro no cliente, sem serviço externo.
+5. **Agendar** pela página do Parceiro chamando `POST /api/bookings`. Contrato já pronto: corpo
+   `{ partnerId, inicio }` com `inicio` ISO **com fuso**; `201 { id, status, inicio, fim, saldo }`;
+   `409 { erro, motivo }` com `motivo` ∈ `HorarioIndisponivel`, `LimiteDePendentes`,
+   `SaldoInsuficiente`, `ParceiroIndisponivel`, `ProfissionalInvalido`, `LancamentoRepetido` — `erro`
+   já é a frase para a tela; `401`/`403`/`422` para sessão, papel e corpo. Instante exibido no fuso
+   de `profiles.timezone`, convertido só na borda.
+6. **Agenda das duas visões:** `/agenda` e `/parceiro/sessoes` lendo `bookings` pela RLS (dono ou
+   Parceiro da sessão). Confirmar `pending → confirmed` — e recusar — em Route Handler com
+   `service_role` (invariante 4), `partner_id` vindo do JWT. Parceiro agindo na própria sessão não
+   grava `audit_logs`, como na P2.
+7. **Crons** `expire-pending` (de hora em hora, `pending_expires_hours`) e `close-sessions` (a cada
+   15 min), uma transação por sessão, protegidos por `autorizarCron` de `lib/cron/guarda.ts`,
+   registrados no `vercel.json`, com teste chamando a função da aplicação sobre o cenário de
+   `lib/db/cenario-de-teste.ts`.
 
-**Decisões a tomar antes de codar:**
-
-- **Recusa do Parceiro.** A máquina de estados não tem aresta para "Parceiro recusou pedido
-  pendente", e cancelamento com estorno está fora do piloto. Opções: recusar vira `cancelled` com
-  `refund` imediato, ou o piloto não tem recusa e o pedido expira em 48h com estorno.
-- **`close-sessions` sem presença.** Presença só existe na P5 (webhook do Daily). Até lá não há
-  como distinguir `done` de `no_show_*`. Proposta: na P4, `confirmed` passado de `end_at` + 15 min
-  vira `done`, e a P5 troca a regra pela presença real.
-- **Chave de idempotência do estorno por expiração.** Proposta `expire_{bookingId}`, na família
-  da invariante 16; a transação faz `update` do status e `insert` do `refund` juntos.
-- **`send-reminders` está bloqueado por infraestrutura.** Não há Resend configurado (nem chave, nem
-  domínio remetente — e o domínio depende do nome da plataforma, em aberto), nem Z-API. Opções:
-  adiar o lembrete para depois da P5, ou configurar Resend com domínio provisório. Se entrar,
-  `RESEND_API_KEY` é a sétima variável e precisa ir nos três ambientes.
+As quatro telas da P4 hoje são `StubPage`: `/parceiros`, `/agenda`, `/parceiro/sessoes` e
+`/parceiro/inicio`. Para exercitar à mão, o `mentoria-dev` já tem Profissional com ficha (Mariana)
+e Parceira (Helena).
