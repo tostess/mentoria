@@ -31,6 +31,12 @@ Vercel (`gru1`) · Vercel Cron · Luxon · Vitest · Daily.co · Claude API · Z
 **lucide-react** (ícones, só por `components/ui/icones.ts`).
 Dev: `drizzle-kit` (gera migração), `dotenv` (só o `drizzle.config.ts` — o Next lê `.env.local` sozinho).
 
+**Deploy:** projeto `mentoria` na Vercel (plano Pro, org `tostess' projects`), conectado ao
+repositório `github.com/tostess/mentoria` e publicando a `main`. Domínio provisório
+`mentoria-bay.vercel.app` — o definitivo depende do nome da plataforma, que está em aberto.
+Seis variáveis de ambiente, uma delas nova na P3: `CRON_SECRET`, que a Vercel manda sozinha como
+`Authorization: Bearer` para as rotas de `/api/cron/*`.
+
 Escolhida por RLS (protege o multi-tenant), constraints (garantem o livro-caixa) e SQL (relatório
 vira query, não cron de pré-agregação).
 
@@ -711,6 +717,13 @@ F16 formato grupo · F18 dashboards e exclusão de conta.
   redeployar deixa o bundle antigo com string vazia — a tela continua quebrada e parece que a
   variável não pegou. Vale para qualquer ambiente, e é a primeira coisa a conferir quando o valor
   "não chegou".
+- **Migração escolhe o banco por arquivo, não por variável de shell.** `drizzle.config.ts` carrega
+  `.env.local` no desenvolvimento e `.env.production.local` quando `DRIZZLE_ENV=production`
+  (`npm run db:migrate:prod`), e anuncia host e ref antes de agir. A primeira versão carregava só o
+  `.env.local` com `override: true`, e isso tornava produção inalcançável: `DIRECT_URL=… db:migrate`
+  migrava o dev calado. Tirar o `override` seria mais curto e pior — com precedência de shell, uma
+  variável esquecida no terminal migra o banco errado sem avisar, e migração é a operação que menos
+  perdoa. Tocar produção exige **duas** decisões explícitas: criar o arquivo e passar o ambiente.
 
 ## Descartado
 
@@ -729,7 +742,7 @@ F16 formato grupo · F18 dashboards e exclusão de conta.
 
 ## Estado atual
 
-Fase: **P3 fechada**. Base completa (Etapas 0–5) e três fases do piloto no ar.
+Fase: **P3 fechada**, e **existe produção — ainda não configurada**.
 
 A economia da plataforma anda sozinha de ponta a ponta. A operadora compra o bloco e aloca à mão; o
 cron `allocate-monthly` recarrega no dia 1º somando o valor do mês até o teto, idempotente por
@@ -737,28 +750,41 @@ cron `allocate-monthly` recarrega no dia 1º somando o valor do mês até o teto
 recalculando a agenda no motor antes de escrever, travando a carteira para serializar as reservas
 daquele Profissional, e deixando a sobreposição para a constraint do banco decidir.
 
-O Profissional finalmente vê o próprio dinheiro em `/fichas`: saldo, extrato do `wallet_ledger` com
-rótulo em português, e o que a ficha vale. A sidebar dele mostra o saldo real — os números de
-exemplo da Etapa 1 saíram de todas as cascas, sem serem trocados por falsos onde a fase ainda não
-chegou.
+O Profissional vê o próprio dinheiro em `/fichas`: saldo, extrato do `wallet_ledger` com rótulo em
+português, e o que a ficha vale. A sidebar dele mostra o saldo real — os números de exemplo da
+Etapa 1 saíram de todas as cascas, sem serem trocados por falsos onde a fase ainda não chegou.
 
 O **motor de agenda** (`src/lib/scheduling/`) segue travado, e agora tem dois consumidores: a tela
 de disponibilidade do Parceiro e a reserva. Os limites de `app_config` chegam aos dois pela mesma
 função, `limitesDoMotor`.
 
-404 testes em 24 arquivos. Os 44 novos cobrem a reserva contra o Postgres de verdade (gasto que não
-sobrevive a booking que falha, horário fora da grade, aviso mínimo, descanso, ocupado, teto de
-pendentes, carteira de outra empresa, acesso desativado, Parceiro pausado), a recarga mensal
-(parcial, teto, contrato que acaba no meio, segunda execução que não duplica, auditoria sem autor) e
-a tradução dos limites. Invariante 19 em `src/lib/auth/hook.test.ts`; invariantes 3, 4, 7, 8, 9, 10 e
-16 em `src/lib/db/invariantes.test.ts`; as transações em `ledger/transacoes.test.ts`,
+404 testes em 24 arquivos. Invariante 19 em `src/lib/auth/hook.test.ts`; invariantes 3, 4, 7, 8, 9,
+10 e 16 em `src/lib/db/invariantes.test.ts`; as transações em `ledger/transacoes.test.ts`,
 `bookings/reserva.test.ts` e `ledger/mensal.test.ts`, todas chamando as funções que a aplicação
 chama. Invariante 5 travada por `server-only` mais teste estático.
 
-Os três caminhos foram percorridos com sessão real: painel da operadora, telas do Parceiro, e agora
-`/fichas` mais os dois endpoints — reserva criando sessão confirmada e descontando ficha, e a recarga
-mensal reportando `jaFeitas` na segunda execução sem duplicar lançamento.
+### O que falta para a produção subir
 
-Próxima: **P4** — busca simples, agendamento, agenda das duas visões, `expire-pending`,
+O primeiro deploy saiu em 26/09/2026 e está **Ready** na Vercel, publicando a `main`. A aplicação
+sobe, mas o ambiente está vazio — medido em `mentoria-bay.vercel.app/api/health` em 27/09:
+`{"supabaseUrl":false,"secretKey":false,"databaseUrl":false}`, e o cron respondendo 503 por falta de
+segredo. Quatro passos, nesta ordem, e nenhum deles é código:
+
+1. **As seis variáveis no projeto da Vercel**, com o recorte da invariante 17 — Production apontando
+   para `mentoria`, Preview e Development para `mentoria-dev`.
+2. **Redeploy sem cache de build.** `NEXT_PUBLIC_*` é embutida no bundle; cadastrar sem redeployar
+   deixa o bundle antigo com string vazia.
+3. **`npm run db:migrate:prod`.** O banco `mentoria` (ref `dtqylmvexaoybkdfzsna`) está vazio — as
+   cinco migrações nunca foram aplicadas lá. Conferir o destino com `db:check:prod` antes.
+4. **Ligar o `custom_access_token_hook`** no painel do `mentoria`. Sem ele o token sai sem
+   `user_role` e todo login termina em "acesso inativo", sem erro em lugar nenhum.
+
+Depois, `npm run seed:admin` apontado para produção cria a conta de operadora — e confere o hook
+sozinho, entrando de verdade e decodificando o JWT.
+
+`/api/health` é a primeira coisa a olhar quando um deploy não sobe: Route Handler não passa pelo
+layout raiz nem pelo proxy, então responde mesmo com tudo quebrado e diz qual variável falta.
+
+Próxima feature: **P4** — busca simples, agendamento, agenda das duas visões, `expire-pending`,
 `close-sessions`, `send-reminders`. `POST /api/bookings` já existe e ainda não tem tela que o chame;
 é ela que a P4 traz. Motor de agenda: **travado**.
