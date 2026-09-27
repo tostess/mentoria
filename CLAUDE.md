@@ -40,6 +40,13 @@ ambientes desde 27/09/2026 — Production com o `mentoria`, Preview e Developmen
 `mentoria-dev` — e os segredos de Production e Preview são *sensitive*: não saem da Vercel.
 A pasta está ligada ao projeto por `vercel link` (`.vercel/`, ignorada pelo git).
 
+Mais duas, do spike do vídeo (27/09/2026), **só em Preview e Development — pendentes de
+Production**: `DAILY_API_KEY` (REST do Daily, domínio `tostes`) e `DAILY_WEBHOOK_SECRET` (HMAC do
+webhook, base64 sorteado aqui). Invariante 5: só servidor, sem `NEXT_PUBLIC_`; Preview *sensitive*.
+Hoje só `src/app/api/lab/video/_lib/servidor.ts`, na branch `spike/video`, as lê. Production espera
+a decisão 4 da P5 (um domínio Daily por ambiente). A conta Daily tem cartão cadastrado — sem ele
+nenhuma chamada abre.
+
 Escolhida por RLS (protege o multi-tenant), constraints (garantem o livro-caixa) e SQL (relatório
 vira query, não cron de pré-agregação).
 
@@ -767,7 +774,9 @@ F16 formato grupo · F18 dashboards e exclusão de conta.
 ## Estado atual
 
 Fase: **P3 fechada** e **produção completa** desde 27/09/2026 — hook ligado e operadora entrando
-de verdade em `/entrar`. Próxima feature: **P4**, preparada abaixo.
+de verdade em `/entrar`. Próxima feature: **P4**, preparada abaixo. O vídeo da P5 já teve o risco
+tirado por um spike medido (`docs/spike-video.md`, branch `spike/video`, sem merge); o roteiro da
+P5 está depois do da P4.
 
 A economia da plataforma anda sozinha de ponta a ponta. A operadora compra o bloco e aloca à mão; o
 cron `allocate-monthly` recarrega no dia 1º somando o valor do mês até o teto, idempotente por
@@ -868,3 +877,93 @@ aceitas, viram "Decisões tomadas".
 As quatro telas da P4 hoje são `StubPage`: `/parceiros`, `/agenda`, `/parceiro/sessoes` e
 `/parceiro/inicio`. Para exercitar à mão, o `mentoria-dev` já tem Profissional com ficha (Mariana)
 e Parceira (Helena).
+
+### P5 — roteiro
+
+Escopo do roadmap: sala Daily, presença, extensão de 30 min dentro da sala. Vem **depois** da P4.
+Tudo o que segue foi medido no spike P5-0 — evidência, requisições e horários em
+`docs/spike-video.md`. Motor de agenda **travado**: a P5 consome, não altera.
+
+**O spike refutou duas frases deste arquivo**, que só mudam quando a decisão 1 for aceita: a seção
+*Vídeo* ("estender prorroga `exp`" do token — token é imutável) e a invariante 20 ("prorroga o
+token do vídeo"). Prorrogar o `exp` da **sala** também não funciona: a hora de expulsão é fixada
+quando cada pessoa entra, e mudar a sala depois não alcança quem já está dentro (medido quatro
+vezes, inclusive desligando a expulsão no meio).
+
+**Primeiro passo da sessão: fechar as decisões abaixo com o usuário.** Cada uma tem recomendação;
+se aceitas, viram "Decisões tomadas".
+
+1. **Como a chamada termina e como estende.** *Recomendação:* teto na sala + fim pelo servidor. A
+   sala nasce com `exp` = início + 30 + 30 + tolerância e `eject_at_room_exp: true` — teto que
+   ninguém ultrapassa nem se o servidor falhar. O fim real é `POST /rooms/:sala/eject` por
+   `user_ids`, chamado por um cron de minuto em minuto quando `end_at` + tolerância passa (medido:
+   expulsão 1–2 s depois da chamada). Estender vira só gravar `end_at` e `extended_by` — nada muda
+   no Daily. O aviso de fim do Prebuilt só aparece nos últimos 5 min antes do teto, então nunca
+   mostra hora errada. Token **sem** propriedade de expulsão (qualquer uma anula o teto da sala),
+   emitido a cada entrada com `exp` = `end_at` atual + tolerância. A alternativa — forçar as duas
+   telas a reentrar com token novo — custa um corte de 3–5 s justo no momento que o sistema de
+   design reserva para animação.
+2. **Tolerância depois do fim.** Hoje o texto diz token até fim + 15 e `close-sessions` depois de
+   fim + `session_grace_minutes` (15). Com a decisão 1, a tolerância passa a ser **expulsão**, não
+   só porta. *Recomendação:* separar as duas: expulsão em `end_at` + 5 min (uma sessão de 30 não vira
+   45 de graça) e `session_grace_minutes` continua sendo quando o fechamento decide o status. O teto
+   da sala usa a mesma tolerância de 5.
+3. **Presença: webhook ou `/meetings`.** `GET /meetings?room=` devolve, por entrada, `user_id`,
+   `join_time` e `duration` — foi a fonte dos horários exatos do spike. *Recomendação:* no piloto, o
+   fechamento lê `/meetings` e grava `session_events` + `attended_*` a partir dali; o webhook fica
+   para quando houver uso em tempo real. Não exige endpoint público, bypass na Vercel nem
+   deduplicação, e é idempotente por natureza. **Muda o texto da invariante 18** ("Webhook do
+   Daily grava `session_events`" → "o fechamento lê a presença da sala e grava `session_events`").
+4. **Um domínio Daily por ambiente.** O domínio tem `max_webhook_count: 1` e o webhook recebe todas
+   as salas do domínio; a chave também é por domínio. Com um só, sala de teste chegaria à produção.
+   *Recomendação:* a invariante 17 se estende ao vídeo — `tostes` fica para Preview/Development, e
+   Production ganha um domínio próprio (nome da plataforma, quando existir), com chave e segredo
+   próprios cadastrados só em Production. É o que destrava `DAILY_API_KEY` em Production.
+5. **Região.** *Recomendação:* `geo: "sa-east-1"` no domínio de produção (aceito no plano; há
+   servidores de mídia em São Paulo na AWS e na OCI), `user_name` = primeiro nome, `user_id` =
+   `profiles.id`. Nota de LGPD: metadados de reunião ficam no Daily (EUA) — transferência
+   internacional para constar na política.
+6. **Iframe do Prebuilt ou `daily-js`.** *Recomendação:* iframe no piloto (sem dependência). O custo
+   conhecido: ao fim, o Prebuilt diz "Você foi removido da chamada… se foi removido de maneira
+   inesperada". Medir `redirect_on_meeting_exit` (propriedade de sala/token) antes de aceitar a frase;
+   se não servir, `daily-js` entra como dependência registrada, só para a tela de fim.
+7. **Onde mora o `canExtend`.** Correção de premissa: com descanso 15 e grade 30, estender 9h00–9h30
+   para 10h00 **não** colide com a sessão das 10h00 — `tstzrange` é semiaberto e a constraint não
+   recusa (conferido no banco); o que se viola é o **descanso**, que só o motor conhece.
+   *Recomendação:* função pura nova `lib/sessao/extensao.ts` (`podeEstender`), fora de
+   `scheduling/`, com motivo da recusa (`ja-estendida`, `fora-da-janela`, `sem-cota`,
+   `colide-com-a-seguinte`), alimentada por `lerOcupacoes` — a mesma leitura da reserva — e
+   reconferida dentro da transação que grava `end_at`. Não precisa de trava: uma reserva nova não
+   cai no intervalo porque exige `min_notice_hours` (12 h) de antecedência; um teste prende
+   `min_notice_hours × 60 > 30 + buffer` contra `app_config`.
+
+**Antes de codar:** você faz o teste do celular pelo roteiro de `docs/spike-video.md` §5 (Safari no
+iPhone, Chrome no Android: permissão, troca de câmera, tela bloqueada). E, se a decisão 3 mantiver
+o webhook, a medição da pergunta 4 do spike ainda está pendente (precisa do bypass de proteção do
+Preview).
+
+**Depois, nesta ordem:**
+
+1. **Protótipo** `docs/prototipo-p5.html`: sala com relógio próprio fora do iframe, botão de
+   estender/presentear do Parceiro, tela de fim nossa.
+2. **Cliente do Daily** em `lib/video/daily.ts`, trazido do spike (`garantirSala`, `emitirToken`,
+   `ejetar`, `reunioes`, `ErroDaily` e os testes), puro. `DAILY_API_KEY` passa a ser lida em
+   `lib/env.server.ts` e entra na lista da invariante 5 em `server-only.test.ts`.
+3. **Entrar na sessão:** `POST /api/sessoes/[id]/entrar` — participante lido do JWT (invariante 19),
+   sessão `confirmed`, janela de início − 10 min até `end_at` + tolerância; `garantirSala(booking_id,
+   { exp: teto, eject_at_room_exp: true, max_participants: 2 })`; token com `user_id`, `user_name`,
+   `is_owner` só para o Parceiro, `nbf`, `exp`. Grava `room_name`. Leitura de `bookings` pela RLS do
+   dono ou do Parceiro; escrita com `service_role` (invariante 4).
+4. **Tela da sessão** com o iframe (`allow="camera; microphone; fullscreen; display-capture;
+   autoplay"`) e o relógio real. Recarregar a página perde o token — a tela pede um novo, não
+   reaproveita.
+5. **Encerramento:** cron `end-sessions` por minuto, `/eject` idempotente por sessão, protegido por
+   `autorizarCron`, no `vercel.json`.
+6. **Presença:** `close-sessions` lê `/meetings`, grava `session_events` e `attended_*`, decide
+   `done`/`no_show_*` — trocando a regra provisória da P4.
+7. **Extensão:** `podeEstender` com teste; Route Handler do Parceiro; transação com `end_at`,
+   `extended_by` e cota mensal. Nada chamado no Daily.
+8. **Correção de presença** pelo Parceiro, gravando `audit_logs` (invariante 18).
+
+O código do spike que não entra acima morre com a branch `spike/video` — a lista está em
+`docs/spike-video.md`, seção final.
