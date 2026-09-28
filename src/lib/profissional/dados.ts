@@ -3,6 +3,7 @@ import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { rotuloDoLancamento } from "@/lib/ledger/rotulos";
 import type { NomeIcone } from "@/components/ui/icones";
+import type { SessaoNaAgenda } from "@/lib/bookings/agenda";
 
 /**
  * A carteira do Profissional, lida **pelo cliente da sessão dele**.
@@ -119,4 +120,147 @@ export async function carregarExtrato(
         quando: data(l.created_at) ?? new Date(0),
       };
     });
+}
+
+// ---------------------------------------------------------------- P4
+
+function listaDeTexto(valor: unknown): string[] {
+  return Array.isArray(valor) ? valor.filter((item): item is string => typeof item === "string") : [];
+}
+
+/** Nome e fuso do próprio Profissional — a borda de UI converte para o fuso dele. */
+export async function carregarEu(userId: string): Promise<{ nome: string; fuso: string }> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("name, timezone")
+    .eq("id", userId)
+    .maybeSingle();
+  if (error !== null) throw new Error(`perfil: ${error.message}`);
+  const linha = (data ?? {}) as Record<string, unknown>;
+  return { nome: texto(linha.name) ?? "", fuso: texto(linha.timezone) ?? "America/Sao_Paulo" };
+}
+
+export async function carregarFuso(userId: string): Promise<string> {
+  return (await carregarEu(userId)).fuso;
+}
+
+export type ParceiroNaBusca = {
+  id: string;
+  nome: string;
+  foto: string | null;
+  chamada: string | null;
+  bio: string | null;
+  areas: string[];
+  habilidades: string[];
+  senioridade: string | null;
+  /** `auto_confirm`: a reserva já nasce confirmada, sem esperar resposta. */
+  confirmaSozinho: boolean;
+};
+
+/**
+ * Os Parceiros ativos, lidos pela RLS.
+ *
+ * `partners` ativos são abertos a qualquer autenticado (invariante 9: Parceiro é
+ * da plataforma), e a Etapa 3 abriu o perfil de Parceiro ativo pelo mesmo motivo
+ * — é o que traz o nome junto. O filtro de `status` é redundante com a policy
+ * e fica mesmo assim: o próprio Parceiro pausado, se um dia vier aqui, veria a si
+ * mesmo pela outra metade da policy.
+ */
+export async function listarParceirosAtivos(id?: string): Promise<ParceiroNaBusca[]> {
+  const supabase = await createClient();
+  let consulta = supabase
+    .from("partners")
+    .select(
+      "id, headline, bio, areas, skills, seniority, auto_confirm, profiles!inner(name, photo_url, deleted_at)",
+    )
+    .eq("status", "active")
+    .is("profiles.deleted_at", null);
+  if (id !== undefined) consulta = consulta.eq("id", id);
+
+  const { data, error } = await consulta;
+  if (error !== null) throw new Error(`Parceiros: ${error.message}`);
+
+  return (data ?? [])
+    .map((linha) => linha as Record<string, unknown>)
+    .filter((l) => typeof l.id === "string")
+    .map((l) => {
+      const perfil = (l.profiles ?? {}) as Record<string, unknown>;
+      return {
+        id: l.id as string,
+        nome: texto(perfil.name) ?? "",
+        foto: texto(perfil.photo_url),
+        chamada: texto(l.headline),
+        bio: texto(l.bio),
+        areas: listaDeTexto(l.areas),
+        habilidades: listaDeTexto(l.skills),
+        senioridade: texto(l.seniority),
+        confirmaSozinho: l.auto_confirm === true,
+      };
+    })
+    .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+}
+
+export async function carregarParceiroAtivo(id: string): Promise<ParceiroNaBusca | null> {
+  const [parceiro] = await listarParceirosAtivos(id);
+  return parceiro ?? null;
+}
+
+/**
+ * As sessões do Profissional, pela RLS de `bookings` (dono da sessão).
+ *
+ * O nome do Parceiro vem numa segunda leitura, de `profiles`: a policy mostra o
+ * perfil de Parceiro **ativo**. Sessão com Parceiro que pausou depois aparece
+ * sem nome — e a tela diz o termo em vez de deixar vazio.
+ */
+export async function carregarAgendaDoProfissional(
+  userId: string,
+  nomePadrao: string,
+): Promise<SessaoNaAgenda[]> {
+  const supabase = await createClient();
+  const { data: sessoes, error } = await supabase
+    .from("bookings")
+    .select("id, partner_id, start_at, end_at, status, created_at, cancelled_by")
+    .eq("professional_id", userId)
+    .order("start_at", { ascending: false })
+    .limit(100);
+  if (error !== null) throw new Error(`agenda: ${error.message}`);
+
+  const linhas = (sessoes ?? []).map((l) => l as Record<string, unknown>);
+  const ids = [...new Set(linhas.map((l) => l.partner_id).filter((v): v is string => typeof v === "string"))];
+
+  const nomes = new Map<string, { nome: string; foto: string | null }>();
+  if (ids.length > 0) {
+    const perfis = await supabase.from("profiles").select("id, name, photo_url").in("id", ids);
+    if (perfis.error !== null) throw new Error(`Parceiros da agenda: ${perfis.error.message}`);
+    for (const p of (perfis.data ?? []).map((x) => x as Record<string, unknown>)) {
+      if (typeof p.id === "string") {
+        nomes.set(p.id, { nome: texto(p.name) ?? nomePadrao, foto: texto(p.photo_url) });
+      }
+    }
+  }
+
+  return linhas.flatMap((l) => {
+    const inicio = data(l.start_at);
+    const fim = data(l.end_at);
+    if (typeof l.id !== "string" || typeof l.partner_id !== "string" || !inicio || !fim) return [];
+    const pessoa = nomes.get(l.partner_id);
+    return [
+      {
+        id: l.id,
+        inicio,
+        fim,
+        status: texto(l.status) ?? "pending",
+        criadaEm: data(l.created_at) ?? inicio,
+        recusadaPeloParceiro: l.cancelled_by === l.partner_id,
+        outro: {
+          id: l.partner_id,
+          nome: pessoa?.nome ?? nomePadrao,
+          foto: pessoa?.foto ?? null,
+          cargo: null,
+          empresa: null,
+        },
+      },
+    ];
+  });
 }

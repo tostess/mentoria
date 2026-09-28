@@ -90,3 +90,27 @@ export function cabemPorSemana(
   if (duracaoMin <= 0 || fimMin <= inicioMin) return 0;
   return Math.floor((fimMin - inicioMin) / duracaoMin) * quantidadeDeDias;
 }
+
+/**
+ * A rotina salva, numa linha: "Ter e Qui, das 09:00 às 12:00" quando todas as
+ * faixas são iguais — o que o modo rápido produz —, e "Ter 09:00–12:00 · Qui
+ * 14:00–17:00" quando não são, para a grade detalhada da F3 não mentir aqui.
+ */
+export function resumoDasRegras(
+  regras: readonly { diaDaSemana: DiaDaSemana; inicioMin: number; fimMin: number }[],
+): string {
+  if (regras.length === 0) return "Nenhum horário aberto.";
+  const [primeira] = regras;
+  const iguais = regras.every((r) => r.inicioMin === primeira.inicioMin && r.fimMin === primeira.fimMin);
+  if (iguais) {
+    return resumoDaRotina(
+      regras.map((r) => r.diaDaSemana),
+      primeira.inicioMin,
+      primeira.fimMin,
+    );
+  }
+  return [...regras]
+    .sort((a, b) => a.diaDaSemana - b.diaDaSemana || a.inicioMin - b.inicioMin)
+    .map((r) => `${DIAS[r.diaDaSemana].curto} ${paraTexto(r.inicioMin)}–${paraTexto(r.fimMin)}`)
+    .join(" · ");
+}

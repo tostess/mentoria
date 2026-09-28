@@ -83,3 +83,84 @@ export function cnpj(digitos: string | null): string {
 }
 
 export { humanizar } from "./humanizar";
+
+// ---------------------------------------------------------------- agenda
+//
+// Sessões aparecem no fuso de quem olha (`profiles.timezone`), não no fixo da
+// tela: o Profissional e o Parceiro podem estar em fusos diferentes, e cada um
+// lê a mesma sessão no próprio relógio. O default continua sendo o da tela.
+
+const SEMANA_CURTA = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"] as const;
+const SEMANA_LONGA = [
+  "domingo",
+  "segunda",
+  "terça",
+  "quarta",
+  "quinta",
+  "sexta",
+  "sábado",
+] as const;
+
+function local(data: Date, fuso: string): DateTime {
+  return DateTime.fromJSDate(data, { zone: fuso });
+}
+
+/** Luxon numera de 1 (segunda) a 7 (domingo); a tela, de 0 (domingo) a 6. */
+function indiceDoDia(d: DateTime): number {
+  return d.weekday % 7;
+}
+
+/** `ter` */
+export function diaDaSemanaCurto(data: Date, fuso = FUSO_DA_TELA): string {
+  return SEMANA_CURTA[indiceDoDia(local(data, fuso))];
+}
+
+/** `terça` */
+export function diaDaSemanaLongo(data: Date, fuso = FUSO_DA_TELA): string {
+  return SEMANA_LONGA[indiceDoDia(local(data, fuso))];
+}
+
+/** `29` */
+export function diaDoMes(data: Date, fuso = FUSO_DA_TELA): string {
+  return local(data, fuso).toFormat("dd");
+}
+
+/** `29/09` */
+export function diaEMes(data: Date, fuso = FUSO_DA_TELA): string {
+  return local(data, fuso).toFormat("dd/MM");
+}
+
+/** `09:00` */
+export function hora(data: Date, fuso = FUSO_DA_TELA): string {
+  return local(data, fuso).toFormat("HH:mm");
+}
+
+/** `ter, 29/09 · 09:00` */
+export function diaEHora(data: Date, fuso = FUSO_DA_TELA): string {
+  return `${diaDaSemanaCurto(data, fuso)}, ${diaEMes(data, fuso)} · ${hora(data, fuso)}`;
+}
+
+/** `ter, 29/09 · 09:00–09:30` */
+export function intervalo(inicio: Date, fim: Date, fuso = FUSO_DA_TELA): string {
+  return `${diaEHora(inicio, fuso)}–${hora(fim, fuso)}`;
+}
+
+/** `2026-09-29` no fuso de quem olha — para agrupar horários por dia. */
+export function chaveDoDia(data: Date, fuso = FUSO_DA_TELA): string {
+  return local(data, fuso).toFormat("yyyy-MM-dd");
+}
+
+/**
+ * O rótulo do fuso ao lado da grade de horários. O de Brasília tem nome; os
+ * outros saem como identificador IANA, que é feio mas não é ambíguo.
+ */
+export function rotuloDoFuso(fuso: string): string {
+  return fuso === "America/Sao_Paulo" ? "Horário de Brasília" : fuso.replace(/_/g, " ");
+}
+
+/** "expira em 41 h" / "expira em 25 min" — prazo de resposta do Parceiro. */
+export function prazoRestante(limite: Date, agora: Date = new Date()): string {
+  const minutos = Math.max(0, Math.floor((limite.getTime() - agora.getTime()) / 60_000));
+  if (minutos < 60) return `expira em ${minutos} min`;
+  return `expira em ${Math.floor(minutos / 60)} h`;
+}

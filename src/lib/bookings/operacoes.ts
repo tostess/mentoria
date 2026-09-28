@@ -4,11 +4,13 @@ import { HorarioIndisponivel, LimiteDePendentes } from "@/lib/ledger/erros";
 import { chaveGasto } from "@/lib/ledger/keys";
 import {
   avaliarSlots,
+  type Avaliacao as AvaliacaoDeSlot,
   type DiaDaSemana,
   type Excecao,
   type Limites,
   type Ocupacao,
   type RegraSemanal,
+  type Slot,
 } from "@/lib/scheduling";
 
 /**
@@ -69,6 +71,12 @@ export class ProfissionalInvalido extends Error {
   }
 }
 
+/**
+ * Leitura serve dentro de transação (a reserva) ou fora dela (a tela). O tipo
+ * aceita os dois para que sejam **as mesmas funções** nos dois lugares.
+ */
+type Conexao = postgres.Sql | postgres.TransactionSql;
+
 type LinhaDoParceiro = {
   fuso: string;
   buffer_min: number;
@@ -121,11 +129,6 @@ export async function reservaNaTransacao(
     );
   }
 
-  const parceiro = await lerParceiro(tx, pedido.partnerId);
-  const regras = await lerRegras(tx, pedido.partnerId);
-  const excecoes = await lerExcecoes(tx, pedido.partnerId);
-  const ocupacoes = await lerOcupacoes(tx, pedido.partnerId, pedido.agora);
-
   /**
    * Invariante 14 aplicada na **escrita**, não só na leitura.
    *
@@ -134,16 +137,9 @@ export async function reservaNaTransacao(
    * validação inteira do motor — descanso, teto semanal, aviso mínimo, férias —
    * viraria enfeite de tela, contornável por um `curl`.
    */
-  const avaliacoes = avaliarSlots({
+  const { parceiro, avaliacoes } = await avaliarAgenda(tx, {
+    partnerId: pedido.partnerId,
     agora: pedido.agora,
-    parceiro: {
-      fuso: parceiro.fuso,
-      bufferMin: parceiro.buffer_min,
-      maxPorSemana: parceiro.max_per_week,
-      regras,
-      excecoes,
-    },
-    ocupacoes,
     limites: pedido.limites,
   });
 
@@ -200,6 +196,54 @@ export async function reservaNaTransacao(
   };
 }
 
+/**
+ * A agenda de um Parceiro avaliada pelo motor: cada horário candidato com o
+ * motivo da recusa, ou `null` quando está livre.
+ *
+ * **É a leitura da reserva e a leitura da tela, a mesma função.** Se a página do
+ * Parceiro lesse regras, exceções e ocupação por outro caminho, bastaria uma
+ * diferença de recorte — um status a mais, um fuso diferente — para a tela
+ * oferecer horário que a reserva recusa. Invariante 14: todo horário exibido
+ * sai do motor, e daqui.
+ *
+ * Roda privilegiada pelo mesmo motivo da reserva: a ocupação inclui sessões de
+ * outras pessoas, que a policy de `bookings` corretamente esconde. O que sai
+ * daqui são intervalos, nunca de quem é a sessão.
+ */
+export async function avaliarAgenda(
+  tx: Conexao,
+  { partnerId, agora, limites }: { partnerId: string; agora: Date; limites: Limites },
+): Promise<{ parceiro: LinhaDoParceiro; avaliacoes: AvaliacaoDeSlot[] }> {
+  const parceiro = await lerParceiro(tx, partnerId);
+  const regras = await lerRegras(tx, partnerId);
+  const excecoes = await lerExcecoes(tx, partnerId);
+  const ocupacoes = await lerOcupacoes(tx, partnerId, agora);
+
+  const avaliacoes = avaliarSlots({
+    agora,
+    parceiro: {
+      fuso: parceiro.fuso,
+      bufferMin: parceiro.buffer_min,
+      maxPorSemana: parceiro.max_per_week,
+      regras,
+      excecoes,
+    },
+    ocupacoes,
+    limites,
+  });
+
+  return { parceiro, avaliacoes };
+}
+
+/** Só os horários livres, em ordem. É o que a tela do Profissional mostra. */
+export async function horariosLivresNaConexao(
+  tx: Conexao,
+  consulta: { partnerId: string; agora: Date; limites: Limites },
+): Promise<Slot[]> {
+  const { avaliacoes } = await avaliarAgenda(tx, consulta);
+  return avaliacoes.filter((a) => a.recusa === null).map((a) => a.slot);
+}
+
 /** A recusa do motor vira frase. O motivo cru não serve para ninguém ler. */
 const PORQUE: Record<string, string> = {
   "fora-do-aviso-minimo": "Esse horário está perto demais de agora.",
@@ -211,7 +255,7 @@ const PORQUE: Record<string, string> = {
 };
 
 async function lerParceiro(
-  tx: postgres.TransactionSql,
+  tx: Conexao,
   partnerId: string,
 ): Promise<LinhaDoParceiro> {
   const [linha] = await tx<LinhaDoParceiro[]>`
@@ -232,7 +276,7 @@ async function lerParceiro(
 }
 
 async function lerRegras(
-  tx: postgres.TransactionSql,
+  tx: Conexao,
   partnerId: string,
 ): Promise<RegraSemanal[]> {
   const linhas = await tx<
@@ -256,7 +300,7 @@ async function lerRegras(
   }));
 }
 
-async function lerExcecoes(tx: postgres.TransactionSql, partnerId: string): Promise<Excecao[]> {
+async function lerExcecoes(tx: Conexao, partnerId: string): Promise<Excecao[]> {
   const linhas = await tx<
     { day: string; kind: string; start_min: number | null; end_min: number | null }[]
   >`
@@ -280,7 +324,7 @@ async function lerExcecoes(tx: postgres.TransactionSql, partnerId: string): Prom
  * encolher sozinha com o tempo.
  */
 async function lerOcupacoes(
-  tx: postgres.TransactionSql,
+  tx: Conexao,
   partnerId: string,
   desde: Date,
 ): Promise<Ocupacao[]> {

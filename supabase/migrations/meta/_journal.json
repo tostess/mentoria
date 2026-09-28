@@ -36,6 +36,13 @@
       "when": 1789703011144,
       "tag": "20260918034331_copy_e_branding",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790552996831,
+      "tag": "20260927234956_perfil_para_parceiro",
+      "breakpoints": true
     }
   ]
 }

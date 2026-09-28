@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  resumoDasRegras,
   DIAS,
   HorarioInvalido,
   cabemPorSemana,
@@ -126,5 +127,29 @@ describe("cabemPorSemana", () => {
   it("entrada degenerada devolve zero em vez de dividir por zero", () => {
     expect(cabemPorSemana(2, 540, 720, 0)).toBe(0);
     expect(cabemPorSemana(2, 720, 540, 30)).toBe(0);
+  });
+});
+
+describe("resumoDasRegras", () => {
+  it("faixas iguais viram uma frase só", () => {
+    expect(
+      resumoDasRegras([
+        { diaDaSemana: 4, inicioMin: 540, fimMin: 720 },
+        { diaDaSemana: 2, inicioMin: 540, fimMin: 720 },
+      ]),
+    ).toBe("Ter e Qui, das 09:00 às 12:00");
+  });
+
+  it("faixas diferentes aparecem dia a dia, em ordem", () => {
+    expect(
+      resumoDasRegras([
+        { diaDaSemana: 4, inicioMin: 840, fimMin: 1020 },
+        { diaDaSemana: 2, inicioMin: 540, fimMin: 720 },
+      ]),
+    ).toBe("Ter 09:00–12:00 · Qui 14:00–17:00");
+  });
+
+  it("sem regra, diz que não há horário", () => {
+    expect(resumoDasRegras([])).toBe("Nenhum horário aberto.");
   });
 });

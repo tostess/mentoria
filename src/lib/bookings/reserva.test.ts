@@ -17,7 +17,12 @@ import {
   ehSobreposicao,
 } from "@/lib/ledger/erros";
 import type { Limites } from "@/lib/scheduling";
-import { ParceiroIndisponivel, ProfissionalInvalido, reservaNaTransacao } from "./operacoes";
+import {
+  ParceiroIndisponivel,
+  ProfissionalInvalido,
+  horariosLivresNaConexao,
+  reservaNaTransacao,
+} from "./operacoes";
 
 /**
  * A reserva, contra o Postgres de verdade.
@@ -404,5 +409,51 @@ describe("tradução da sobreposição", () => {
   it("outro código de erro continua subindo", async () => {
     const outro = Object.assign(new Error("deu ruim"), { code: "42P01" });
     await expect(comTraducao(() => Promise.reject(outro), "sem saldo")).rejects.toThrow("deu ruim");
+  });
+});
+
+run("horários livres — a tela e a reserva leem igual", () => {
+  it("depois de uma reserva, some o horário tomado e o vizinho do descanso", async () => {
+    const r = await emRollback(async (tx) => {
+      const base = await cenario(tx);
+      const consulta = { partnerId: base.partnerId, agora: AGORA, limites: LIMITES };
+      const antes = await horariosLivresNaConexao(tx, consulta);
+      await reservaNaTransacao(tx, pedido(base));
+      const depois = await horariosLivresNaConexao(tx, consulta);
+      return { antes, depois };
+    });
+
+    const horas = (lista: { inicio: Date }[]) => lista.map((s) => s.inicio.toISOString());
+    expect(horas(r.antes)).toContain(TERCA_9H.toISOString());
+    expect(horas(r.depois)).not.toContain(TERCA_9H.toISOString());
+    // 9h00–9h30 mais 15 de descanso alcança 9h30: some também.
+    expect(horas(r.depois)).not.toContain(TERCA_9H30.toISOString());
+    expect(horas(r.depois)).toContain(TERCA_10H.toISOString());
+  });
+
+  it("todo horário que a tela oferece, a reserva aceita", async () => {
+    const aceitos = await emRollback(async (tx) => {
+      const base = await cenario(tx, { naCarteira: 6 });
+      const livres = await horariosLivresNaConexao(tx, {
+        partnerId: base.partnerId,
+        agora: AGORA,
+        limites: LIMITES,
+      });
+
+      let n = 0;
+      for (const slot of livres) {
+        // Cada tentativa num savepoint desfeito: mede o horário, não o acúmulo.
+        const falhou = await esperandoFalha(tx, (sp) =>
+          reservaNaTransacao(sp, pedido(base, { inicio: slot.inicio })).then(() => {
+            throw new Error("desfaz");
+          }),
+        );
+        if (falhou instanceof Error && falhou.message === "desfaz") n += 1;
+      }
+      return { n, total: livres.length };
+    });
+
+    expect(aceitos.total).toBeGreaterThan(0);
+    expect(aceitos.n).toBe(aceitos.total);
   });
 });

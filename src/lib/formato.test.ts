@@ -1,5 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { cnpj, diaDoContrato, humanizar, periodoDoContrato, quandoRelativo } from "./formato";
+import {
+  chaveDoDia,
+  cnpj,
+  diaDaSemanaCurto,
+  diaDaSemanaLongo,
+  diaDoContrato,
+  diaDoMes,
+  hora,
+  humanizar,
+  intervalo,
+  periodoDoContrato,
+  prazoRestante,
+  quandoRelativo,
+  rotuloDoFuso,
+} from "./formato";
 
 /** Instante em São Paulo (UTC−3, sem horário de verão desde 2019). */
 function sp(iso: string): Date {
@@ -79,5 +93,41 @@ describe("humanizar", () => {
   it("troca sublinhado por espaço e capitaliza", () => {
     expect(humanizar("alterar_status_parceiro")).toBe("Alterar status parceiro");
     expect(humanizar("no_show_partner")).toBe("No show partner");
+  });
+});
+
+describe("agenda no fuso de quem olha", () => {
+  // Terça 29/09/2026, 12:00Z = 9h em São Paulo.
+  const INICIO = new Date("2026-09-29T12:00:00Z");
+  const FIM = new Date("2026-09-29T12:30:00Z");
+
+  it("mostra dia, hora e intervalo no fuso da tela por padrão", () => {
+    expect(diaDaSemanaCurto(INICIO)).toBe("ter");
+    expect(diaDaSemanaLongo(INICIO)).toBe("terça");
+    expect(diaDoMes(INICIO)).toBe("29");
+    expect(intervalo(INICIO, FIM)).toBe("ter, 29/09 · 09:00–09:30");
+  });
+
+  it("o mesmo instante muda de dia em outro fuso", () => {
+    // 12:00Z é 21h de terça em Tóquio e 1h de quarta em Auckland (UTC+13 no verão de lá).
+    expect(hora(INICIO, "Asia/Tokyo")).toBe("21:00");
+    expect(chaveDoDia(INICIO, "Pacific/Auckland")).toBe("2026-09-30");
+    expect(diaDaSemanaCurto(INICIO, "Pacific/Auckland")).toBe("qua");
+  });
+
+  it("domingo é o dia 0 da semana, como no banco", () => {
+    expect(diaDaSemanaCurto(new Date("2026-09-27T15:00:00Z"))).toBe("dom");
+  });
+
+  it("nomeia o fuso de Brasília e deixa os outros legíveis", () => {
+    expect(rotuloDoFuso("America/Sao_Paulo")).toBe("Horário de Brasília");
+    expect(rotuloDoFuso("America/New_York")).toBe("America/New York");
+  });
+
+  it("prazo em horas, e em minutos quando falta menos de uma", () => {
+    const agora = new Date("2026-09-27T12:00:00Z");
+    expect(prazoRestante(new Date("2026-09-29T05:30:00Z"), agora)).toBe("expira em 41 h");
+    expect(prazoRestante(new Date("2026-09-27T12:25:00Z"), agora)).toBe("expira em 25 min");
+    expect(prazoRestante(new Date("2026-09-27T11:00:00Z"), agora)).toBe("expira em 0 min");
   });
 });

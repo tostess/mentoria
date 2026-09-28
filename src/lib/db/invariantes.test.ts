@@ -457,3 +457,73 @@ run("invariante 9 — isolamento entre empresas concorrentes", () => {
     expect(n).toBe(0);
   });
 });
+
+run("perfil do Profissional visto pelo Parceiro — view partner_professionals", () => {
+  async function comSessao(tx: postgres.TransactionSql) {
+    const base = await seed(tx);
+    await tx`update profiles set job_title = 'Analista' where id = ${base.professionalId}`;
+    await tx`
+      insert into bookings (org_id, partner_id, professional_id, start_at, end_at, status)
+      values (${base.orgId}, ${base.partnerId}, ${base.professionalId},
+              '2027-04-01T13:00:00Z'::timestamptz,
+              '2027-04-01T13:30:00Z'::timestamptz, 'pending')`;
+    return base;
+  }
+
+  it("o Parceiro da sessão lê nome, cargo e empresa de quem pediu", async () => {
+    const linhas = await inRollback(async (tx) => {
+      const { partnerId } = await comSessao(tx);
+      await comoUsuario(tx, { sub: partnerId, user_role: "partner" });
+      const rows = await tx<{ name: string; job_title: string; org_name: string }[]>`
+        select name, job_title, org_name from partner_professionals`;
+      await voltarAoServidor(tx);
+      return rows;
+    });
+
+    expect(linhas).toEqual([{ name: "Pro Teste", job_title: "Analista", org_name: "Empresa de Teste" }]);
+  });
+
+  it("não entrega contato: e-mail e telefone ficam fora da view", async () => {
+    const colunas = await db!<{ column_name: string }[]>`
+      select column_name from information_schema.columns
+       where table_schema = 'public' and table_name = 'partner_professionals'`;
+    const nomes = colunas.map((c) => c.column_name);
+
+    expect(nomes).not.toContain("email");
+    expect(nomes).not.toContain("phone");
+    expect(nomes).not.toContain("notif_prefs");
+  });
+
+  it("outro Parceiro não vê quem não marcou com ele", async () => {
+    const n = await inRollback(async (tx) => {
+      await comSessao(tx);
+      const [outro] = await tx<{ id: string }[]>`
+        insert into auth.users (id, instance_id, aud, role, email)
+        values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000',
+                'authenticated', 'authenticated', ${`par2-${Date.now()}@teste.local`})
+        returning id`;
+      await tx`insert into profiles (id, role, name, email) values (${outro.id}, 'partner', 'Outro', 'o@teste.local')`;
+      await tx`insert into partners (id, status) values (${outro.id}, 'active')`;
+
+      await comoUsuario(tx, { sub: outro.id, user_role: "partner" });
+      const rows = await tx`select id from partner_professionals`;
+      await voltarAoServidor(tx);
+      return rows.length;
+    });
+
+    expect(n).toBe(0);
+  });
+
+  it("o RH não lê par nenhum daqui (invariante 10)", async () => {
+    const n = await inRollback(async (tx) => {
+      const { orgId, partnerId } = await comSessao(tx);
+      // Mesmo forjando o `sub` do Parceiro, o papel do token é o de RH.
+      await comoUsuario(tx, { sub: partnerId, user_role: "org_admin", org_id: orgId });
+      const rows = await tx`select id from partner_professionals`;
+      await voltarAoServidor(tx);
+      return rows.length;
+    });
+
+    expect(n).toBe(0);
+  });
+});
