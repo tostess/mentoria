@@ -56,8 +56,8 @@ export function acessoDaTransacao(tx: postgres.TransactionSql): Acesso {
   return { sql: tx, emTransacao: (fn) => tx.savepoint(fn) as ReturnType<typeof fn> };
 }
 
-/** O fuso em que "o mês" é decidido. */
-const FUSO_DA_PLATAFORMA = "America/Sao_Paulo";
+/** O fuso em que "o mês" é decidido — da recarga e da cota de presente. */
+export const FUSO_DA_PLATAFORMA = "America/Sao_Paulo";
 
 export type ResultadoPorEmpresa = {
   orgId: string;

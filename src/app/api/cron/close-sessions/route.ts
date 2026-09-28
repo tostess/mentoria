@@ -5,13 +5,13 @@ import { fecharSessoes } from "@/lib/bookings";
 /**
  * `close-sessions` — a cada 15 minutos.
  *
- * Sessão confirmada cujo `end_at` + `session_grace_minutes` passou vira `done`.
- * **Regra provisória da P4**: sem sala não há presença, então nenhuma sessão
- * termina em `no_show_*` por enquanto. A P5 troca a regra pela presença lida da
- * sala, neste mesmo endpoint.
+ * Sessão confirmada cujo `end_at` + `session_grace_minutes` passou é decidida
+ * pela presença que o Daily registrou (invariante 18): `done`, `no_show_partner`
+ * (estorno e compensação) ou `no_show_professional`. Sem chave do Daily no
+ * ambiente, vale a regra da P4 e ela vira `done`.
  *
  * Idempotente pela trava da sessão: a segunda execução não acha mais nada
- * `confirmed` para fechar.
+ * `confirmed` para fechar. Daily fora do ar deixa a sessão para a próxima.
  */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

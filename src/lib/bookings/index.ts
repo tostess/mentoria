@@ -7,6 +7,14 @@ import { limitesDoMotor } from "@/lib/config/limites";
 import { comTraducao } from "@/lib/ledger/erros";
 import { acessoDaConexao } from "@/lib/ledger/mensal";
 import type { Slot } from "@/lib/scheduling";
+import { daily, videoConfigurado } from "@/lib/video";
+import { entradasDasReunioes } from "@/lib/video/presenca";
+import {
+  estadoDoPresente,
+  presenteNaSessao,
+  type CotaDoMes,
+  type PedidoDePresente,
+} from "./presente";
 import {
   ParceiroIndisponivel,
   horariosLivresNaConexao,
@@ -37,6 +45,8 @@ export { ParceiroIndisponivel, ProfissionalInvalido } from "./operacoes";
 export type { Pedido, Reserva } from "./operacoes";
 export { PedidoJaRespondido, SessaoNaoEncontrada } from "./transicoes";
 export type { Resposta, ResultadoDaRodada } from "./transicoes";
+export { PresenteRecusado } from "./presente";
+export type { CotaDoMes, PedidoDePresente } from "./presente";
 
 export type PedidoDeReserva = {
   orgId: string;
@@ -110,12 +120,55 @@ export async function expirarPendentes(agora: Date, config: AppConfig): Promise<
   });
 }
 
-/** `close-sessions`, na conexão de verdade. Regra provisória até a P5 — ver `transicoes.ts`. */
+/**
+ * `close-sessions`, na conexão de verdade. Com vídeo configurado, a presença
+ * vem do Daily; sem ele, vale a regra da P4 — ver `fechamentoNaTransacao`.
+ */
 export async function fecharSessoes(agora: Date, config: AppConfig): Promise<ResultadoDaRodada> {
-  return fecharSessoesNaConexao(acessoDaConexao(getSql()), {
-    agora,
-    toleranciaMin: config.limits.sessionGraceMinutes,
-  });
+  const lerPresenca = videoConfigurado()
+    ? async (sala: string) => entradasDasReunioes(await daily().reunioes(sala))
+    : null;
+  return fecharSessoesNaConexao(
+    acessoDaConexao(getSql()),
+    {
+      agora,
+      toleranciaMin: config.limits.sessionGraceMinutes,
+      compensacao: config.fichaPolicy.partnerNoShowBonus,
+    },
+    lerPresenca,
+  );
+}
+
+/**
+ * O Parceiro dá 1 ficha, dentro da sala. `comTraducao` em volta pela segunda
+ * cerca: se duas requisições passarem juntas pela conferência (não passam — a
+ * sessão é travada antes), a `unique` de `gift_{bookingId}` recusa a segunda.
+ */
+export async function presentear(pedido: PedidoDePresente): Promise<CotaDoMes> {
+  const sql = getSql();
+  return comTraducao(
+    () => sql.begin((tx) => presenteNaSessao(tx, pedido)),
+    "Não foi possível registrar o presente.",
+  );
+}
+
+/** A cota do mês e se esta sessão já ganhou presente, para a sala do Parceiro. */
+export async function presenteNaSala(
+  pedido: PedidoDePresente,
+): Promise<CotaDoMes & { dadoNestaSessao: boolean }> {
+  return estadoDoPresente(getSql(), pedido);
+}
+
+/**
+ * Grava o nome da sala na sessão, **antes** de qualquer chamada ao Daily.
+ *
+ * É o que o fechamento usa para saber se há sala a perguntar: sessão sem
+ * `room_name` nunca emitiu token. Gravar depois abriria uma janela em que a
+ * pessoa entra, a escrita falha, e o fechamento a dá como ausente — com a ficha
+ * de quem compareceu indo embora.
+ */
+export async function marcarSala(bookingId: string): Promise<void> {
+  await getSql()`update bookings set room_name = ${bookingId} where id = ${bookingId} and room_name is null`;
 }
 
 /**

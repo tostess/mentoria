@@ -105,6 +105,26 @@ export function chaveEstorno(bookingId: string): string {
   return `refund_${exigeId(bookingId)}`;
 }
 
+/**
+ * Presente do Parceiro, dado dentro da sala (invariante 20).
+ *
+ * Uma chave por sessão: é a `unique` do livro-caixa que garante "1 por sessão".
+ * O segundo clique, a segunda aba ou o botão apertado nos dois celulares do
+ * Parceiro colidem — conferir antes do insert perderia essa corrida.
+ */
+export function chavePresente(bookingId: string): string {
+  return `gift_${exigeId(bookingId)}`;
+}
+
+/**
+ * Compensação ao Profissional quando o Parceiro não entrou na sala
+ * (`partner_no_show_bonus`). Uma por sessão, pelo mesmo motivo do estorno: o
+ * fechamento pode rodar duas vezes, a compensação não.
+ */
+export function chaveCompensacao(bookingId: string): string {
+  return `noshow_${exigeId(bookingId)}`;
+}
+
 /** Ajuste de correção (invariante 3: corrige-se lançando, nunca editando). */
 export function chaveAjuste(alvoId: string, token: string): string {
   return `adjust_${alvoId}_${exigeToken(token)}`;

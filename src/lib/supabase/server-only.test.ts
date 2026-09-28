@@ -11,8 +11,17 @@ import { describe, expect, it } from "vitest";
 
 const SRC = join(process.cwd(), "src");
 
-/** Nomes que carregam a chave que ignora RLS — o novo e o legado. */
-const SECRET_ENV_NAMES = ["SUPABASE_SECRET_KEY", "SUPABASE_SERVICE_ROLE_KEY", "CRON_SECRET"];
+/**
+ * Nomes que carregam segredo: a chave que ignora RLS (a nova e a legada), a do
+ * trabalho agendado e as do Daily.
+ */
+const SECRET_ENV_NAMES = [
+  "SUPABASE_SECRET_KEY",
+  "SUPABASE_SERVICE_ROLE_KEY",
+  "CRON_SECRET",
+  "DAILY_API_KEY",
+  "DAILY_WEBHOOK_SECRET",
+];
 
 /** Onde o segredo pode ser lido, e em nenhum outro lugar. */
 const SECRET_ALLOWED = ["lib/env.server.ts", "lib/supabase/server-only.test.ts"];
@@ -35,6 +44,8 @@ const SERVER_ONLY_MODULES = [
   "@/lib/pessoas/criar",
   "@/lib/pessoas/editar",
   "@/lib/admin/consultas",
+  "@/lib/video",
+  "@/lib/video/entrada",
 ];
 
 function sourceFiles(dir: string): string[] {
@@ -97,6 +108,8 @@ describe("invariante 5 — service_role só no servidor", () => {
       "lib/pessoas/criar.ts",
       "lib/pessoas/editar.ts",
       "lib/admin/consultas.ts",
+      "lib/video/index.ts",
+      "lib/video/entrada.ts",
     ];
     const missing = guarded.filter((id) => {
       const file = files.find((f) => f.id === id);

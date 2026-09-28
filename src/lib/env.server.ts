@@ -46,8 +46,23 @@ export function requireCronSecret(): string {
   return segredo;
 }
 
+/**
+ * Chave da REST API do Daily. Um domínio por ambiente (invariante 17 estendida
+ * ao vídeo): em Preview e Development é o domínio de teste; Production só ganha
+ * a sua quando existir domínio próprio. Até lá, produção não tem vídeo — e a
+ * sala diz isso em vez de estourar, porque `hasDailyApiKey` é conferido antes.
+ */
+export function requireDailyApiKey(): string {
+  const chave = process.env.DAILY_API_KEY;
+  if (!chave) {
+    throw new Error("DAILY_API_KEY ausente. Veja `.env.local.example`.");
+  }
+  return chave;
+}
+
 export const hasSecretKey = Boolean(
   process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY,
 );
 export const hasDatabaseUrl = Boolean(process.env.DATABASE_URL);
 export const hasCronSecret = Boolean(process.env.CRON_SECRET);
+export const hasDailyApiKey = Boolean(process.env.DAILY_API_KEY);

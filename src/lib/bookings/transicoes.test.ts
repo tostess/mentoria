@@ -11,10 +11,13 @@ import {
 import { acessoDaTransacao } from "@/lib/ledger/mensal";
 import { chaveEstorno } from "@/lib/ledger/keys";
 import type { Limites } from "@/lib/scheduling";
+import type { EntradaNaSala } from "@/lib/video/presenca";
 import { reservaNaTransacao } from "./operacoes";
 import {
+  MOTIVO_COMPENSACAO,
   MOTIVO_EXPIRACAO,
   MOTIVO_RECUSA,
+  MOTIVO_SEM_ATENDIMENTO,
   PedidoJaRespondido,
   SessaoNaoEncontrada,
   confirmacaoNaTransacao,
@@ -303,19 +306,47 @@ run("expirar — expire-pending", () => {
   });
 });
 
-run("fechar — close-sessions", () => {
+const FECHAMENTO = {
+  agora: new Date(TERCA_9H30.getTime() + 15 * MINUTO),
+  toleranciaMin: 15,
+  compensacao: 1,
+};
+
+/** Uma entrada na sala, em minutos a partir das 9h da terça. */
+function entrada(userId: string, deMin: number, ateMin: number): EntradaNaSala {
+  return {
+    userId,
+    participantId: crypto.randomUUID(),
+    reuniaoId: "reuniao-de-teste",
+    entrou: new Date(TERCA_9H.getTime() + deMin * MINUTO),
+    saiu: new Date(TERCA_9H.getTime() + ateMin * MINUTO),
+  };
+}
+
+async function fechamento(tx: postgres.TransactionSql, bookingId: string) {
+  const [b] = await tx<
+    { attended_partner: boolean | null; attended_professional: boolean | null }[]
+  >`select attended_partner, attended_professional from bookings where id = ${bookingId}`;
+  const eventos = await tx<{ kind: string; user_id: string | null }[]>`
+    select kind, user_id from session_events where booking_id = ${bookingId} order by at, kind`;
+  const extras = await tx<{ type: string; amount: number; reason: string }[]>`
+    select type::text, amount, reason from wallet_ledger
+     where booking_id = ${bookingId} and type in ('refund', 'adjust') order by type`;
+  return { ...b, eventos, extras };
+}
+
+run("fechar — close-sessions sem sala (regra da P4)", () => {
   it("confirmada vira done quando passa o fim + tolerância, e conta para o Parceiro", async () => {
     const r = await emRollback(async (tx) => {
       const s = await cenario(tx, { autoConfirm: true });
 
-      const cedo = await fechamentoNaTransacao(tx, s.bookingId, {
-        agora: new Date(TERCA_9H30.getTime() + 14 * MINUTO),
-        toleranciaMin: 15,
-      });
-      const naHora = await fechamentoNaTransacao(tx, s.bookingId, {
-        agora: new Date(TERCA_9H30.getTime() + 15 * MINUTO),
-        toleranciaMin: 15,
-      });
+      const cedo = await fechamentoNaTransacao(
+        tx,
+        s.bookingId,
+        { ...FECHAMENTO, agora: new Date(TERCA_9H30.getTime() + 14 * MINUTO) },
+        null,
+      );
+      const naHora = await fechamentoNaTransacao(tx, s.bookingId, FECHAMENTO, null);
       const [parceiro] = await tx<{ session_count: number }[]>`
         select session_count from partners where id = ${s.partnerId}`;
       return { cedo, naHora, sessoes: parceiro.session_count, ...(await estado(tx, s.bookingId, s.professionalId)) };
@@ -333,10 +364,12 @@ run("fechar — close-sessions", () => {
   it("não fecha pedido pendente — esse é caminho do expire-pending", async () => {
     const r = await emRollback(async (tx) => {
       const s = await cenario(tx);
-      const fechou = await fechamentoNaTransacao(tx, s.bookingId, {
-        agora: new Date(TERCA_9H30.getTime() + HORA),
-        toleranciaMin: 15,
-      });
+      const fechou = await fechamentoNaTransacao(
+        tx,
+        s.bookingId,
+        { ...FECHAMENTO, agora: new Date(TERCA_9H30.getTime() + HORA) },
+        null,
+      );
       return { fechou, ...(await estado(tx, s.bookingId, s.professionalId)) };
     });
 
@@ -344,17 +377,166 @@ run("fechar — close-sessions", () => {
     expect(r.status).toBe("pending");
   });
 
-  it("a rodada fecha a sessão do teste", async () => {
+  it("a rodada sem leitor de presença fecha a sessão do teste como done", async () => {
     const r = await emRollback(async (tx) => {
       const s = await cenario(tx, { autoConfirm: true });
-      const rodada = await fecharSessoesNaConexao(acessoDaTransacao(tx), {
-        agora: new Date(TERCA_9H30.getTime() + 15 * MINUTO),
-        toleranciaMin: 15,
-      });
+      const rodada = await fecharSessoesNaConexao(acessoDaTransacao(tx), FECHAMENTO, null);
       return { s, rodada, ...(await estado(tx, s.bookingId, s.professionalId)) };
     });
 
     expect(r.status).toBe("done");
     expect(r.rodada.erros.filter((e) => e.startsWith(r.s.bookingId))).toEqual([]);
+  });
+});
+
+run("fechar — presença lida da sala (invariante 18)", () => {
+  it("os dois entraram: done, presença gravada e cada entrada em session_events", async () => {
+    const r = await emRollback(async (tx) => {
+      const s = await cenario(tx, { autoConfirm: true });
+      await fechamentoNaTransacao(tx, s.bookingId, FECHAMENTO, [
+        entrada(s.partnerId, -3, 31),
+        entrada(s.professionalId, 1, 30),
+      ]);
+      const [parceiro] = await tx<{ session_count: number }[]>`
+        select session_count from partners where id = ${s.partnerId}`;
+      return {
+        s,
+        sessoes: parceiro.session_count,
+        ...(await estado(tx, s.bookingId, s.professionalId)),
+        ...(await fechamento(tx, s.bookingId)),
+      };
+    });
+
+    expect(r.status).toBe("done");
+    expect(r.attended_partner).toBe(true);
+    expect(r.attended_professional).toBe(true);
+    expect(r.sessoes).toBe(1);
+    expect(r.saldo).toBe(1);
+    expect(r.extras).toEqual([]);
+    expect(r.eventos).toEqual([
+      { kind: "participant.joined", user_id: r.s.partnerId },
+      { kind: "participant.joined", user_id: r.s.professionalId },
+      { kind: "participant.left", user_id: r.s.professionalId },
+      { kind: "participant.left", user_id: r.s.partnerId },
+    ]);
+  });
+
+  it("só o Profissional entrou: no_show_partner, a ficha volta e vem a compensação", async () => {
+    const r = await emRollback(async (tx) => {
+      const s = await cenario(tx, { autoConfirm: true });
+      await fechamentoNaTransacao(tx, s.bookingId, FECHAMENTO, [entrada(s.professionalId, 0, 20)]);
+      const [parceiro] = await tx<{ session_count: number }[]>`
+        select session_count from partners where id = ${s.partnerId}`;
+      return {
+        sessoes: parceiro.session_count,
+        ...(await estado(tx, s.bookingId, s.professionalId)),
+        ...(await fechamento(tx, s.bookingId)),
+      };
+    });
+
+    expect(r.status).toBe("no_show_partner");
+    expect(r.attended_partner).toBe(false);
+    expect(r.attended_professional).toBe(true);
+    expect(r.sessoes).toBe(0);
+    // 2 alocadas − 1 gasta + 1 estorno + 1 compensação.
+    expect(r.saldo).toBe(3);
+    expect(r.extras).toEqual([
+      { type: "adjust", amount: 1, reason: MOTIVO_COMPENSACAO },
+      { type: "refund", amount: 1, reason: MOTIVO_SEM_ATENDIMENTO },
+    ]);
+  });
+
+  it("compensação zerada em app_config estorna sem lançar ajuste", async () => {
+    const r = await emRollback(async (tx) => {
+      const s = await cenario(tx, { autoConfirm: true });
+      await fechamentoNaTransacao(tx, s.bookingId, { ...FECHAMENTO, compensacao: 0 }, [
+        entrada(s.professionalId, 0, 20),
+      ]);
+      return { ...(await estado(tx, s.bookingId, s.professionalId)), ...(await fechamento(tx, s.bookingId)) };
+    });
+
+    expect(r.status).toBe("no_show_partner");
+    expect(r.saldo).toBe(2);
+    expect(r.extras.map((e) => e.type)).toEqual(["refund"]);
+  });
+
+  it("só o Parceiro entrou: no_show_professional, e a ficha foi usada", async () => {
+    const r = await emRollback(async (tx) => {
+      const s = await cenario(tx, { autoConfirm: true });
+      await fechamentoNaTransacao(tx, s.bookingId, FECHAMENTO, [entrada(s.partnerId, -5, 30)]);
+      return { ...(await estado(tx, s.bookingId, s.professionalId)), ...(await fechamento(tx, s.bookingId)) };
+    });
+
+    expect(r.status).toBe("no_show_professional");
+    expect(r.attended_partner).toBe(true);
+    expect(r.attended_professional).toBe(false);
+    expect(r.saldo).toBe(1);
+    expect(r.extras).toEqual([]);
+  });
+
+  it("testar a câmera antes do horário e sair não é comparecer", async () => {
+    const r = await emRollback(async (tx) => {
+      const s = await cenario(tx, { autoConfirm: true });
+      await fechamentoNaTransacao(tx, s.bookingId, FECHAMENTO, [
+        entrada(s.partnerId, -5, 30),
+        entrada(s.professionalId, -9, -4),
+      ]);
+      return estado(tx, s.bookingId, s.professionalId);
+    });
+
+    expect(r.status).toBe("no_show_professional");
+  });
+
+  it("a rodada não pergunta à sala por sessão que nunca emitiu token: ninguém entrou", async () => {
+    const r = await emRollback(async (tx) => {
+      const s = await cenario(tx, { autoConfirm: true });
+      const perguntadas: string[] = [];
+      const rodada = await fecharSessoesNaConexao(acessoDaTransacao(tx), FECHAMENTO, async (sala) => {
+        perguntadas.push(sala);
+        return [];
+      });
+      return { s, rodada, perguntadas, ...(await estado(tx, s.bookingId, s.professionalId)) };
+    });
+
+    expect(r.status).toBe("no_show_professional");
+    expect(r.perguntadas).not.toContain(r.s.bookingId);
+  });
+
+  it("Daily fora do ar não fecha: a sessão fica para a próxima rodada", async () => {
+    const r = await emRollback(async (tx) => {
+      const s = await cenario(tx, { autoConfirm: true });
+      await tx`update bookings set room_name = ${s.bookingId} where id = ${s.bookingId}`;
+      const rodada = await fecharSessoesNaConexao(acessoDaTransacao(tx), FECHAMENTO, async (sala) => {
+        if (sala === s.bookingId) throw new Error("Daily 503");
+        return [];
+      });
+      return { s, rodada, ...(await estado(tx, s.bookingId, s.professionalId)) };
+    });
+
+    expect(r.status).toBe("confirmed");
+    expect(r.rodada.erros).toContain(`${r.s.bookingId}: Daily 503`);
+  });
+
+  it("duas rodadas seguidas estornam e compensam uma vez só", async () => {
+    const r = await emRollback(async (tx) => {
+      const s = await cenario(tx, { autoConfirm: true });
+      await tx`update bookings set room_name = ${s.bookingId} where id = ${s.bookingId}`;
+      const leitor = async (sala: string) =>
+        sala === s.bookingId ? [entrada(s.professionalId, 0, 25)] : [];
+
+      await fecharSessoesNaConexao(acessoDaTransacao(tx), FECHAMENTO, leitor);
+      const segunda = await fecharSessoesNaConexao(acessoDaTransacao(tx), FECHAMENTO, leitor);
+      return {
+        s,
+        segunda,
+        ...(await estado(tx, s.bookingId, s.professionalId)),
+        ...(await fechamento(tx, s.bookingId)),
+      };
+    });
+
+    expect(r.status).toBe("no_show_partner");
+    expect(r.extras).toHaveLength(2);
+    expect(r.saldo).toBe(3);
+    expect(r.segunda.erros.filter((e) => e.startsWith(r.s.bookingId))).toEqual([]);
   });
 });

@@ -1,16 +1,18 @@
 import type postgres from "postgres";
+import { paraJsonb } from "@/lib/db/jsonb";
 import { paraInstante } from "@/lib/db/instantes";
 import type { Ator } from "@/lib/ledger/operacoes";
-import { estornoNaTransacao } from "@/lib/ledger/operacoes";
+import { compensacaoNaTransacao, estornoNaTransacao } from "@/lib/ledger/operacoes";
 import type { Acesso } from "@/lib/ledger/mensal";
+import { compareceu, desfecho, type EntradaNaSala } from "@/lib/video/presenca";
 
 /**
- * As arestas da máquina de estados que a P4 percorre.
+ * As arestas da máquina de estados.
  *
  * ```
  * pending ──confirmar──▶ confirmed ──fim + tolerância──▶ done
- *    │  └──recusar──▶ cancelled (estorno imediato)
- *    └──48h sem resposta, ou o horário passou──▶ expired (estorno)
+ *    │  └──recusar──▶ cancelled (estorno)    ├──ninguém ou só o Parceiro──▶ no_show_professional
+ *    └──48h, ou o horário passou──▶ expired  └──só o Profissional──▶ no_show_partner (estorno + compensação)
  * ```
  *
  * Mesmo desenho de `operacoes.ts`: cada transição recebe a transação, sem
@@ -41,6 +43,8 @@ export class PedidoJaRespondido extends Error {
 /** O que o extrato do Profissional mostra. Sem termo de domínio: vai para o banco. */
 export const MOTIVO_RECUSA = "Pedido recusado";
 export const MOTIVO_EXPIRACAO = "Pedido expirou sem resposta";
+export const MOTIVO_SEM_ATENDIMENTO = "A sessão não aconteceu";
+export const MOTIVO_COMPENSACAO = "Compensação pela sessão que não aconteceu";
 
 type LinhaTravada = {
   status: string;
@@ -179,34 +183,95 @@ export async function expiracaoNaTransacao(
   return true;
 }
 
-export type RegraDeFechamento = { agora: Date; toleranciaMin: number };
+export type RegraDeFechamento = {
+  agora: Date;
+  toleranciaMin: number;
+  /** `partner_no_show_bonus`: fichas a mais quando o Parceiro faltou. */
+  compensacao: number;
+};
 
 /**
- * `confirmed → done`, quando passa `end_at` + tolerância.
+ * O que a sala disse sobre a sessão. `null` é "não há sala para perguntar" — o
+ * ambiente sem chave do Daily, como a produção enquanto não tem domínio próprio.
+ */
+export type PresencaDaSala = EntradaNaSala[] | null;
+
+/**
+ * `confirmed → done | no_show_*`, quando passa `end_at` + tolerância.
  *
- * **Regra provisória da P4**: sem sala não há presença, e sem presença não dá
- * para distinguir `done` de `no_show_*`. A P5 troca esta função pela que lê a
- * presença da sala; até lá nenhuma sessão termina em falta.
+ * A presença chega **pronta**, lida do Daily antes da transação: nunca se segura
+ * transação aberta em volta de chamada HTTP, e a conexão de runtime é `max: 1`.
  *
- * `session_count` do Parceiro sobe aqui, na mesma transação — é contagem de
- * sessão realizada, e a P5 herda o lugar.
+ * Sem sala (`presenca === null`) vale a regra da P4 — confirmada que passou vira
+ * `done` —, porque sem sala ninguém teria como entrar e marcar falta seria
+ * inventar. Com sala, invariante 18: grava cada entrada em `session_events` e
+ * decide pelo que a sala viu. `no_show_partner` estorna e compensa na mesma
+ * transação; `session_count` do Parceiro só sobe em `done`.
  */
 export async function fechamentoNaTransacao(
   tx: postgres.TransactionSql,
   bookingId: string,
   regra: RegraDeFechamento,
+  presenca: PresencaDaSala,
 ): Promise<boolean> {
   const corte = paraInstante(new Date(regra.agora.getTime() - regra.toleranciaMin * 60_000));
-  const [linha] = await tx<{ partner_id: string }[]>`
-    select partner_id from bookings
+  const [linha] = await tx<
+    { partner_id: string; professional_id: string; start_at: string; end_at: string }[]
+  >`
+    select partner_id, professional_id, start_at, end_at from bookings
      where id = ${bookingId}
        and status = 'confirmed'
        and end_at <= ${corte}::text::timestamptz
        for update`;
   if (!linha) return false;
 
-  await tx`update bookings set status = 'done' where id = ${bookingId}`;
-  await tx`update partners set session_count = session_count + 1 where id = ${linha.partner_id}`;
+  if (presenca === null) {
+    await tx`update bookings set status = 'done' where id = ${bookingId}`;
+    await tx`update partners set session_count = session_count + 1 where id = ${linha.partner_id}`;
+    return true;
+  }
+
+  const inicio = new Date(linha.start_at);
+  const fim = new Date(linha.end_at);
+  const parceiro = compareceu(presenca, linha.partner_id, inicio, fim);
+  const profissional = compareceu(presenca, linha.professional_id, inicio, fim);
+  const status = desfecho({ parceiro, profissional });
+
+  await tx`
+    update bookings
+       set status = ${status}::booking_status,
+           attended_partner = ${parceiro},
+           attended_professional = ${profissional}
+     where id = ${bookingId}`;
+
+  for (const entrada of presenca) {
+    const bruto = {
+      reuniao: entrada.reuniaoId,
+      participante: entrada.participantId,
+      entrou: entrada.entrou.toISOString(),
+      saiu: entrada.saiu.toISOString(),
+    };
+    await tx`
+      insert into session_events (booking_id, user_id, kind, at, raw) values
+        (${bookingId}, ${entrada.userId}, 'participant.joined',
+         ${paraInstante(entrada.entrou)}::text::timestamptz, ${paraJsonb(bruto)}::text::jsonb),
+        (${bookingId}, ${entrada.userId}, 'participant.left',
+         ${paraInstante(entrada.saiu)}::text::timestamptz, ${paraJsonb(bruto)}::text::jsonb)`;
+  }
+
+  if (status === "done") {
+    await tx`update partners set session_count = session_count + 1 where id = ${linha.partner_id}`;
+  }
+
+  if (status === "no_show_partner") {
+    await estornoNaTransacao(tx, { bookingId, ator: null, motivo: MOTIVO_SEM_ATENDIMENTO });
+    await compensacaoNaTransacao(tx, {
+      bookingId,
+      quantidade: regra.compensacao,
+      motivo: MOTIVO_COMPENSACAO,
+    });
+  }
+
   return true;
 }
 
@@ -265,22 +330,45 @@ export async function expirarPendentesNaConexao(
   );
 }
 
-/** `close-sessions`: toda sessão confirmada cuja tolerância já passou. */
+/**
+ * Quem sabe perguntar à sala. `null` quando não há vídeo configurado.
+ * Recebe o nome da sala (`bookings.room_name`).
+ */
+export type LeitorDePresenca = ((sala: string) => Promise<EntradaNaSala[]>) | null;
+
+/**
+ * `close-sessions`: toda sessão confirmada cuja tolerância já passou.
+ *
+ * A presença de cada sessão é lida **antes** da transação dela. Sessão sem
+ * `room_name` nunca emitiu token — a entrada grava o nome antes de chamar o Daily
+ * —, então ninguém entrou, e não há por que perguntar. Daily fora do ar não fecha
+ * a sessão: ela vira erro desta rodada e a próxima tenta de novo. Fechar sem saber
+ * decidiria dinheiro no escuro.
+ */
 export async function fecharSessoesNaConexao(
   acesso: Acesso,
   regra: RegraDeFechamento,
+  lerPresenca: LeitorDePresenca,
 ): Promise<ResultadoDaRodada> {
   const corte = paraInstante(new Date(regra.agora.getTime() - regra.toleranciaMin * 60_000));
-  const linhas = await acesso.sql<{ id: string }[]>`
-    select id from bookings
+  const linhas = await acesso.sql<{ id: string; room_name: string | null }[]>`
+    select id, room_name from bookings
      where status = 'confirmed'
        and end_at <= ${corte}::text::timestamptz
      order by end_at`;
 
-  return rodada(
-    acesso,
-    linhas.map((l) => l.id),
-    (tx, id) => fechamentoNaTransacao(tx, id, regra),
-    "close-sessions",
-  );
+  const resultado: ResultadoDaRodada = { feitas: 0, jaResolvidas: 0, erros: [] };
+  for (const { id, room_name: sala } of linhas) {
+    try {
+      const presenca = lerPresenca === null ? null : sala === null ? [] : await lerPresenca(sala);
+      const mudou = await acesso.emTransacao((tx) => fechamentoNaTransacao(tx, id, regra, presenca));
+      if (mudou) resultado.feitas += 1;
+      else resultado.jaResolvidas += 1;
+    } catch (erro) {
+      const mensagem = erro instanceof Error ? erro.message : String(erro);
+      resultado.erros.push(`${id}: ${mensagem}`);
+      console.error("[close-sessions]", id, mensagem);
+    }
+  }
+  return resultado;
 }

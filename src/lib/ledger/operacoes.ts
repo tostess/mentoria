@@ -2,7 +2,7 @@ import type postgres from "postgres";
 import { registrarAuditoria } from "@/lib/audit";
 import type { Role } from "@/lib/auth/claims";
 import { TetoDaCarteira } from "./erros";
-import { chaveCompra, chaveEstorno, chaveGasto } from "./keys";
+import { chaveCompensacao, chaveCompra, chaveEstorno, chaveGasto, chavePresente } from "./keys";
 
 /**
  * O movimento da ficha, escrito dentro de uma transação que já existe.
@@ -186,12 +186,7 @@ export async function estornoNaTransacao(
   tx: postgres.TransactionSql,
   estorno: Estorno,
 ): Promise<{ quantidade: number; saldoCarteira: number }> {
-  const [gasto] = await tx<{ user_id: string; org_id: string; amount: number }[]>`
-    select user_id, org_id, amount from wallet_ledger
-     where idempotency_key = ${chaveGasto(estorno.bookingId)}`;
-
-  if (!gasto) throw new Error(`sessão sem gasto para estornar: ${estorno.bookingId}`);
-
+  const gasto = await gastoDaSessao(tx, estorno.bookingId);
   const quantidade = -gasto.amount;
 
   const [lancamento] = await tx<{ balance_after: number }[]>`
@@ -202,6 +197,79 @@ export async function estornoNaTransacao(
     returning balance_after`;
 
   return { quantidade, saldoCarteira: lancamento.balance_after };
+}
+
+/**
+ * O lançamento de gasto de uma sessão: quem pagou, em que empresa, quanto.
+ *
+ * Estorno, presente e compensação partem daqui, e não de parâmetro, pelo mesmo
+ * motivo: a ficha vai para quem pagou a sessão, na empresa que pagou. Sessão sem
+ * gasto é defeito, não caso de uso — toda reserva gasta na mesma transação.
+ */
+async function gastoDaSessao(
+  tx: postgres.TransactionSql,
+  bookingId: string,
+): Promise<{ user_id: string; org_id: string; amount: number }> {
+  const [gasto] = await tx<{ user_id: string; org_id: string; amount: number }[]>`
+    select user_id, org_id, amount from wallet_ledger
+     where idempotency_key = ${chaveGasto(bookingId)}`;
+  if (!gasto) throw new Error(`sessão sem gasto: ${bookingId}`);
+  return gasto;
+}
+
+export type Presente = {
+  bookingId: string;
+  /** O Parceiro da sessão. Quem confere que é ele é quem chama, com a sessão travada. */
+  ator: Ator;
+  /** Frase para o extrato do Profissional. Sem termo de domínio escrito à mão. */
+  motivo: string;
+};
+
+/**
+ * `gift` de 1 ficha na carteira de quem pagou a sessão (invariante 20).
+ *
+ * **Não confere o teto da carteira** — decisão de 27/09/2026: recusar o presente
+ * na frente do Profissional seria o pior momento possível para um limite, e a cota
+ * mensal do Parceiro já o limita. **Não debita `org_ledger`**: a ficha não sai do
+ * contrato da empresa, sai do Parceiro. É por isso que `org_usage.fichas_extra`
+ * existe — gasta, ela entra no numerador da utilização, e precisa entrar no
+ * denominador também.
+ *
+ * A chave `gift_{bookingId}` é o "1 por sessão". A cota do mês é de quem chama.
+ */
+export async function presenteNaTransacao(
+  tx: postgres.TransactionSql,
+  presente: Presente,
+): Promise<void> {
+  const gasto = await gastoDaSessao(tx, presente.bookingId);
+  await tx`
+    insert into wallet_ledger (user_id, org_id, type, amount, balance_after, booking_id,
+                               by_user_id, reason, idempotency_key)
+    values (${gasto.user_id}, ${gasto.org_id}, 'gift', 1, 0, ${presente.bookingId},
+            ${presente.ator.id}, ${presente.motivo}, ${chavePresente(presente.bookingId)})`;
+}
+
+/**
+ * `adjust` positivo quando o Parceiro não entrou na sala: o Profissional
+ * apareceu e ficou sem a conversa. Vem junto do estorno, que devolve a ficha
+ * gasta; esta é a mais, de `partner_no_show_bonus`. Quantidade zero não lança
+ * nada — é a operadora desligando a compensação em `app_config`.
+ *
+ * `adjust`, e não `gift`: presente é gesto do Parceiro e conta na cota dele;
+ * isto é a plataforma reparando uma falha. As duas entram em `fichas_extra`.
+ */
+export async function compensacaoNaTransacao(
+  tx: postgres.TransactionSql,
+  compensacao: { bookingId: string; quantidade: number; motivo: string },
+): Promise<void> {
+  if (compensacao.quantidade <= 0) return;
+  const gasto = await gastoDaSessao(tx, compensacao.bookingId);
+  await tx`
+    insert into wallet_ledger (user_id, org_id, type, amount, balance_after, booking_id,
+                               reason, idempotency_key)
+    values (${gasto.user_id}, ${gasto.org_id}, 'adjust', ${compensacao.quantidade}, 0,
+            ${compensacao.bookingId}, ${compensacao.motivo},
+            ${chaveCompensacao(compensacao.bookingId)})`;
 }
 
 /**
