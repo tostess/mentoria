@@ -439,7 +439,8 @@ colaborador sai ─────────▶ wallet_ledger reclaim (−saldo) 
 
 ```
 pending ──confirmar──▶ confirmed ──fim + 15min──▶ done
-   │                       │
+   │  │                    │
+   │  └──Parceiro recusa──▶ cancelled (estorno imediato)
    │ 48h sem resposta      ├──cancelar──▶ cancelled (estorno se > cancel_window_hours)
    ▼                       ├──ninguém ou só Parceiro entrou──▶ no_show_professional (ficha some)
  expired (estorno)         └──só profissional entrou──▶ no_show_partner (estorno + bônus)
@@ -483,9 +484,10 @@ esquema, constraints e RLS · auth, papéis e config · motor de agenda.
 - **Polimento** ✅ Ícones, vocabulário humano no lugar de código de banco, edição de Parceiro e
   Profissional, status, acesso e senha provisória pelo admin, busca nas listas, menu no celular
 - **P3** ✅ Carteiras, `allocate-monthly`, `POST /api/bookings` transacional
-- **P4** Busca simples, agendamento, agenda das duas visões, `expire-pending`, `close-sessions`,
-  `send-reminders`
+- **P4** ✅ Busca simples, agendamento, agenda das duas visões com confirmar e recusar,
+  `expire-pending`, `close-sessions`
 - **P5** Sala Daily, webhook de presença, extensão de 30 min dentro da sala
+- **P5+** `send-reminders` 24h e 1h — espera Resend e o domínio remetente
 
 Fora do piloto: convite por token, candidatura espontânea, console do RH, personalização por
 empresa, briefing, avaliação, presente, cancelamento com estorno, moderação.
@@ -756,6 +758,44 @@ F16 formato grupo · F18 dashboards e exclusão de conta.
   commit passou, e o segundo `redeploy` também. É a fonte baixada do Google durante o build.
   Primeira coisa a tentar: refazer o deploy.
 
+- **O Parceiro pode recusar um pedido pendente, e recusar estorna na hora.** A máquina de estados
+  ganhou a aresta `pending ──recusar──▶ cancelled`, com `refund` imediato e `cancelled_by` = o
+  Parceiro. Sem ela o "não" já dado esperaria 48h pelo cron, prendendo uma das vagas de
+  `max_pending_per_professional` e a ficha do Profissional nesse meio-tempo.
+- **Até a P5, sessão confirmada que passou vira `done`.** Sem sala não há presença, e sem presença
+  não há como distinguir `done` de `no_show_*`. `close-sessions` marca `done` quando passa `end_at` +
+  `session_grace_minutes`; a P5 troca essa regra pela presença lida da sala. Consequência aceita:
+  nenhuma sessão da P4 termina em `no_show_*`, nem estorna por falta do Parceiro.
+- **O estorno tem uma chave só por sessão: `refund_{bookingId}`.** Expiração, recusa e, depois,
+  cancelamento usam a mesma. O Parceiro recusando no minuto em que o cron expira o pedido produz
+  **um** estorno — quem chega depois colide na `unique` do livro-caixa. Chave por caminho
+  (`expire_…`, `decline_…`) devolveria a ficha duas vezes justamente na corrida.
+- **Pedido pendente também expira quando o horário chega.** Com aviso mínimo de 12 h e prazo de
+  48 h, um pedido feito na véspera chegaria à hora da sessão ainda "dentro do prazo" e ficaria
+  pendente depois de ela ter passado, com a ficha presa. `expire-pending` expira por qualquer das
+  duas condições, e confirmar ou recusar depois do início é recusado com "o horário já passou".
+- **Toda transição trava a sessão antes de ler o status.** É o `for update` que resolve a corrida
+  entre a recusa e o cron: o segundo espera, relê e desiste. A chave `refund_{bookingId}` é a segunda
+  cerca. O estorno lê valor e carteira do próprio `spend_{bookingId}` — nunca recebe quantia — e não
+  confere o teto da carteira: a ficha já era da pessoa.
+- **O Parceiro lê o perfil de quem marcou com ele por uma view, não por policy.**
+  `partner_professionals` roda como dona, no molde de `org_usage`, e entrega nome, foto, cargo, área
+  e empresa só de quem tem sessão com o Parceiro que pergunta, em qualquer status. Policy em
+  `profiles` abriria e-mail e telefone — contato fora da plataforma que a sessão não pede —, e policy
+  em `orgs` abriria CNPJ e tamanho do contrato de uma empresa a quem atende as concorrentes dela. O
+  filtro exige papel de Parceiro, então o RH não lê par nenhum daqui (invariante 10).
+- **A tela e a reserva avaliam a agenda pela mesma função.** `avaliarAgenda` lê regras, exceções e
+  ocupação e roda o motor; a reserva a chama dentro da transação, e `horariosLivres` fora dela. Um
+  teste percorre todo horário oferecido e confere que a reserva aceita cada um.
+- **Instante sai formatado do servidor, no fuso de quem olha.** Os componentes de cliente recebem
+  texto e o ISO para devolver; o luxon não vai para o bundle. `lib/formato.ts` ganhou as funções
+  de agenda com o fuso como parâmetro, e o default continua o da tela.
+- **Na P4 cancelada é sinônimo de recusada.** O único caminho para `cancelled` é a recusa do Parceiro;
+  a tela chama de "Recusada" e diz que a ficha voltou. "Cancelada" fica para a F7.
+- **`send-reminders` saiu da P4 e foi para depois da P5.** Não há Resend, nem chave, nem domínio
+  remetente — que depende do nome da plataforma. O piloto é operado à mão; lembrete entra junto com
+  o e-mail, com `RESEND_API_KEY` como variável nova nos três ambientes.
+
 ## Descartado
 
 - Firebase / Firestore. - Chat livre fora da janela de 24h da sessão. - Ranking público.
@@ -773,10 +813,16 @@ F16 formato grupo · F18 dashboards e exclusão de conta.
 
 ## Estado atual
 
-Fase: **P3 fechada** e **produção completa** desde 27/09/2026 — hook ligado e operadora entrando
-de verdade em `/entrar`. Próxima feature: **P4**, preparada abaixo. O vídeo da P5 já teve o risco
-tirado por um spike medido (`docs/spike-video.md`, branch `spike/video`, sem merge); o roteiro da
-P5 está depois do da P4.
+Fase: **P4 fechada na branch `p4`, sem merge.** Antes do merge, `npm run db:migrate:prod` — a
+migração `perfil_para_parceiro` cria a view de que `/parceiro/sessoes` depende, e o push na `main`
+publica as telas e registra os crons novos na Vercel. Próxima feature: **P5**, com o roteiro abaixo;
+o risco do vídeo já foi tirado por um spike medido (`docs/spike-video.md`, branch `spike/video`).
+
+O piloto já tem o ciclo da ficha inteiro sem vídeo: o Profissional acha um Parceiro em `/parceiros`
+(primeiro horário livre de cada um, no fuso dele), escolhe um horário em `/parceiros/[id]` e agenda;
+o Parceiro confirma ou recusa em `/parceiro/sessoes`, vendo nome, cargo e empresa de quem pediu; a
+recusa e o `expire-pending` devolvem a ficha pela mesma chave; o `close-sessions` marca `done`. Os
+dois lados têm início e agenda.
 
 A economia da plataforma anda sozinha de ponta a ponta. A operadora compra o bloco e aloca à mão; o
 cron `allocate-monthly` recarrega no dia 1º somando o valor do mês até o teto, idempotente por
@@ -788,20 +834,21 @@ O Profissional vê o próprio dinheiro em `/fichas`: saldo, extrato do `wallet_l
 português, e o que a ficha vale. A sidebar dele mostra o saldo real — os números de exemplo da
 Etapa 1 saíram de todas as cascas, sem serem trocados por falsos onde a fase ainda não chegou.
 
-O **motor de agenda** (`src/lib/scheduling/`) segue travado, e agora tem dois consumidores: a tela
-de disponibilidade do Parceiro e a reserva. Os limites de `app_config` chegam aos dois pela mesma
-função, `limitesDoMotor`.
+O **motor de agenda** (`src/lib/scheduling/`) segue travado. A tela do Profissional e a reserva o
+consomem pela **mesma** função, `avaliarAgenda` em `lib/bookings/operacoes.ts`, e um teste prova
+que todo horário oferecido é aceito pela reserva. A tela de disponibilidade do Parceiro lê pela
+sessão dele. Os limites de `app_config` chegam a todos por `limitesDoMotor`.
 
-404 testes em 24 arquivos. Invariante 19 em `src/lib/auth/hook.test.ts`; invariantes 3, 4, 7, 8, 9,
+454 testes em 27 arquivos. Invariante 19 em `src/lib/auth/hook.test.ts`; invariantes 3, 4, 7, 8, 9,
 10 e 16 em `src/lib/db/invariantes.test.ts`; as transações em `ledger/transacoes.test.ts`,
-`bookings/reserva.test.ts` e `ledger/mensal.test.ts`, todas chamando as funções que a aplicação
+`bookings/reserva.test.ts`, `bookings/transicoes.test.ts` e `ledger/mensal.test.ts`, todas chamando as funções que a aplicação
 chama. Invariante 5 travada por `server-only` mais teste estático.
 
 
 ### Produção
 
 No ar em `mentoria-bay.vercel.app` e completa desde 27/09/2026. O `mentoria` tem as cinco
-migrações, conferidas por consulta (27 tabelas com RLS, 37 policies, triggers dos livros-caixa,
+primeiras migrações (a sexta, da P4, está só no `mentoria-dev`), conferidas por consulta (27 tabelas com RLS, 37 policies, triggers dos livros-caixa,
 `bookings_no_overlap`, `app_config`, hook); o hook está ligado e a operadora `tostess` entrou pela
 tela. As seis variáveis estão nos três ambientes, com o recorte da invariante 17. A única conta em
 produção é a da operadora; os dados de demonstração (Faculdade Aurora, Mariana Costa, Helena Braga)
@@ -817,66 +864,16 @@ Operação, para não redescobrir:
 - **Supabase pelo MCP** (`.mcp.json`, modo leitura) aparece a partir de uma sessão nova — lê os dois
   projetos; não configura autenticação nem migra.
 
-### Próxima feature: P4 — roteiro
+### P4 — o que ficou de fora, de propósito
 
-Escopo do roadmap: busca simples, agendamento, agenda das duas visões, `expire-pending`,
-`close-sessions`, `send-reminders`. Motor de agenda **travado** — a P4 consome, não altera.
-
-**Primeiro passo da sessão: fechar as quatro decisões abaixo com o usuário.** Nenhuma tem resposta
-no código, e três mudam o esquema de estados ou o livro-caixa. Cada uma tem recomendação; se
-aceitas, viram "Decisões tomadas".
-
-1. **Recusa do Parceiro.** A máquina de estados não tem aresta "Parceiro recusou pedido pendente".
-   *Recomendação:* recusar vira `cancelled` com `refund` imediato, `cancelled_by` = Parceiro. A
-   alternativa — sem recusa, o pedido expira em 48h — prende uma das duas vagas de
-   `max_pending_per_professional` e faz o Profissional esperar dois dias por um "não" já dado.
-2. **`close-sessions` sem presença.** Presença só existe na P5 (webhook do Daily); até lá não há
-   como distinguir `done` de `no_show_*`. *Recomendação:* na P4, `confirmed` passado de `end_at` +
-   `session_grace_minutes` vira `done`; a P5 troca a regra pela presença real.
-3. **Chave de idempotência do estorno.** *Recomendação:* uma chave só por sessão,
-   `refund_{bookingId}`, seja qual for o caminho — expiração, recusa ou, depois, cancelamento. Assim
-   o Parceiro recusando no mesmo minuto em que o cron expira o pedido produz **um** estorno, e quem
-   perde a corrida colide na `unique`. Chaves por caminho (`expire_…`, `decline_…`) devolveriam a
-   ficha duas vezes.
-4. **`send-reminders`.** Não há Resend (nem chave, nem domínio remetente — que depende do nome da
-   plataforma) nem Z-API. *Recomendação:* sair da P4 e ir para depois da P5; o piloto é operado à
-   mão. Se ficar, `RESEND_API_KEY` é a sétima variável, nos três ambientes.
-
-**Depois, nesta ordem:**
-
-1. **Protótipo** `docs/prototipo-p4.html`, aprovado antes de qualquer tela: busca, página do
-   Parceiro com horários, confirmação da reserva, `/agenda` do Profissional, `/parceiro/sessoes` com
-   confirmar (e recusar, se a decisão 1 passar), `/parceiro/inicio`.
-2. **Estorno no livro-caixa.** Nada no código grava `refund` ainda: `lib/ledger` faz `purchase` e
-   `allocate`, e o `spend` mora dentro da reserva (`lib/bookings/operacoes.ts`). Criar `estornoNaTransacao` em `ledger/operacoes.ts` (recebe a transação,
-   sem `server-only`), no mesmo desenho de `alocacaoNaTransacao`, com teste em
-   `ledger/transacoes.test.ts`. É dela que dependem os crons e a recusa.
-3. **Horários livres vistos pelo Profissional.** Ele precisa ver ocupado sem ver de quem, e a policy
-   de `bookings` não deixa — a leitura é privilegiada, no servidor. Tem de ser **a mesma leitura**
-   que a reserva usa para recalcular: `lerOcupacoes` e as leituras de regra e exceção, hoje
-   privadas em `lib/bookings/operacoes.ts`; exportar, não copiar. Leituras diferentes na tela e na
-   escrita fazem a tela oferecer horário que a reserva recusa. Devolve só intervalos, nunca
-   `professional_id`. Invariante 14: todo horário exibido sai do motor.
-4. **Busca** em `/parceiros`: ativos lidos pela RLS (`select` de `partners` ativos é aberto a
-   autenticado), filtro no cliente, sem serviço externo.
-5. **Agendar** pela página do Parceiro chamando `POST /api/bookings`. Contrato já pronto: corpo
-   `{ partnerId, inicio }` com `inicio` ISO **com fuso**; `201 { id, status, inicio, fim, saldo }`;
-   `409 { erro, motivo }` com `motivo` ∈ `HorarioIndisponivel`, `LimiteDePendentes`,
-   `SaldoInsuficiente`, `ParceiroIndisponivel`, `ProfissionalInvalido`, `LancamentoRepetido` — `erro`
-   já é a frase para a tela; `401`/`403`/`422` para sessão, papel e corpo. Instante exibido no fuso
-   de `profiles.timezone`, convertido só na borda.
-6. **Agenda das duas visões:** `/agenda` e `/parceiro/sessoes` lendo `bookings` pela RLS (dono ou
-   Parceiro da sessão). Confirmar `pending → confirmed` — e recusar — em Route Handler com
-   `service_role` (invariante 4), `partner_id` vindo do JWT. Parceiro agindo na própria sessão não
-   grava `audit_logs`, como na P2.
-7. **Crons** `expire-pending` (de hora em hora, `pending_expires_hours`) e `close-sessions` (a cada
-   15 min), uma transação por sessão, protegidos por `autorizarCron` de `lib/cron/guarda.ts`,
-   registrados no `vercel.json`, com teste chamando a função da aplicação sobre o cenário de
-   `lib/db/cenario-de-teste.ts`.
-
-As quatro telas da P4 hoje são `StubPage`: `/parceiros`, `/agenda`, `/parceiro/sessoes` e
-`/parceiro/inicio`. Para exercitar à mão, o `mentoria-dev` já tem Profissional com ficha (Mariana)
-e Parceira (Helena).
+- **Badge de pedidos na navegação do Parceiro.** O número está em `/parceiro/inicio`; levar para a
+  sidebar exige ler no layout, em paralelo com a página.
+- **Busca em lote.** `primeiroHorarioDeCada` faz quatro leituras por Parceiro, em sequência (conexão
+  `max: 1`). Folgado no piloto; perto de 200 Parceiros vira uma leitura só.
+- **Nome de Parceiro pausado na agenda do Profissional.** A policy de `profiles` só abre Parceiro
+  ativo; a sessão com quem pausou aparece com o termo no lugar do nome.
+- **`next dev` com Turbopack não compila CSS no ambiente do Claude Code** (processo filho do PostCSS
+  morre com `0xc0000142`). Para verificação local por HTTP ou Chrome headless, `next dev --webpack`.
 
 ### P5 — roteiro
 

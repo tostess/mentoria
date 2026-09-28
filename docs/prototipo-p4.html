@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>P4 — busca, agendamento e agenda</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Darker+Grotesque:wght@500;600;700&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#2A1B26;--white:#FFFFFF;--mist:#FDF8FB;--blush:#FCEDF4;--magenta:#C2317A;--deep:#8E1E58;
+  --line:#F3E4EC;--line2:#EAD6E1;--stone:#8E7C86;--gold:#C98A2E;--gold-soft:#FBF1DE;--gold-ink:#7A5209;
+  --success:#2E6B52;--success-soft:#EAF6F0;--danger:#A63A2E;--danger-soft:#FBEAE7;--accent:var(--magenta);--r:14px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--mist);color:var(--ink);font-family:"Instrument Sans",system-ui,sans-serif;font-size:14.5px;line-height:1.55;-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-family:"Darker Grotesque",system-ui,sans-serif;margin:0;line-height:1.05;letter-spacing:-.01em;font-weight:700}
+h1{font-size:40px}h2{font-size:26px}h3{font-size:20px}
+p{margin:0}
+button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
+button{cursor:pointer;border:none;background:none}
+a{color:inherit;text-decoration:none}
+.mono{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
+.eyebrow{font-family:"IBM Plex Mono",monospace;font-size:10px;text-transform:uppercase;letter-spacing:.16em;color:var(--stone)}
+.eyebrow a:hover{color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:6px}
+svg.i{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex:none}
+svg.i.sm{width:13px;height:13px}
+svg.i.lg{width:22px;height:22px}
+
+/* ---------- barra de protótipo ---------- */
+.proto{position:sticky;top:0;z-index:20;background:var(--ink);color:#fff;display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px 14px;font-family:"IBM Plex Mono",monospace;font-size:11px}
+.proto span{opacity:.6;margin:0 6px 0 4px}
+.proto button{color:#fff;padding:5px 10px;border-radius:7px;border:1px solid rgba(255,255,255,.2)}
+.proto button[aria-pressed="true"]{background:#fff;color:var(--ink)}
+.proto .sep{width:1px;height:18px;background:rgba(255,255,255,.2);margin:0 4px}
+
+/* ---------- casca ---------- */
+.shell{display:grid;grid-template-columns:246px 1fr;min-height:calc(100vh - 40px)}
+.side{background:var(--white);border-right:1px solid var(--line);padding:22px 16px;display:flex;flex-direction:column;gap:22px}
+.brand{display:flex;align-items:center;gap:10px;padding:0 4px}
+.brand-mark{width:32px;height:32px;border-radius:10px;background:var(--accent);display:grid;place-items:center;font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:14px;color:#fff;flex:none}
+.brand-name{font-family:"Darker Grotesque",sans-serif;font-weight:700;font-size:22px;line-height:1}
+.brand-sub{font-family:"IBM Plex Mono",monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:.12em;color:#B3A3AC}
+.saldo-side{border:1px solid var(--line);border-radius:12px;padding:11px 12px;display:flex;align-items:center;gap:10px}
+.saldo-side b{font-family:"Darker Grotesque",sans-serif;font-size:26px;line-height:1}
+.saldo-side small{display:block;font-family:"IBM Plex Mono",monospace;font-size:8.5px;text-transform:uppercase;letter-spacing:.1em;color:#B3A3AC}
+nav.main{display:flex;flex-direction:column;gap:1px}
+nav.main a{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;font-size:13.5px;color:var(--stone);transition:background-color .15s,color .15s}
+nav.main a svg{color:#BFAFB8}
+nav.main a:hover{background:var(--mist);color:var(--ink)}
+nav.main a[aria-current="page"]{background:color-mix(in srgb,var(--accent) 10%,transparent);color:var(--accent);font-weight:600}
+nav.main a[aria-current="page"] svg{color:var(--accent)}
+nav.main .badge{margin-left:auto;font-family:"IBM Plex Mono",monospace;font-size:10px;background:var(--accent);color:#fff;border-radius:999px;padding:1px 7px;font-weight:600}
+.side-foot{margin-top:auto;padding:0 5px;font-family:"IBM Plex Mono",monospace;font-size:10px;color:#BFAFB8}
+.topbar{display:none}
+main{width:100%;max-width:1140px;padding:34px 40px 70px}
+
+/* ---------- blocos ---------- */
+.head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:20px;margin-bottom:28px}
+.head p{margin-top:7px;max-width:62ch;font-size:14px;color:var(--stone)}
+.head-who{display:flex;align-items:center;gap:16px}
+.card{background:var(--white);border:1px solid var(--line);border-radius:var(--r);padding:20px}
+.card-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:16px}
+.card-head h3{display:flex;align-items:center;gap:9px}
+.card-head h3 svg{color:var(--stone)}
+.link-sm{font-size:12.5px;color:var(--accent);font-weight:600;display:inline-flex;align-items:center;gap:4px}
+.stack{display:flex;flex-direction:column;gap:18px}
+.split{display:grid;grid-template-columns:1.5fr 1fr;gap:18px;align-items:start}
+.split.rev{grid-template-columns:1fr 1.45fr}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.muted{font-size:12.5px;color:var(--stone);line-height:1.5}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;font-weight:600;white-space:nowrap;padding:10px 17px;font-size:13.5px;border-radius:10px;background:var(--accent);color:#fff;transition:filter .15s,background-color .15s}
+.btn:hover{filter:brightness(1.1)}
+.btn:disabled{opacity:.45;cursor:not-allowed;filter:none}
+.btn.ghost{background:#fff;color:var(--ink);border:1px solid var(--line2)}
+.btn.ghost:hover{background:var(--blush);border-color:var(--blush);filter:none}
+.btn.warn{background:var(--danger)}
+.btn.sm{padding:6px 12px;font-size:12.5px;border-radius:8px}
+.btn.block{width:100%}
+.pill{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;border-radius:999px;padding:3px 9px;font-family:"IBM Plex Mono",monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:.08em}
+.pill.on{background:var(--success-soft);color:var(--success)}
+.pill.wait{background:var(--gold-soft);color:#8A5D0C}
+.pill.off{background:#F4F1F3;color:#948A90}
+.pill.bad{background:var(--danger-soft);color:var(--danger)}
+.pill::before{content:"";width:5px;height:5px;border-radius:50%;background:currentColor}
+.tag{display:inline-block;border-radius:8px;background:var(--mist);border:1px solid var(--line);padding:2px 8px;font-size:12px}
+.avatar{width:36px;height:36px;border-radius:50%;background:var(--blush);color:var(--deep);display:grid;place-items:center;font-weight:600;font-size:13px;flex:none}
+.avatar.lg{width:46px;height:46px;font-size:16px}
+.avatar.xl{width:64px;height:64px;font-size:22px}
+.note{border-radius:12px;background:color-mix(in srgb,var(--accent) 7%,#fff);padding:12px 14px;font-size:13px;display:flex;gap:10px;color:var(--ink)}
+.note svg{color:var(--accent);margin-top:2px}
+.ok{border-radius:12px;border:1px solid #CDE6DA;background:var(--success-soft);color:var(--success);padding:12px 14px;font-size:13.5px;display:flex;gap:10px;align-items:flex-start}
+.err{border-radius:12px;background:var(--danger-soft);color:var(--danger);padding:12px 14px;font-size:13.5px;display:flex;gap:10px;align-items:flex-start}
+.empty{border:1px dashed var(--line2);border-radius:12px;padding:22px;text-align:center;color:var(--stone);font-size:13px}
+.empty b{display:block;color:var(--ink);font-size:14px;margin-bottom:3px}
+
+/* ficha */
+.ficha{display:inline-block;border-radius:50%;background:linear-gradient(150deg,#EFC069,#C98A2E);box-shadow:inset 0 -1px 0 rgba(0,0,0,.14),0 1px 1px rgba(90,58,2,.18);position:relative;width:22px;height:22px;flex:none}
+.ficha::after{content:"";position:absolute;inset:3px;border-radius:50%;border:1px dashed rgba(255,255,255,.65)}
+.ficha.s{width:16px;height:16px}.ficha.s::after{inset:2px}
+.fichas{display:inline-flex}.fichas .ficha+.ficha{margin-left:-6px;box-shadow:0 0 0 1.5px #fff}
+
+/* ---------- busca ---------- */
+.filter{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:18px}
+.search{flex:1;min-width:220px;position:relative}
+.search svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--stone)}
+.search input{width:100%;padding:11px 12px 11px 36px;border:1px solid var(--line2);border-radius:10px;background:#fff;font-size:14px;outline:none}
+.search input:focus{border-color:var(--accent)}
+.chip{padding:6px 11px;border-radius:8px;border:1px solid var(--line2);font-size:12.5px;color:var(--stone);background:#fff}
+.chip[aria-pressed="true"]{background:color-mix(in srgb,var(--accent) 10%,transparent);border-color:transparent;color:var(--accent);font-weight:600}
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.pcard{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:18px;display:flex;flex-direction:column;gap:12px;transition:border-color .15s,box-shadow .15s;cursor:pointer}
+.pcard:hover{border-color:var(--line2);box-shadow:0 10px 30px -22px rgba(42,27,38,.4)}
+.pcard .top{display:flex;gap:12px;align-items:center}
+.pcard .top b{display:block;font-weight:600;font-size:15px}
+.pcard .top small{display:block;font-size:12.5px;color:var(--stone);line-height:1.35}
+.pcard .tags{display:flex;flex-wrap:wrap;gap:5px}
+.pcard .next{margin-top:auto;border-top:1px solid var(--line);padding-top:11px;display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12.5px;color:var(--stone)}
+.pcard .next b{color:var(--ink);font-family:"IBM Plex Mono",monospace;font-weight:500;font-size:12px}
+.pcard .next.none b{color:var(--stone)}
+
+/* ---------- horários ---------- */
+.days{display:flex;flex-direction:column}
+.day{display:grid;grid-template-columns:118px 1fr;gap:14px;padding:12px 0;border-top:1px solid var(--line);align-items:start}
+.day:first-child{border-top:none;padding-top:0}
+.day .dl b{display:block;font-weight:600;font-size:13.5px;text-transform:capitalize}
+.day .dl small{font-family:"IBM Plex Mono",monospace;font-size:10.5px;color:var(--stone)}
+.slots{display:flex;flex-wrap:wrap;gap:7px}
+.slot{font-family:"IBM Plex Mono",monospace;font-size:12.5px;padding:7px 11px;border-radius:8px;border:1px solid var(--line2);background:#fff;transition:border-color .12s,background-color .12s}
+.slot:hover{border-color:var(--accent);color:var(--accent)}
+.slot[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+.day.none .slots{font-size:12.5px;color:#BFAFB8;padding-top:2px}
+.tz{display:inline-flex;align-items:center;gap:6px;font-family:"IBM Plex Mono",monospace;font-size:10.5px;color:var(--stone)}
+
+/* confirmação */
+.confirm-card{position:sticky;top:60px}
+.resumo{display:flex;flex-direction:column;gap:0;margin:4px 0 14px}
+.resumo .kv{display:flex;justify-content:space-between;gap:10px;font-size:13.5px;padding:9px 0;border-top:1px solid var(--line)}
+.resumo .kv:first-child{border-top:none}
+.resumo .kv span:first-child{color:var(--stone)}
+.resumo .kv b{font-weight:600;text-align:right}
+.quando{font-family:"Darker Grotesque",sans-serif;font-size:30px;font-weight:700;line-height:1;text-transform:capitalize}
+.quando-sub{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--stone);margin-top:4px}
+.custo{display:flex;align-items:center;gap:8px}
+
+/* ---------- lista de sessões ---------- */
+.sess{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.sess li{display:grid;grid-template-columns:62px 1fr auto;gap:14px;align-items:center;padding:13px 0;border-top:1px solid var(--line)}
+.sess li:first-child{border-top:none;padding-top:0}
+.cal{border:1px solid var(--line);border-radius:10px;text-align:center;padding:6px 0 7px;background:#fff}
+.cal small{display:block;font-family:"IBM Plex Mono",monospace;font-size:9px;text-transform:uppercase;letter-spacing:.12em;color:var(--accent)}
+.cal b{display:block;font-family:"Darker Grotesque",sans-serif;font-size:24px;line-height:1}
+.cal.past small{color:var(--stone)}.cal.past b{color:var(--stone)}
+.sess .who{display:flex;align-items:center;gap:10px;min-width:0}
+.sess .who b{font-weight:600}
+.sess .meta{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--stone);margin-top:1px}
+.sess .sub{font-size:12.5px;color:var(--stone)}
+.sess .right{display:flex;flex-direction:column;align-items:flex-end;gap:7px}
+.sess .acts{display:flex;gap:7px}
+.recusa{grid-column:1/-1;border-radius:12px;background:var(--danger-soft);padding:12px 14px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px}
+.recusa p{font-size:13px;color:var(--danger);max-width:52ch}
+.recusa .acts{display:flex;gap:7px}
+.prazo{font-family:"IBM Plex Mono",monospace;font-size:10.5px;color:#8A5D0C}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:16px}
+.tabs button{padding:8px 12px;font-size:13px;color:var(--stone);border-bottom:2px solid transparent;margin-bottom:-1px}
+.tabs button[aria-selected="true"]{color:var(--ink);font-weight:600;border-color:var(--accent)}
+
+.stat{background:var(--white);border:1px solid var(--line);border-radius:var(--r);padding:18px;position:relative}
+.stat .ic{position:absolute;top:16px;right:16px;color:#D9C3CF}
+.stat .n{font-family:"Darker Grotesque",sans-serif;font-weight:700;font-size:38px;line-height:.9}
+.stat .l{margin-top:8px;font-family:"IBM Plex Mono",monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:.12em;color:var(--stone)}
+.stat.gold{background:var(--gold-soft);border-color:transparent}
+.stat.gold .l{color:#8A5D0C}
+.hero{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:22px;display:grid;grid-template-columns:auto 1fr auto;gap:18px;align-items:center}
+.hero .cal{width:72px;padding:9px 0 10px}.hero .cal b{font-size:32px}
+.meter{height:8px;border-radius:999px;background:var(--line);overflow:hidden;margin-top:10px}
+.meter i{display:block;height:100%;background:var(--accent);border-radius:999px}
+
+/* ---------- anotações do protótipo ---------- */
+.anot{margin-top:26px;border:1px dashed #D9C3CF;border-radius:12px;padding:14px 16px;background:#fff;font-size:12.5px;color:var(--stone)}
+.anot b{color:var(--ink)}
+.anot ul{margin:6px 0 0;padding-left:18px}
+.anot li{margin:3px 0}
+
+.screen{display:none}.screen.on{display:block}
+
+/* ---------- celular ---------- */
+.phone-wrap{display:flex;justify-content:center;padding:28px 16px}
+.phone-frame{width:390px;max-width:100%;border:1px solid var(--line2);border-radius:28px;overflow:hidden;background:var(--mist);box-shadow:0 20px 60px -30px rgba(42,27,38,.35)}
+.phone-frame .topbar{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:#fff;border-bottom:1px solid var(--line)}
+.phone-frame main{padding:22px 16px 40px}
+.phone-frame h1{font-size:32px}
+.phone-frame .split,.phone-frame .split.rev{grid-template-columns:1fr}
+.phone-frame .day{grid-template-columns:1fr;gap:7px}
+.phone-frame .confirm-card{position:static}
+.phone-frame .anot{display:none}
+.phone-frame .bar{position:sticky;bottom:0;background:#fff;border-top:1px solid var(--line);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.phone-frame .bar b{font-family:"IBM Plex Mono",monospace;font-size:12.5px;font-weight:500}
+.phone-frame .bar small{display:block;font-size:11.5px;color:var(--stone)}
+
+@media (max-width:1000px){.split,.split.rev{grid-template-columns:1fr}.grid-3{grid-template-columns:1fr}.shell{grid-template-columns:1fr}.side{display:none}main{padding:24px 16px}.day{grid-template-columns:1fr;gap:7px}.hero{grid-template-columns:auto 1fr}.confirm-card{position:static}}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="home" viewBox="0 0 24 24"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+  <symbol id="handshake" viewBox="0 0 24 24"><path d="m11 17 2 2a1 1 0 1 0 3-3"/><path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4"/><path d="m21 3 1 11h-2"/><path d="M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3"/><path d="M3 4h8"/></symbol>
+  <symbol id="calendar" viewBox="0 0 24 24"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></symbol>
+  <symbol id="calendar-clock" viewBox="0 0 24 24"><path d="M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3.5"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h5"/><path d="M17.5 17.5 16 16.3V14"/><circle cx="16" cy="16" r="6"/></symbol>
+  <symbol id="coins" viewBox="0 0 24 24"><circle cx="8" cy="8" r="6"/><path d="M18.09 10.37A6 6 0 1 1 10.34 18"/><path d="M7 6h1v4"/><path d="m16.71 13.88.7.71-2.82 2.82"/></symbol>
+  <symbol id="user" viewBox="0 0 24 24"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
+  <symbol id="search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+  <symbol id="chevron-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+  <symbol id="chevron-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+  <symbol id="check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+  <symbol id="clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></symbol>
+  <symbol id="globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></symbol>
+  <symbol id="info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></symbol>
+  <symbol id="alert" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></symbol>
+  <symbol id="rotate-ccw" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></symbol>
+  <symbol id="inbox" viewBox="0 0 24 24"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></symbol>
+  <symbol id="video" viewBox="0 0 24 24"><path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5"/><rect x="2" y="6" width="14" height="12" rx="2"/></symbol>
+  <symbol id="shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></symbol>
+</svg>
+
+<div class="proto" role="toolbar" aria-label="Telas do protótipo">
+  <span>Profissional</span>
+  <button data-go="inicio" aria-pressed="true">Início</button>
+  <button data-go="busca">Busca</button>
+  <button data-go="parceiro">Página do Parceiro</button>
+  <button data-go="agenda">Minha agenda</button>
+  <div class="sep"></div>
+  <span>Parceiro</span>
+  <button data-go="p-inicio">Início</button>
+  <button data-go="p-sessoes">Sessões</button>
+  <div class="sep"></div>
+  <button data-go="mobile">Celular (390px)</button>
+</div>
+
+<!-- ===================================================== desktop -->
+<div class="shell" id="desk">
+  <aside class="side">
+    <div class="brand"><div class="brand-mark">M</div><div><div class="brand-name">Mentoria</div><div class="brand-sub" id="papel">Profissional</div></div></div>
+    <div class="saldo-side" id="saldoSide"><span class="fichas"><i class="ficha"></i><i class="ficha"></i><i class="ficha"></i></span><div><b id="saldoN">5</b><small>fichas</small></div></div>
+    <nav class="main" aria-label="Principal" id="nav"></nav>
+    <div class="side-foot" id="email">mariana@aurora.edu.br</div>
+  </aside>
+  <main id="stage"></main>
+</div>
+
+<!-- ===================================================== celular -->
+<div class="phone-wrap" id="mob" hidden>
+  <div class="phone-frame">
+    <div class="topbar">
+      <div class="brand"><div class="brand-mark">M</div><div><div class="brand-name">Mentoria</div><div class="brand-sub">Profissional</div></div></div>
+      <span class="fichas"><i class="ficha s"></i><i class="ficha s"></i></span>
+    </div>
+    <main id="stageMob"></main>
+    <div class="bar" id="barMob"><div><b>Escolha um horário</b><small>1 ficha · saldo 5</small></div><button class="btn sm" disabled>Continuar</button></div>
+  </div>
+</div>
+
+<!-- ============================================ Profissional: início -->
+<template id="t-inicio">
+  <div class="head"><div><span class="eyebrow">Profissional</span><h1>Olá, Mariana</h1><p>Sua próxima conversa e o que está esperando resposta.</p></div>
+    <a class="btn" href="#" data-go="busca"><svg class="i"><use href="#search"/></svg>Encontrar um Parceiro</a></div>
+  <div class="stack">
+    <div class="hero">
+      <div class="cal"><small>ter</small><b>29</b></div>
+      <div><span class="eyebrow">Próxima sessão</span><h2 style="margin-top:4px">Terça, 29 de setembro · 09:00</h2><p class="muted" style="margin-top:3px">Com <b style="color:var(--ink)">Helena Braga</b> · 30 minutos · confirmada</p></div>
+      <span class="pill on">Confirmada</span>
+    </div>
+    <div class="split">
+      <div class="card">
+        <div class="card-head"><h3><svg class="i"><use href="#clock"/></svg>Esperando resposta</h3><a class="link-sm" href="#" data-go="agenda">Minha agenda<svg class="i sm"><use href="#chevron-right"/></svg></a></div>
+        <ul class="sess">
+          <li><div class="cal"><small>qui</small><b>08</b></div>
+            <div><div class="who"><b>Rafael Souza</b></div><div class="meta">qui, 08/10 · 14:30–15:00</div><div class="sub">Rafael tem até ter, 29/09, 20:10 para responder. Se não responder, a ficha volta para você.</div></div>
+            <div class="right"><span class="pill wait">Aguardando</span></div></li>
+        </ul>
+      </div>
+      <div class="stack">
+        <div class="stat gold"><div class="n" style="display:flex;align-items:center;gap:12px"><span class="fichas"><i class="ficha"></i><i class="ficha"></i><i class="ficha"></i></span>5</div><div class="l">fichas disponíveis · 1 separada no pedido</div></div>
+        <div class="note"><svg class="i"><use href="#shield"/></svg><div>O RH da sua empresa vê quantas fichas foram usadas no total, mas nunca com quem você conversou nem sobre o quê.</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="anot"><b>Anotações</b><ul>
+    <li>Saldo na sidebar já é real (P3). A ficha do pedido pendente já saiu da carteira no <code>spend</code> — o texto diz "separada" para não parecer perdida.</li>
+    <li>Sem sessão futura: o bloco de destaque vira convite para a busca. Sem carteira: mesma mensagem de <code>/fichas</code>.</li>
+    <li>Não há botão de desmarcar: cancelamento com estorno é F7, fora do piloto. A agenda diz a quem pedir.</li>
+  </ul></div>
+</template>
+
+<!-- ============================================ Profissional: busca -->
+<template id="t-busca">
+  <div class="head"><div><span class="eyebrow">Profissional</span><h1>Parceiros</h1><p>Parceiros de Desenvolvimento atendem profissionais de todas as empresas. Cada sessão dura 30 minutos e custa 1 ficha.</p></div></div>
+  <div class="filter">
+    <label class="search"><svg class="i"><use href="#search"/></svg><input id="q" placeholder="Buscar por nome, área ou assunto" aria-label="Buscar Parceiro"></label>
+  </div>
+  <div class="filter" id="areas" style="margin-top:-8px"></div>
+  <div class="pgrid" id="pgrid"></div>
+  <div class="empty" id="semResultado" hidden><b>Nenhum Parceiro com esse termo</b>Tente outra área ou apague a busca.</div>
+  <div class="anot"><b>Anotações</b><ul>
+    <li>Lista de ativos lida pela RLS (<code>partners</code> ativos + perfil de Parceiro ativo), filtro no cliente. Sem serviço externo.</li>
+    <li>"Próximo horário" sai do motor, com a mesma leitura da reserva, e fica no fuso do Profissional. Parceiro sem horário nos próximos 14 dias continua na lista, no fim — invariante 14 fala do assistente, mas a busca segue o mesmo espírito: pessoa primeiro.</li>
+    <li>Ordem: quem tem horário mais cedo primeiro. Sem avaliação nem contagem de sessões no piloto (F8; ranking público está descartado).</li>
+  </ul></div>
+</template>
+
+<!-- ============================================ Profissional: página do Parceiro -->
+<template id="t-parceiro">
+  <div class="head">
+    <div class="head-who"><div class="avatar xl">HB</div>
+      <div><span class="eyebrow"><a href="#" data-go="busca">Parceiros</a> › Helena Braga</span><h1>Helena Braga</h1><p>Liderança em ambiente clínico · sênior</p></div></div>
+  </div>
+  <div class="split">
+    <div class="stack">
+      <div class="card">
+        <div class="card-head"><h3><svg class="i"><use href="#calendar"/></svg>Horários livres</h3><span class="tz"><svg class="i sm"><use href="#globe"/></svg>Horário de Brasília</span></div>
+        <div class="days" id="days"></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>Sobre</h3></div>
+        <p style="font-size:14px">Coordenou equipes de enfermagem por doze anos em hospital universitário. Hoje ajuda lideranças novas a atravessar o primeiro ano: conversa difícil, escala, feedback que a equipe escuta.</p>
+        <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:12px"><span class="tag">Liderança</span><span class="tag">Saúde</span><span class="tag">Gestão de equipes</span><span class="tag">Feedback</span></div>
+      </div>
+    </div>
+    <div class="card confirm-card" id="confirmCard"></div>
+  </div>
+  <div class="anot"><b>Anotações</b><ul>
+    <li>Só aparecem horários livres. O motor devolve o motivo de cada recusa, mas mostrar "ocupado" ao Profissional contaria quanto a agenda do Parceiro está cheia — isso fica na tela do próprio Parceiro (P2).</li>
+    <li>Instantes no fuso de <code>profiles.timezone</code> do Profissional; o rótulo muda se o fuso não for o de Brasília.</li>
+    <li>"Agendar" chama <code>POST /api/bookings</code>. Recusa 409 aparece no próprio cartão com a frase do servidor e a grade é recarregada — o horário tomado some.</li>
+    <li>Com <code>auto_confirm</code> ligado, o texto troca "Helena confirma em até 48 horas" por "Confirmada na hora" e o sucesso vira "Sessão confirmada".</li>
+  </ul></div>
+</template>
+
+<!-- ============================================ Profissional: agenda -->
+<template id="t-agenda">
+  <div class="head"><div><span class="eyebrow">Profissional</span><h1>Minha agenda</h1><p>Horários no fuso de Brasília.</p></div>
+    <a class="btn ghost" href="#" data-go="busca"><svg class="i"><use href="#search"/></svg>Marcar outra</a></div>
+  <div class="split">
+    <div class="stack">
+      <div class="card">
+        <div class="card-head"><h3>Próximas</h3></div>
+        <ul class="sess">
+          <li><div class="cal"><small>ter</small><b>29</b></div>
+            <div><div class="who"><div class="avatar">HB</div><div><b>Helena Braga</b><div class="meta">ter, 29/09 · 09:00–09:30</div></div></div></div>
+            <div class="right"><span class="pill on">Confirmada</span></div></li>
+          <li><div class="cal"><small>qui</small><b>01</b></div>
+            <div><div class="who"><div class="avatar">HB</div><div><b>Helena Braga</b><div class="meta">qui, 01/10 · 09:00–09:30</div></div></div></div>
+            <div class="right"><span class="pill on">Confirmada</span></div></li>
+          <li><div class="cal"><small>qui</small><b>08</b></div>
+            <div><div class="who"><div class="avatar">RS</div><div><b>Rafael Souza</b><div class="meta">qui, 08/10 · 14:30–15:00</div></div></div><div class="sub" style="margin-top:4px">Aguardando Rafael até ter, 29/09, 20:10.</div></div>
+            <div class="right"><span class="pill wait">Aguardando</span></div></li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>Anteriores</h3></div>
+        <ul class="sess">
+          <li><div class="cal past"><small>ter</small><b>22</b></div>
+            <div><div class="who"><div class="avatar">HB</div><div><b>Helena Braga</b><div class="meta">ter, 22/09 · 10:00–10:30</div></div></div></div>
+            <div class="right"><span class="pill off">Realizada</span></div></li>
+          <li><div class="cal past"><small>sex</small><b>25</b></div>
+            <div><div class="who"><div class="avatar">RS</div><div><b>Rafael Souza</b><div class="meta">sex, 25/09 · 15:00–15:30</div></div></div><div class="sub" style="margin-top:4px">Rafael não pôde atender. A ficha voltou para você.</div></div>
+            <div class="right"><span class="pill bad">Recusada</span></div></li>
+          <li><div class="cal past"><small>seg</small><b>21</b></div>
+            <div><div class="who"><div class="avatar">CM</div><div><b>Carla Menezes</b><div class="meta">seg, 21/09 · 11:00–11:30</div></div></div><div class="sub" style="margin-top:4px">Sem resposta em 48 horas. A ficha voltou para você.</div></div>
+            <div class="right"><span class="pill off">Expirada</span></div></li>
+        </ul>
+      </div>
+    </div>
+    <div class="stack">
+      <div class="note"><svg class="i"><use href="#info"/></svg><div>A sala da sessão abre aqui, 10 minutos antes do horário, a partir da próxima etapa. Precisa desmarcar? Por enquanto, fale com a operadora da plataforma.</div></div>
+    </div>
+  </div>
+  <div class="anot"><b>Anotações</b><ul>
+    <li>Lido pela RLS de <code>bookings</code> (dono da sessão). Nome e foto do Parceiro pela policy que já deixa ver perfil de Parceiro ativo.</li>
+    <li>Rótulos: pendente → Aguardando · confirmada → Confirmada · done → Realizada · cancelled com <code>cancelled_by</code> = Parceiro → Recusada · expired → Expirada. Estorno dito em frase, porque é a pergunta que a pessoa faz.</li>
+  </ul></div>
+</template>
+
+<!-- ============================================ Parceiro: início -->
+<template id="t-p-inicio">
+  <div class="head"><div><span class="eyebrow">Parceiro</span><h1>Olá, Helena</h1><p>O que pede resposta sua e o que vem pela frente.</p></div></div>
+  <div class="stack">
+    <div class="grid-3">
+      <a class="stat" href="#" data-go="p-sessoes" style="border-color:color-mix(in srgb,var(--accent) 30%,#fff)"><svg class="i lg ic" style="color:var(--accent)"><use href="#inbox"/></svg><div class="n" style="color:var(--accent)">2</div><div class="l">Pedidos esperando você</div></a>
+      <div class="stat"><svg class="i lg ic"><use href="#calendar"/></svg><div class="n">3</div><div class="l">sessões nos próximos 7 dias</div></div>
+      <div class="stat"><svg class="i lg ic"><use href="#clock"/></svg><div class="n">2<span style="font-size:22px;color:var(--stone)"> / 4</span></div><div class="l">nesta semana (dom–sáb)</div><div class="meter"><i style="width:50%"></i></div></div>
+    </div>
+    <div class="split">
+      <div class="card">
+        <div class="card-head"><h3>Próximas sessões</h3><a class="link-sm" href="#" data-go="p-sessoes">Todas<svg class="i sm"><use href="#chevron-right"/></svg></a></div>
+        <ul class="sess">
+          <li><div class="cal"><small>ter</small><b>29</b></div><div><div class="who"><div class="avatar">MC</div><div><b>Mariana Costa</b><div class="meta">ter, 29/09 · 09:00–09:30</div><div class="sub">Coordenadora pedagógica · Faculdade Aurora</div></div></div></div><div class="right"><span class="pill on">Confirmada</span></div></li>
+          <li><div class="cal"><small>qui</small><b>01</b></div><div><div class="who"><div class="avatar">MC</div><div><b>Mariana Costa</b><div class="meta">qui, 01/10 · 09:00–09:30</div><div class="sub">Coordenadora pedagógica · Faculdade Aurora</div></div></div></div><div class="right"><span class="pill on">Confirmada</span></div></li>
+        </ul>
+      </div>
+      <div class="stack">
+        <div class="card">
+          <div class="card-head"><h3><svg class="i"><use href="#calendar-clock"/></svg>Sua agenda aberta</h3></div>
+          <p class="muted">Ter e qui, 09:00–12:00 · descanso de 15 min · até 4 por semana.</p>
+          <a class="btn ghost sm" href="#" style="margin-top:12px">Ajustar disponibilidade</a>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="anot"><b>Anotações</b><ul>
+    <li>"Nesta semana" conta como o motor conta o teto: domingo a sábado, sessões pendentes e confirmadas.</li>
+    <li>O resumo da agenda aberta reaproveita o que <code>/parceiro/disponibilidade</code> já calcula.</li>
+  </ul></div>
+</template>
+
+<!-- ============================================ Parceiro: sessões -->
+<template id="t-p-sessoes">
+  <div class="head"><div><span class="eyebrow">Parceiro</span><h1>Sessões</h1><p>Horários no seu fuso (Brasília). Pedido sem resposta em 48 horas expira e a ficha volta para quem pediu.</p></div></div>
+  <div class="split">
+    <div class="stack">
+      <div class="card" style="border-color:color-mix(in srgb,var(--accent) 30%,#fff)">
+        <div class="card-head"><h3><svg class="i" style="color:var(--accent)"><use href="#inbox"/></svg>Esperando sua resposta</h3><span class="eyebrow">2 pedidos</span></div>
+        <ul class="sess" id="pedidos">
+          <li data-pedido="1"><div class="cal"><small>ter</small><b>06</b></div>
+            <div><div class="who"><div class="avatar">JL</div><div><b>João Lima</b><div class="meta">ter, 06/10 · 10:00–10:30</div><div class="sub">Analista de RH · Hospital Santa Clara</div></div></div></div>
+            <div class="right"><div class="acts"><button class="btn ghost sm" data-recusar>Recusar</button><button class="btn sm" data-confirmar><svg class="i sm"><use href="#check"/></svg>Confirmar</button></div><span class="prazo">expira em 41 h</span></div></li>
+          <li data-pedido="2"><div class="cal"><small>qui</small><b>08</b></div>
+            <div><div class="who"><div class="avatar">AP</div><div><b>Ana Pires</b><div class="meta">qui, 08/10 · 11:00–11:30</div><div class="sub">Enfermeira supervisora · Hospital Santa Clara</div></div></div></div>
+            <div class="right"><div class="acts"><button class="btn ghost sm" data-recusar>Recusar</button><button class="btn sm" data-confirmar><svg class="i sm"><use href="#check"/></svg>Confirmar</button></div><span class="prazo">expira em 6 h</span></div></li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="tabs" role="tablist"><button role="tab" aria-selected="true" data-tab="prox">Próximas</button><button role="tab" aria-selected="false" data-tab="ant">Anteriores</button></div>
+        <ul class="sess" data-panel="prox">
+          <li><div class="cal"><small>ter</small><b>29</b></div><div><div class="who"><div class="avatar">MC</div><div><b>Mariana Costa</b><div class="meta">ter, 29/09 · 09:00–09:30</div><div class="sub">Coordenadora pedagógica · Faculdade Aurora</div></div></div></div><div class="right"><span class="pill on">Confirmada</span></div></li>
+          <li><div class="cal"><small>qui</small><b>01</b></div><div><div class="who"><div class="avatar">MC</div><div><b>Mariana Costa</b><div class="meta">qui, 01/10 · 09:00–09:30</div><div class="sub">Coordenadora pedagógica · Faculdade Aurora</div></div></div></div><div class="right"><span class="pill on">Confirmada</span></div></li>
+        </ul>
+        <ul class="sess" data-panel="ant" hidden>
+          <li><div class="cal past"><small>ter</small><b>22</b></div><div><div class="who"><div class="avatar">MC</div><div><b>Mariana Costa</b><div class="meta">ter, 22/09 · 10:00–10:30</div></div></div></div><div class="right"><span class="pill off">Realizada</span></div></li>
+          <li><div class="cal past"><small>seg</small><b>21</b></div><div><div class="who"><div class="avatar">CM</div><div><b>Carlos Mota</b><div class="meta">seg, 21/09 · 11:00–11:30</div></div></div></div><div class="right"><span class="pill off">Recusada por você</span></div></li>
+        </ul>
+      </div>
+    </div>
+    <div class="stack">
+      <div class="note"><svg class="i"><use href="#info"/></svg><div>Recusar devolve a ficha a quem pediu na mesma hora e libera o horário na sua agenda. Quem pediu não vê motivo — só que você não pôde atender.</div></div>
+    </div>
+  </div>
+  <div class="anot"><b>Anotações</b><ul>
+    <li>Confirmar e recusar são Route Handlers com <code>service_role</code> (invariante 4); o <code>partner_id</code> vem do JWT, nunca do corpo. Parceiro agindo na própria sessão não grava <code>audit_logs</code>.</li>
+    <li>Recusa em dois passos, como os destrutivos do admin. Sem campo de motivo no piloto.</li>
+    <li>"Expira em" conta de <code>created_at</code> + <code>pending_expires_hours</code>. Abaixo de 12 h o prazo fica em ouro para chamar atenção, sem animação.</li>
+    <li><b>Pergunta:</b> o Parceiro vê a empresa de quem pediu (linha "Analista de RH · Hospital Santa Clara")? Hoje a RLS de <code>profiles</code> não deixa o Parceiro ler perfil de Profissional nenhum; nome, cargo e empresa vão precisar de leitura nova de qualquer jeito.</li>
+  </ul></div>
+</template>
+
+<script>
+const NAV_PROF=[["home","Início","inicio"],["handshake","Parceiros","busca"],["calendar","Minha agenda","agenda"],["coins","Minhas fichas",""]];
+const NAV_PARC=[["home","Início","p-inicio"],["calendar","Sessões","p-sessoes"],["calendar-clock","Disponibilidade",""],["user","Meu perfil",""]];
+const PARCEIROS=[
+  {ini:"HB",nome:"Helena Braga",chamada:"Liderança em ambiente clínico",areas:["Liderança","Saúde"],prox:"ter, 29/09 · 10:00",ord:1},
+  {ini:"RS",nome:"Rafael Souza",chamada:"Carreira acadêmica e docência no ensino superior",areas:["Docência","Carreira"],prox:"qua, 30/09 · 18:30",ord:2},
+  {ini:"CM",nome:"Carla Menezes",chamada:"Transição de carreira para a gestão",areas:["Carreira","Gestão"],prox:"seg, 05/10 · 08:00",ord:3},
+  {ini:"TO",nome:"Tiago Oliveira",chamada:"Comunicação e conversas difíceis",areas:["Comunicação","Liderança"],prox:null,ord:9},
+];
+// horários livres da Helena, já no fuso da Profissional (terça e quinta, 9h–12h, descanso 15)
+const DIAS=[
+  ["terça","29/09",["10:00","10:30","11:00","11:30"]],
+  ["quinta","01/10",["10:00","10:30","11:00","11:30"]],
+  ["terça","06/10",["09:00","09:30","11:00","11:30"]],
+  ["quinta","08/10",["09:00","09:30","10:00"]],
+  ["terça","13/10",[]],
+];
+let escolha=null, estado="escolher", mobile=false;
+
+function navHtml(sel){
+  const parc=sel.startsWith("p-");
+  return (parc?NAV_PARC:NAV_PROF).map(([ic,l,go])=>`<a href="#" data-go="${go}" ${go===sel||(sel==="parceiro"&&go==="busca")?'aria-current="page"':""}><svg class="i"><use href="#${ic}"/></svg>${l}${go==="p-sessoes"?'<span class="badge">2</span>':""}</a>`).join("");
+}
+function render(go){
+  mobile=go==="mobile";
+  document.getElementById("desk").hidden=mobile;
+  document.getElementById("mob").hidden=!mobile;
+  const tela=mobile?"parceiro":go;
+  const alvo=document.getElementById(mobile?"stageMob":"stage");
+  alvo.innerHTML=document.getElementById("t-"+tela).innerHTML;
+  document.getElementById("nav").innerHTML=navHtml(tela);
+  const parc=tela.startsWith("p-");
+  document.getElementById("papel").textContent=parc?"Parceiro":"Profissional";
+  document.getElementById("saldoSide").style.display=parc?"none":"flex";
+  document.getElementById("email").textContent=parc?"helena@exemplo.com.br":"mariana@aurora.edu.br";
+  if(tela==="busca")montarBusca(alvo);
+  if(tela==="parceiro"){escolha=null;estado="escolher";montarDias(alvo);montarConfirmacao(alvo)}
+  document.querySelectorAll(".proto button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.go===go));
+  window.scrollTo(0,0);
+}
+
+/* ---- busca ---- */
+function montarBusca(r){
+  const areas=[...new Set(PARCEIROS.flatMap(p=>p.areas))].sort();
+  r.querySelector("#areas").innerHTML=`<button class="chip" aria-pressed="true" data-area="">Todas as áreas</button>`+areas.map(a=>`<button class="chip" aria-pressed="false" data-area="${a}">${a}</button>`).join("");
+  filtrar(r);
+  r.querySelector("#q").addEventListener("input",()=>filtrar(r));
+}
+function filtrar(r){
+  const q=(r.querySelector("#q").value||"").toLowerCase().normalize("NFD").replace(/\p{M}/gu,"");
+  const area=r.querySelector('#areas [aria-pressed="true"]').dataset.area;
+  const lista=PARCEIROS.filter(p=>(!area||p.areas.includes(area))&&(!q||[p.nome,p.chamada,...p.areas].join(" ").toLowerCase().normalize("NFD").replace(/\p{M}/gu,"").includes(q))).sort((a,b)=>a.ord-b.ord);
+  r.querySelector("#pgrid").innerHTML=lista.map(p=>`<div class="pcard" data-go="parceiro" tabindex="0">
+    <div class="top"><div class="avatar lg">${p.ini}</div><div><b>${p.nome}</b><small>${p.chamada}</small></div></div>
+    <div class="tags">${p.areas.map(a=>`<span class="tag">${a}</span>`).join("")}</div>
+    <div class="next ${p.prox?"":"none"}"><span>${p.prox?"Próximo horário":"Sem horário nas próximas 2 semanas"}</span>${p.prox?`<b>${p.prox}</b>`:""}<svg class="i" style="color:#D9C3CF"><use href="#chevron-right"/></svg></div></div>`).join("");
+  r.querySelector("#semResultado").hidden=lista.length>0;
+}
+
+/* ---- horários ---- */
+function montarDias(r){
+  r.querySelector("#days").innerHTML=DIAS.map(([d,data,hs])=>`<div class="day ${hs.length?"":"none"}"><div class="dl"><b>${d}</b><small>${data}</small></div><div class="slots">${hs.length?hs.map(h=>`<button class="slot" data-slot="${d}|${data}|${h}" aria-pressed="false">${h}</button>`).join(""):"Sem horário livre"}</div></div>`).join("");
+}
+function fim(h){const [H,M]=h.split(":").map(Number);const t=H*60+M+30;return String(Math.floor(t/60)).padStart(2,"0")+":"+String(t%60).padStart(2,"0")}
+function montarConfirmacao(r){
+  const c=r.querySelector("#confirmCard");
+  if(estado==="ok"){
+    const [d,data,h]=escolha.split("|");
+    c.innerHTML=`<div class="ok"><svg class="i"><use href="#check"/></svg><div><b>Pedido enviado</b><br>Helena tem até 48 horas para confirmar. Se ela não responder, a ficha volta para você.</div></div>
+      <div class="resumo" style="margin-top:14px"><div class="kv"><span>Quando</span><b style="text-transform:capitalize">${d}, ${data} · ${h}</b></div><div class="kv"><span>Seu saldo agora</span><b class="mono">4 fichas</b></div></div>
+      <a class="btn ghost block" href="#" data-go="agenda">Ver minha agenda</a>`;
+    setSaldo(4);return;
+  }
+  if(!escolha){
+    c.innerHTML=`<div class="card-head" style="margin-bottom:8px"><h3>Agendar</h3></div><p class="muted">Escolha um horário ao lado. A sessão dura 30 minutos e custa <b style="color:var(--ink)">1 ficha</b>.</p>
+      <div class="resumo" style="margin-top:12px;margin-bottom:0"><div class="kv"><span>Seu saldo</span><b class="custo"><span class="fichas"><i class="ficha s"></i><i class="ficha s"></i><i class="ficha s"></i></span><span class="mono">5</span></b></div><div class="kv"><span>Pedidos esperando resposta</span><b class="mono">1 de 2</b></div></div>`;
+    return;
+  }
+  const [d,data,h]=escolha.split("|");
+  c.innerHTML=`<span class="eyebrow">Você escolheu</span><div class="quando" style="margin-top:6px">${d}, ${data}</div><div class="quando-sub">${h}–${fim(h)} · horário de Brasília</div>
+    <div class="resumo" style="margin-top:14px">
+      <div class="kv"><span>Com</span><b>Helena Braga</b></div>
+      <div class="kv"><span>Custa</span><b class="custo"><i class="ficha s"></i>1 ficha</b></div>
+      <div class="kv"><span>Saldo depois</span><b class="mono">4 fichas</b></div>
+      <div class="kv"><span>Confirmação</span><b>Helena confirma em até 48 h</b></div>
+    </div>
+    ${estado==="erro"?`<div class="err" style="margin-bottom:12px"><svg class="i"><use href="#alert"/></svg><div>Esse horário acabou de ser tomado. Escolha outro.</div></div>`:""}
+    <button class="btn block" data-agendar>Agendar e usar 1 ficha</button>
+    <button class="btn ghost block" style="margin-top:8px" data-simular-erro>Simular recusa 409</button>
+    <p class="muted" style="margin-top:10px">Se Helena não puder atender ou não responder, a ficha volta para você.</p>`;
+}
+function setSaldo(n){document.getElementById("saldoN").textContent=n}
+
+document.addEventListener("click",e=>{
+  const go=e.target.closest("[data-go]");
+  if(go&&go.dataset.go){e.preventDefault();render(go.dataset.go);return}
+  const chip=e.target.closest("[data-area]");
+  if(chip){chip.parentNode.querySelectorAll(".chip").forEach(x=>x.setAttribute("aria-pressed","false"));chip.setAttribute("aria-pressed","true");filtrar(chip.closest("main"));return}
+  const s=e.target.closest("[data-slot]");
+  if(s){
+    const r=s.closest("main");r.querySelectorAll(".slot").forEach(x=>x.setAttribute("aria-pressed","false"));s.setAttribute("aria-pressed","true");
+    escolha=s.dataset.slot;estado="escolher";
+    if(mobile){const [d,data,h]=escolha.split("|");const bar=document.getElementById("barMob");bar.innerHTML=`<div><b style="text-transform:capitalize">${d.slice(0,3)}, ${data} · ${h}</b><small>1 ficha · saldo 5 → 4</small></div><button class="btn sm" data-mob-go>Agendar</button>`}
+    montarConfirmacao(r);return;
+  }
+  if(e.target.closest("[data-mob-go]")){document.getElementById("confirmCard")?.scrollIntoView({behavior:"smooth"});const r=document.getElementById("stageMob");r.querySelector("#confirmCard").scrollIntoView();return}
+  if(e.target.closest("[data-agendar]")){estado="ok";const r=e.target.closest("main");montarConfirmacao(r);r.querySelectorAll(".slot").forEach(x=>x.disabled=true);return}
+  if(e.target.closest("[data-simular-erro]")){
+    const r=e.target.closest("main");estado="erro";
+    const sel=r.querySelector('.slot[aria-pressed="true"]');if(sel)sel.remove();
+    montarConfirmacao(r);return;
+  }
+  const tab=e.target.closest("[data-tab]");
+  if(tab){const card=tab.closest(".card");card.querySelectorAll("[data-tab]").forEach(t=>t.setAttribute("aria-selected",t===tab));card.querySelectorAll("[data-panel]").forEach(p=>p.hidden=p.dataset.panel!==tab.dataset.tab);return}
+  const rec=e.target.closest("[data-recusar]");
+  if(rec){
+    const li=rec.closest("li");const nome=li.querySelector(".who b").textContent.split(" ")[0];
+    const box=document.createElement("div");box.className="recusa";
+    box.innerHTML=`<p>Recusar o pedido de ${nome}? A ficha volta para ${nome} agora e o horário reabre na sua agenda.</p><div class="acts"><button class="btn warn sm" data-recusa-ok>Recusar pedido</button><button class="btn ghost sm" data-recusa-cancel>Voltar</button></div>`;
+    li.appendChild(box);rec.closest(".acts").hidden=true;box.querySelector("[data-recusa-cancel]").focus();return;
+  }
+  if(e.target.closest("[data-recusa-cancel]")){const li=e.target.closest("li");li.querySelector(".recusa").remove();li.querySelector(".right .acts").hidden=false;return}
+  if(e.target.closest("[data-recusa-ok]")){const li=e.target.closest("li");li.innerHTML=`<div class="cal past"><small>${li.querySelector(".cal small").textContent}</small><b>${li.querySelector(".cal b").textContent}</b></div><div><b>${li.querySelector(".who b").textContent}</b><div class="sub">Pedido recusado. A ficha já voltou para a carteira de quem pediu.</div></div><div class="right"><span class="pill off">Recusada</span></div>`;return}
+  const conf=e.target.closest("[data-confirmar]");
+  if(conf){const li=conf.closest("li");li.querySelector(".right").innerHTML=`<span class="pill on">Confirmada</span>`;return}
+});
+document.addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.classList.contains("pcard"))render("parceiro");if(e.key==="Escape"){const b=document.querySelector("[data-recusa-cancel]");if(b)b.click()}});
+render("inicio");
+</script>
+</body>
+</html>
