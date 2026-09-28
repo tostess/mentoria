@@ -98,12 +98,17 @@ export type Participante = {
  * apaga o `?t=` da URL depois de ler, e recarregar a página é entrar sem token.
  *
  * `user_id` = `profiles.id`. É por ele que o fechamento reconhece quem entrou.
+ *
+ * `retorno` é a tela de fim nossa, em endereço absoluto: quem clica em sair no
+ * Prebuilt é levado para lá dentro do iframe, e a página sobe para a janela de
+ * cima. Sem ele o iframe ficaria na tela do Daily.
  */
 export function propriedadesDoToken(
   bookingId: string,
   inicio: Date,
   fim: Date,
   quem: Participante,
+  retorno?: string,
 ): PropriedadesToken {
   const { abre, fecha } = janelaDaSala(inicio, fim);
   return {
@@ -114,5 +119,11 @@ export function propriedadesDoToken(
     nbf: segundos(abre),
     exp: segundos(fecha),
     lang: "pt-BR",
+    ...(retorno === undefined ? {} : { redirect_on_meeting_exit: retorno }),
   };
+}
+
+/** A tela de fim da sessão, relativa. A rota de entrada a torna absoluta. */
+export function caminhoDoFim(bookingId: string): string {
+  return `/sala/${bookingId}/fim`;
 }

@@ -62,6 +62,12 @@ describe("propriedadesDoToken", () => {
     expect(propriedadesDoToken("s", INICIO, FIM, { ...quem, ehParceiro: false }).is_owner).toBe(false);
   });
 
+  it("quem clica em sair volta para a tela de fim nossa", () => {
+    const t = propriedadesDoToken("s", INICIO, FIM, quem, "https://app.exemplo/sala/s/fim");
+    expect(t.redirect_on_meeting_exit).toBe("https://app.exemplo/sala/s/fim");
+    expect(propriedadesDoToken("s", INICIO, FIM, quem)).not.toHaveProperty("redirect_on_meeting_exit");
+  });
+
   it("nenhuma propriedade de expulsão no token — ela anularia a da sala", () => {
     const t = propriedadesDoToken("s", INICIO, FIM, quem) as Record<string, unknown>;
     expect(Object.keys(t).filter((k) => k.startsWith("eject"))).toEqual([]);

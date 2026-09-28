@@ -14,6 +14,18 @@ describe("rótulos do status da sessão", () => {
     expect(rotuloDoStatus("cancelled", false).rotulo).toBe("Cancelada");
   });
 
+  it("a falta muda de nome com quem olha", () => {
+    const profissional = { lado: "professional", parceiro: "parceira" } as const;
+    const parceiro = { lado: "partner", parceiro: "parceira" } as const;
+
+    expect(rotuloDoStatus("no_show_partner", false, profissional).rotulo).toBe("Parceira faltou");
+    expect(rotuloDoStatus("no_show_professional", false, profissional).rotulo).toBe("Você não entrou");
+    expect(rotuloDoStatus("no_show_professional", false, parceiro).rotulo).toBe("Não compareceu");
+    expect(rotuloDoStatus("no_show_partner", false, parceiro).rotulo).toBe("Você não entrou");
+    // Os outros status não dependem do lado.
+    expect(rotuloDoStatus("done", false, parceiro).rotulo).toBe("Realizada");
+  });
+
   it("só pendente e confirmada são ativas — o mesmo recorte da constraint", () => {
     expect(bookingStatus.enumValues.filter(ehAtiva)).toEqual(["pending", "confirmed"]);
   });

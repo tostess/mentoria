@@ -24,6 +24,7 @@ import {
 } from "./operacoes";
 import {
   confirmacaoNaTransacao,
+  correcaoDePresencaNaTransacao,
   expirarPendentesNaConexao,
   fecharSessoesNaConexao,
   recusaNaTransacao,
@@ -43,7 +44,7 @@ import {
 
 export { ParceiroIndisponivel, ProfissionalInvalido } from "./operacoes";
 export type { Pedido, Reserva } from "./operacoes";
-export { PedidoJaRespondido, SessaoNaoEncontrada } from "./transicoes";
+export { CorrecaoRecusada, PedidoJaRespondido, SessaoNaoEncontrada } from "./transicoes";
 export type { Resposta, ResultadoDaRodada } from "./transicoes";
 export { PresenteRecusado } from "./presente";
 export type { CotaDoMes, PedidoDePresente } from "./presente";
@@ -150,6 +151,23 @@ export async function presentear(pedido: PedidoDePresente): Promise<CotaDoMes> {
     () => sql.begin((tx) => presenteNaSessao(tx, pedido)),
     "Não foi possível registrar o presente.",
   );
+}
+
+/** O Parceiro diz que o Profissional participou; a sala não registrou. Audita. */
+export async function corrigirPresenca(resposta: Resposta): Promise<void> {
+  await getSql().begin((tx) => correcaoDePresencaNaTransacao(tx, resposta));
+}
+
+/**
+ * As sessões em que o Parceiro deu presente, para a agenda dele. Privilegiada,
+ * com ele no `where`: a policy de `wallet_ledger` não o deixa ler a carteira de
+ * ninguém, e aqui ele só fica sabendo dos lançamentos que ele mesmo fez.
+ */
+export async function presentesDoParceiro(partnerId: string): Promise<Set<string>> {
+  const linhas = await getSql()<{ booking_id: string }[]>`
+    select booking_id from wallet_ledger
+     where type = 'gift' and by_user_id = ${partnerId} and booking_id is not null`;
+  return new Set(linhas.map((l) => l.booking_id));
 }
 
 /** A cota do mês e se esta sessão já ganhou presente, para a sala do Parceiro. */

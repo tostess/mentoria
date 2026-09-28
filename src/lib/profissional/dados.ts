@@ -122,6 +122,25 @@ export async function carregarExtrato(
     });
 }
 
+/**
+ * As sessões em que o Profissional ganhou presente, pelo próprio extrato — a
+ * agenda diz "Helena te deu 1 ficha" na sessão em que foi.
+ */
+export async function sessoesComPresente(userId: string): Promise<Set<string>> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("wallet_ledger")
+    .select("booking_id")
+    .eq("user_id", userId)
+    .eq("type", "gift");
+  if (error !== null) throw new Error(`presentes: ${error.message}`);
+  return new Set(
+    (data ?? [])
+      .map((l) => (l as Record<string, unknown>).booking_id)
+      .filter((id): id is string => typeof id === "string"),
+  );
+}
+
 // ---------------------------------------------------------------- P4
 
 function listaDeTexto(valor: unknown): string[] {

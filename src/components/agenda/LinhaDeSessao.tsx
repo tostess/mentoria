@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { Avatar } from "@/components/ui/Avatar";
 import { Pill } from "@/components/ui/Pill";
 import type { SessaoNaAgenda } from "@/lib/bookings/agenda";
-import { rotuloDoStatus } from "@/lib/bookings/rotulos";
+import { rotuloDoStatus, type Visao } from "@/lib/bookings/rotulos";
 import { diaDaSemanaCurto, diaDoMes, intervalo } from "@/lib/formato";
 
 /**
@@ -18,6 +18,7 @@ export function LinhaDeSessao({
   agora,
   detalhe,
   direita,
+  visao,
 }: {
   sessao: SessaoNaAgenda;
   fuso: string;
@@ -26,9 +27,11 @@ export function LinhaDeSessao({
   detalhe?: ReactNode;
   /** Substitui o selo de status. */
   direita?: ReactNode;
+  /** De que lado da sessão se olha — muda o nome da falta. */
+  visao?: Visao;
 }) {
   const passada = sessao.fim.getTime() <= agora.getTime();
-  const { rotulo, variante } = rotuloDoStatus(sessao.status, sessao.recusadaPeloParceiro);
+  const { rotulo, variante } = rotuloDoStatus(sessao.status, sessao.recusadaPeloParceiro, visao);
   const sub = [sessao.outro.cargo, sessao.outro.empresa].filter(Boolean).join(" · ");
 
   return (

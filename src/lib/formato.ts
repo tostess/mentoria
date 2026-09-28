@@ -158,6 +158,11 @@ export function rotuloDoFuso(fuso: string): string {
   return fuso === "America/Sao_Paulo" ? "Horário de Brasília" : fuso.replace(/_/g, " ");
 }
 
+/** `setembro` — o mês da cota de presente, no fuso da plataforma. */
+export function nomeDoMes(data: Date, fuso = FUSO_DA_TELA): string {
+  return local(data, fuso).setLocale("pt-BR").toFormat("LLLL");
+}
+
 /** "expira em 41 h" / "expira em 25 min" — prazo de resposta do Parceiro. */
 export function prazoRestante(limite: Date, agora: Date = new Date()): string {
   const minutos = Math.max(0, Math.floor((limite.getTime() - agora.getTime()) / 60_000));

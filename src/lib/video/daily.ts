@@ -50,6 +50,11 @@ export type PropriedadesToken = {
   nbf: number;
   exp: number;
   lang?: string;
+  /**
+   * Para onde o iframe vai quando a pessoa clica em sair. Só existe no token (na
+   * sala é 400) e não age na expulsão pela expiração — medido, spike §6.
+   */
+  redirect_on_meeting_exit?: string;
 };
 
 /** Uma entrada na sala. `join_time` em segundos Unix, `duration` em segundos. */

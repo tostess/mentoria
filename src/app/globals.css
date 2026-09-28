@@ -36,3 +36,60 @@ h3 {
 ::selection {
   background: #fcedf4;
 }
+
+/*
+ * O presente é o único momento com animação do produto (sistema de design).
+ * A ficha cai girando e brilha uma vez; o aviso desce por cima do vídeo. Com
+ * "reduzir movimento" ligado no sistema, tudo aparece parado.
+ */
+@keyframes ficha-cai {
+  0% {
+    transform: translateY(-28px) scale(0.55) rotateY(0deg);
+    opacity: 0;
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0) scale(1) rotateY(720deg);
+    opacity: 1;
+  }
+}
+
+@keyframes ficha-brilha {
+  0% {
+    box-shadow: 0 0 0 0 rgba(201, 138, 46, 0.55);
+  }
+  100% {
+    box-shadow: 0 0 0 18px rgba(201, 138, 46, 0);
+  }
+}
+
+@keyframes aviso-desce {
+  from {
+    transform: translateY(-12px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.presente-ficha {
+  animation:
+    ficha-cai 0.95s cubic-bezier(0.2, 0.8, 0.2, 1) both,
+    ficha-brilha 1.1s 0.85s ease-out 1;
+  border-radius: 9999px;
+}
+
+.presente-aviso {
+  animation: aviso-desce 0.35s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .presente-ficha,
+  .presente-aviso {
+    animation: none;
+  }
+}

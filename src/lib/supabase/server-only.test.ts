@@ -46,6 +46,7 @@ const SERVER_ONLY_MODULES = [
   "@/lib/admin/consultas",
   "@/lib/video",
   "@/lib/video/entrada",
+  "@/lib/video/dados",
 ];
 
 function sourceFiles(dir: string): string[] {
@@ -110,6 +111,7 @@ describe("invariante 5 — service_role só no servidor", () => {
       "lib/admin/consultas.ts",
       "lib/video/index.ts",
       "lib/video/entrada.ts",
+      "lib/video/dados.ts",
     ];
     const missing = guarded.filter((id) => {
       const file = files.find((f) => f.id === id);

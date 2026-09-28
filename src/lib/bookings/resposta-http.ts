@@ -2,7 +2,7 @@ import "server-only";
 
 import { getSession } from "@/lib/auth/session";
 import { LancamentoRepetido } from "@/lib/ledger/erros";
-import { PedidoJaRespondido, SessaoNaoEncontrada } from "./transicoes";
+import { CorrecaoRecusada, PedidoJaRespondido, SessaoNaoEncontrada } from "./transicoes";
 
 /**
  * O que confirmar e recusar têm em comum: quem pode, o id na rota, e como cada
@@ -42,7 +42,11 @@ export async function responderAoPedido<T extends object | void>(
     if (erro instanceof SessaoNaoEncontrada) {
       return Response.json({ erro: erro.message, motivo: erro.name }, { status: 404, headers: SEM_CACHE });
     }
-    if (erro instanceof PedidoJaRespondido || erro instanceof LancamentoRepetido) {
+    if (
+      erro instanceof PedidoJaRespondido ||
+      erro instanceof CorrecaoRecusada ||
+      erro instanceof LancamentoRepetido
+    ) {
       return Response.json({ erro: erro.message, motivo: erro.name }, { status: 409, headers: SEM_CACHE });
     }
     console.error(`[${rotulo}] falhou:`, erro instanceof Error ? erro.message : erro);

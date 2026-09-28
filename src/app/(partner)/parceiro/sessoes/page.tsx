@@ -1,17 +1,23 @@
+import type { ReactNode } from "react";
+import { botaoDaSala, quandoAbreASala } from "@/components/agenda/EntrarNaSala";
 import { LinhaDeSessao } from "@/components/agenda/LinhaDeSessao";
+import { CorrecaoDePresenca } from "@/components/parceiro/CorrecaoDePresenca";
 import { RespostaAoPedido } from "@/components/parceiro/RespostaAoPedido";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Ficha } from "@/components/ui/Ficha";
 import { Icone } from "@/components/ui/Icone";
 import { Note } from "@/components/ui/Note";
 import { requireRole } from "@/lib/auth/session";
-import { limiteDeResposta, separarAgenda } from "@/lib/bookings/agenda";
+import { presentesDoParceiro } from "@/lib/bookings";
+import { limiteDeResposta, separarAgenda, type SessaoNaAgenda } from "@/lib/bookings/agenda";
+import type { Visao } from "@/lib/bookings/rotulos";
 import { loadAppConfig } from "@/lib/config/load";
 import { prazoRestante, rotuloDoFuso } from "@/lib/formato";
 import { carregarPerfil } from "@/lib/parceiro/dados";
 import { carregarSessoesDoParceiro } from "@/lib/parceiro/sessoes";
-import { cap } from "@/lib/terms";
+import { cap, type Terms } from "@/lib/terms";
 
 export const metadata = { title: "Sessões" };
 
@@ -35,8 +41,10 @@ export default async function Page() {
   const perfil = await carregarPerfil(sessao.userId);
   const fuso = perfil?.fuso ?? "America/Sao_Paulo";
   const sessoes = await carregarSessoesDoParceiro(sessao.userId, t.professional);
+  const presentes = await presentesDoParceiro(sessao.userId);
   const { pedidos, proximas, anteriores } = separarAgenda(sessoes, agora);
   const horas = config.limits.pendingExpiresHours;
+  const visao: Visao = { lado: "partner", parceiro: t.partner };
 
   return (
     <>
@@ -97,7 +105,15 @@ export default async function Page() {
             ) : (
               <ul className="flex flex-col">
                 {proximas.map((s) => (
-                  <LinhaDeSessao key={s.id} sessao={s} fuso={fuso} agora={agora} />
+                  <LinhaDeSessao
+                    key={s.id}
+                    sessao={s}
+                    fuso={fuso}
+                    agora={agora}
+                    visao={visao}
+                    direita={botaoDaSala(s, agora)}
+                    detalhe={quandoAbreASala(s, agora, fuso)}
+                  />
                 ))}
               </ul>
             )}
@@ -107,18 +123,70 @@ export default async function Page() {
             <Card title="Anteriores">
               <ul className="flex flex-col">
                 {anteriores.slice(0, 30).map((s) => (
-                  <LinhaDeSessao key={s.id} sessao={s} fuso={fuso} agora={agora} />
+                  <LinhaDeSessao
+                    key={s.id}
+                    sessao={s}
+                    fuso={fuso}
+                    agora={agora}
+                    visao={visao}
+                    direita={botaoDaSala(s, agora)}
+                    detalhe={detalheDoHistorico(s, t, presentes.has(s.id))}
+                  />
                 ))}
               </ul>
             </Card>
           )}
         </div>
 
-        <Note icon={<Icone nome="info" tamanho={16} />}>
-          Recusar devolve a {t.ficha} a quem pediu na mesma hora e libera o horário na sua agenda.
-          Quem pediu não vê motivo — só que você não pôde atender.
-        </Note>
+        <div className="flex flex-col gap-[18px]">
+          <Note icon={<Icone nome="info" tamanho={16} />}>
+            Recusar devolve a {t.ficha} a quem pediu na mesma hora e libera o horário na sua agenda.
+            Quem pediu não vê motivo — só que você não pôde atender.
+          </Note>
+          <Note icon={<Icone nome="video" tamanho={16} />}>
+            A presença é lida da sala 15 minutos depois do fim. Se ela deu como ausente alguém que
+            participou, corrija na {t.session} — fica registrado no histórico da{" "}
+            {t.admin.toLowerCase()}.
+          </Note>
+        </div>
       </div>
     </>
   );
+}
+
+function primeiroNome(s: SessaoNaAgenda): string {
+  return s.outro.nome.split(/\s+/)[0] || s.outro.nome;
+}
+
+/**
+ * O que a sala disse, o presente, e — quando ela deu o Profissional como
+ * ausente — o "participou, sim" logo abaixo da frase que ele responde. Fica na
+ * coluna do meio, e não na do selo, porque a confirmação aberta precisa de
+ * largura para ser lida.
+ */
+function detalheDoHistorico(s: SessaoNaAgenda, t: Terms, deuPresente: boolean): ReactNode {
+  const frases: ReactNode[] = [];
+  if (s.status === "no_show_professional") {
+    frases.push(
+      <span key="ausente" className="flex flex-col items-start gap-1.5">
+        A sala não registrou a entrada de {primeiroNome(s)}.
+        <CorrecaoDePresenca bookingId={s.id} primeiroNome={primeiroNome(s)} />
+      </span>,
+    );
+  }
+  if (s.status === "no_show_partner") {
+    frases.push(
+      `A sala não registrou sua entrada, e a ${t.ficha} voltou para ${primeiroNome(s)}. Se você entrou, fale com a ${t.admin.toLowerCase()}.`,
+    );
+  }
+  if (deuPresente) {
+    frases.push(
+      <span key="presente" className="inline-flex items-center gap-1.5">
+        <Ficha size="s" />
+        Você deu 1 {t.ficha} de presente.
+      </span>,
+    );
+  }
+  if (frases.length === 0) return undefined;
+  return frases.length === 1 ? frases[0] : <span className="flex flex-col gap-1">{frases}</span>;
 }

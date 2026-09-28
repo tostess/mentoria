@@ -1,16 +1,23 @@
+import type { ReactNode } from "react";
+import { botaoDaSala, quandoAbreASala } from "@/components/agenda/EntrarNaSala";
 import { LinhaDeSessao } from "@/components/agenda/LinhaDeSessao";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { ButtonLink } from "@/components/ui/ButtonLink";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Ficha } from "@/components/ui/Ficha";
 import { Icone } from "@/components/ui/Icone";
 import { Note } from "@/components/ui/Note";
 import { requireRole } from "@/lib/auth/session";
 import { limiteDeResposta, separarAgenda, type SessaoNaAgenda } from "@/lib/bookings/agenda";
 import { loadAppConfig } from "@/lib/config/load";
 import { diaEHora, rotuloDoFuso } from "@/lib/formato";
-import { carregarAgendaDoProfissional, carregarFuso } from "@/lib/profissional/dados";
-import type { Terms } from "@/lib/terms";
+import {
+  carregarAgendaDoProfissional,
+  carregarFuso,
+  sessoesComPresente,
+} from "@/lib/profissional/dados";
+import { countFichas, type Terms } from "@/lib/terms";
 
 export const metadata = { title: "Minha agenda" };
 
@@ -29,9 +36,12 @@ export default async function Page() {
   const agora = new Date();
 
   const agenda = await carregarAgendaDoProfissional(sessao.userId, t.partner);
+  const presentes = await sessoesComPresente(sessao.userId);
   const { pedidos, proximas, anteriores } = separarAgenda(agenda, agora);
   const futuras = [...pedidos, ...proximas].sort((a, b) => a.inicio.getTime() - b.inicio.getTime());
   const horas = config.limits.pendingExpiresHours;
+  const visao = { lado: "professional", parceiro: t.partner } as const;
+  const bonus = config.fichaPolicy.partnerNoShowBonus;
 
   return (
     <>
@@ -64,10 +74,12 @@ export default async function Page() {
                     sessao={s}
                     fuso={fuso}
                     agora={agora}
+                    visao={visao}
+                    direita={botaoDaSala(s, agora)}
                     detalhe={
                       s.status === "pending"
                         ? `Aguardando ${primeiroNome(s)} até ${diaEHora(limiteDeResposta(s, horas), fuso)}.`
-                        : undefined
+                        : quandoAbreASala(s, agora, fuso)
                     }
                   />
                 ))}
@@ -84,7 +96,9 @@ export default async function Page() {
                     sessao={s}
                     fuso={fuso}
                     agora={agora}
-                    detalhe={detalheDoHistorico(s, t)}
+                    visao={visao}
+                    direita={botaoDaSala(s, agora)}
+                    detalhe={detalheDoHistorico(s, t, presentes.has(s.id), bonus)}
                   />
                 ))}
               </ul>
@@ -93,8 +107,8 @@ export default async function Page() {
         </div>
 
         <Note icon={<Icone nome="info" tamanho={16} />}>
-          A sala da {t.session} abre aqui, 10 minutos antes do horário, a partir da próxima etapa.
-          Precisa desmarcar? Por enquanto, fale com a {t.admin.toLowerCase()} da plataforma.
+          A sala da {t.session} abre aqui, 10 minutos antes do horário, e fecha 5 minutos depois do
+          fim. Precisa desmarcar? Por enquanto, fale com a {t.admin.toLowerCase()} da plataforma.
         </Note>
       </div>
     </>
@@ -105,10 +119,37 @@ function primeiroNome(s: SessaoNaAgenda): string {
   return s.outro.nome.split(/\s+/)[0] || s.outro.nome;
 }
 
-function detalheDoHistorico(s: SessaoNaAgenda, t: Terms): string | undefined {
+function detalheDoHistorico(
+  s: SessaoNaAgenda,
+  t: Terms,
+  ganhouPresente: boolean,
+  bonus: number,
+): ReactNode {
   if (s.status === "cancelled" && s.recusadaPeloParceiro) {
     return `${primeiroNome(s)} não pôde atender. A ${t.ficha} voltou para você.`;
   }
   if (s.status === "expired") return `Sem resposta a tempo. A ${t.ficha} voltou para você.`;
-  return undefined;
+
+  const frases: ReactNode[] = [];
+  if (s.status === "no_show_partner") {
+    frases.push(
+      `${primeiroNome(s)} não entrou na sala. Sua ${t.ficha} voltou` +
+        (bonus > 0 ? `, e você ganhou mais ${countFichas(bonus, t)} pelo transtorno.` : "."),
+    );
+  }
+  if (s.status === "no_show_professional") {
+    frases.push(
+      `A sala não registrou sua entrada, e a ${t.ficha} foi usada. Se você entrou, fale com a ${t.admin.toLowerCase()}.`,
+    );
+  }
+  if (ganhouPresente) {
+    frases.push(
+      <span key="presente" className="inline-flex items-center gap-1.5">
+        <Ficha size="s" />
+        {primeiroNome(s)} te deu 1 {t.ficha} de presente.
+      </span>,
+    );
+  }
+  if (frases.length === 0) return undefined;
+  return frases.length === 1 ? frases[0] : <span className="flex flex-col gap-1">{frases}</span>;
 }

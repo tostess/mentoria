@@ -43,6 +43,14 @@ describe("acesso por papel", () => {
   it("RH não alcança rota de sessão — invariante 10 começa na rota", () => {
     expect(canAccess("org_admin", "/agenda")).toBe(false);
     expect(canAccess("org_admin", "/parceiro/sessoes")).toBe(false);
+    expect(canAccess("org_admin", "/sala/qualquer")).toBe(false);
+  });
+
+  it("a sala é dos dois lados da sessão e de mais ninguém", () => {
+    expect(rolesFor("/sala/abc")).toEqual(["professional", "partner"]);
+    expect(rolesFor("/sala/abc/fim")).toEqual(["professional", "partner"]);
+    expect(canAccess("admin", "/sala/abc")).toBe(false);
+    expect(canAccess("moderator", "/sala/abc")).toBe(false);
   });
 
   it("rota sem dono é de todos — `/design` não é de papel nenhum", () => {

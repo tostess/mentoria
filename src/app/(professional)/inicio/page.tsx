@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { botaoDaSala, quandoAbreASala } from "@/components/agenda/EntrarNaSala";
 import { LinhaDeSessao } from "@/components/agenda/LinhaDeSessao";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { ButtonLink } from "@/components/ui/ButtonLink";
@@ -37,6 +38,8 @@ export default async function Page() {
   const agenda = await carregarAgendaDoProfissional(sessao.userId, t.partner);
   const { pedidos, proximas } = separarAgenda(agenda, agora);
   const proxima = proximas[0] ?? null;
+  const salaDaProxima = proxima ? botaoDaSala(proxima, agora) : undefined;
+  const abreDaProxima = proxima ? quandoAbreASala(proxima, agora, fuso) : undefined;
   const saldo = carteira?.saldo ?? 0;
   const horas = config.limits.pendingExpiresHours;
 
@@ -67,7 +70,7 @@ export default async function Page() {
             </div>
             <div className="min-w-0">
               <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#8E7C86]">
-                Próxima {t.session}
+                {salaDaProxima ? "A sala está aberta" : `Próxima ${t.session}`}
               </div>
               <h2 className="mt-1 text-[26px] capitalize">
                 {diaDaSemanaLongo(proxima.inicio, fuso)} · {hora(proxima.inicio, fuso)}
@@ -75,11 +78,12 @@ export default async function Page() {
               <p className="mt-0.5 text-[12.5px] text-[#8E7C86]">
                 Com <b className="text-[#2A1B26]">{proxima.outro.nome}</b> ·{" "}
                 {Math.round((proxima.fim.getTime() - proxima.inicio.getTime()) / 60_000)} minutos
+                {abreDaProxima && ` · ${abreDaProxima}`}
               </p>
             </div>
-            <Pill variant="on" className="justify-self-start sm:justify-self-end">
-              Confirmada
-            </Pill>
+            <div className="col-span-2 justify-self-start sm:col-span-1 sm:justify-self-end">
+              {salaDaProxima ?? <Pill variant="on">Confirmada</Pill>}
+            </div>
           </div>
         ) : (
           <EmptyState
@@ -119,6 +123,7 @@ export default async function Page() {
                       sessao={s}
                       fuso={fuso}
                       agora={agora}
+                      visao={{ lado: "professional", parceiro: t.partner }}
                       detalhe={`${nome} tem até ${diaEHora(limiteDeResposta(s, horas), fuso)} para responder. Se não responder, a ${t.ficha} volta para você.`}
                     />
                   );

@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SEM_CACHE = { "cache-control": "no-store" };
 
-export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const sessao = await getSession();
   if (sessao === null) {
     return Response.json({ erro: "Entre para acessar a sala." }, { status: 401, headers: SEM_CACHE });
@@ -29,7 +29,15 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   }
 
   try {
-    const entrada = await entrarNaSessao({ bookingId: id, userId: sessao.userId, agora: new Date() });
+    // A origem vem da própria requisição, nunca fixa: Preview, Production e a
+    // máquina de desenvolvimento têm endereços diferentes, e o token só serve à
+    // pessoa que o pediu — um `Host` forjado só desviaria a saída dela mesma.
+    const entrada = await entrarNaSessao({
+      bookingId: id,
+      userId: sessao.userId,
+      agora: new Date(),
+      origem: new URL(request.url).origin,
+    });
     return Response.json(
       {
         ok: true,

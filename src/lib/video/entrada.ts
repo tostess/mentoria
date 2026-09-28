@@ -3,7 +3,7 @@ import "server-only";
 import { marcarSala } from "@/lib/bookings";
 import { createClient } from "@/lib/supabase/server";
 import { daily, videoConfigurado } from "./index";
-import { porta, propriedadesDaSala, propriedadesDoToken, type Janela } from "./sala";
+import { caminhoDoFim, porta, propriedadesDaSala, propriedadesDoToken, type Janela } from "./sala";
 
 /**
  * Entrar na sessão: conferir quem é, conferir a hora, e só então falar com o
@@ -39,6 +39,8 @@ export async function entrarNaSessao(pedido: {
   bookingId: string;
   userId: string;
   agora: Date;
+  /** Origem da aplicação (`https://…`), para o redirecionamento de saída do token. */
+  origem: string;
 }): Promise<Entrada> {
   if (!videoConfigurado()) {
     throw new EntradaRecusada(503, "O vídeo ainda não está configurado neste ambiente.");
@@ -81,7 +83,13 @@ export async function entrarNaSessao(pedido: {
   const cliente = daily();
   const { sala } = await cliente.garantirSala(pedido.bookingId, propriedadesDaSala(inicio, fim));
   const token = await cliente.emitirToken(
-    propriedadesDoToken(pedido.bookingId, inicio, fim, { userId: pedido.userId, nome, ehParceiro }),
+    propriedadesDoToken(
+      pedido.bookingId,
+      inicio,
+      fim,
+      { userId: pedido.userId, nome, ehParceiro },
+      `${pedido.origem}${caminhoDoFim(pedido.bookingId)}`,
+    ),
   );
 
   return { url: `${sala.url}?t=${encodeURIComponent(token)}`, janela: agora.janela };

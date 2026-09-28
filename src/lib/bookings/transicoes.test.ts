@@ -14,6 +14,7 @@ import type { Limites } from "@/lib/scheduling";
 import type { EntradaNaSala } from "@/lib/video/presenca";
 import { reservaNaTransacao } from "./operacoes";
 import {
+  CorrecaoRecusada,
   MOTIVO_COMPENSACAO,
   MOTIVO_EXPIRACAO,
   MOTIVO_RECUSA,
@@ -21,6 +22,7 @@ import {
   PedidoJaRespondido,
   SessaoNaoEncontrada,
   confirmacaoNaTransacao,
+  correcaoDePresencaNaTransacao,
   expiracaoNaTransacao,
   expirarPendentesNaConexao,
   fechamentoNaTransacao,
@@ -515,6 +517,99 @@ run("fechar — presença lida da sala (invariante 18)", () => {
 
     expect(r.status).toBe("confirmed");
     expect(r.rodada.erros).toContain(`${r.s.bookingId}: Daily 503`);
+  });
+
+  it("a correção de presença passa a sessão para done, conta para o Parceiro e audita", async () => {
+    const r = await emRollback(async (tx) => {
+      const s = await cenario(tx, { autoConfirm: true });
+      await fechamentoNaTransacao(tx, s.bookingId, FECHAMENTO, [entrada(s.partnerId, -2, 30)]);
+      const saldoAntes = (await estado(tx, s.bookingId, s.professionalId)).saldo;
+
+      await correcaoDePresencaNaTransacao(tx, { bookingId: s.bookingId, partnerId: s.partnerId, agora: FECHAMENTO.agora });
+
+      const [parceiro] = await tx<{ session_count: number }[]>`
+        select session_count from partners where id = ${s.partnerId}`;
+      const auditoria = await tx<
+        { action: string; actor_id: string; actor_role: string; entity_id: string; org_id: string; after: unknown }[]
+      >`select action, actor_id, actor_role::text, entity_id, org_id, after from audit_logs
+         where action = 'corrigir_presenca' and actor_id = ${s.partnerId}`;
+      return {
+        s,
+        saldoAntes,
+        sessoes: parceiro.session_count,
+        auditoria,
+        ...(await estado(tx, s.bookingId, s.professionalId)),
+        ...(await fechamento(tx, s.bookingId)),
+      };
+    });
+
+    expect(r.status).toBe("done");
+    expect(r.attended_professional).toBe(true);
+    expect(r.sessoes).toBe(1);
+    // A ficha já tinha sido usada: corrigir não move dinheiro.
+    expect(r.saldo).toBe(r.saldoAntes);
+    expect(r.auditoria).toEqual([
+      {
+        action: "corrigir_presenca",
+        actor_id: r.s.partnerId,
+        actor_role: "partner",
+        entity_id: r.s.professionalId,
+        org_id: r.s.orgId,
+        after: { sessao: r.s.bookingId, status: "done", presenca_profissional: true, presenca_parceiro: true },
+      },
+    ]);
+  });
+
+  it("a sala que perdeu os dois: corrigir marca as duas presenças", async () => {
+    const r = await emRollback(async (tx) => {
+      const s = await cenario(tx, { autoConfirm: true });
+      await fechamentoNaTransacao(tx, s.bookingId, FECHAMENTO, []);
+      await correcaoDePresencaNaTransacao(tx, { bookingId: s.bookingId, partnerId: s.partnerId, agora: FECHAMENTO.agora });
+      const [a] = await tx<{ before: unknown }[]>`
+        select before from audit_logs where action = 'corrigir_presenca' and actor_id = ${s.partnerId}`;
+      return { antes: a.before, ...(await fechamento(tx, s.bookingId)) };
+    });
+
+    expect(r.attended_partner).toBe(true);
+    expect(r.attended_professional).toBe(true);
+    expect(r.antes).toMatchObject({ presenca_profissional: false, presenca_parceiro: false });
+  });
+
+  it("a falta do próprio Parceiro não se corrige por aqui", async () => {
+    const r = await emRollback(async (tx) => {
+      const s = await cenario(tx, { autoConfirm: true });
+      await fechamentoNaTransacao(tx, s.bookingId, FECHAMENTO, [entrada(s.professionalId, 0, 20)]);
+      const erro = await falha(tx, (sp) =>
+        correcaoDePresencaNaTransacao(sp, { bookingId: s.bookingId, partnerId: s.partnerId, agora: FECHAMENTO.agora }),
+      );
+      return { erro, ...(await estado(tx, s.bookingId, s.professionalId)) };
+    });
+
+    expect(r.erro).toBeInstanceOf(CorrecaoRecusada);
+    expect(r.status).toBe("no_show_partner");
+    expect(r.saldo).toBe(3);
+  });
+
+  it("sessão realizada e sessão de outro Parceiro são recusadas", async () => {
+    const r = await emRollback(async (tx) => {
+      const s = await cenario(tx, { autoConfirm: true });
+      await fechamentoNaTransacao(tx, s.bookingId, FECHAMENTO, [
+        entrada(s.partnerId, 0, 30),
+        entrada(s.professionalId, 0, 30),
+      ]);
+      const outro = await parceiroComRotina(tx, s.ator);
+      const jaFeita = await falha(tx, (sp) =>
+        correcaoDePresencaNaTransacao(sp, { bookingId: s.bookingId, partnerId: s.partnerId, agora: FECHAMENTO.agora }),
+      );
+      const alheia = await falha(tx, (sp) =>
+        correcaoDePresencaNaTransacao(sp, { bookingId: s.bookingId, partnerId: outro, agora: FECHAMENTO.agora }),
+      );
+      return { jaFeita, alheia };
+    });
+
+    expect(r.jaFeita).toBeInstanceOf(CorrecaoRecusada);
+    expect((r.jaFeita as Error).message).toMatch(/já conta como realizada/);
+    expect(r.alheia).toBeInstanceOf(SessaoNaoEncontrada);
   });
 
   it("duas rodadas seguidas estornam e compensam uma vez só", async () => {

@@ -32,6 +32,9 @@ export const ROUTE_RULES: readonly RouteRule[] = [
   { prefix: "/parceiros", roles: ["professional"] },
   { prefix: "/agenda", roles: ["professional"] },
   { prefix: "/fichas", roles: ["professional"] },
+  // A sala é dos dois lados da sessão. Quem é participante de qual sessão é
+  // conferido na página, pela RLS de `bookings` — aqui só se barra o papel.
+  { prefix: "/sala", roles: ["professional", "partner"] },
   { prefix: "/parceiro", roles: ["partner"] },
   { prefix: "/empresa", roles: ["org_admin"] },
   { prefix: "/admin", roles: ["admin", "moderator"] },

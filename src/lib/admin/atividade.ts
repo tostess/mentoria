@@ -232,6 +232,21 @@ export const ACOES = {
     tom: () => "neutral",
     predicado: (ev) => [fraco("gerou uma nova senha provisória para "), forte(nomeDoAlvo(ev))],
   },
+  /**
+   * Invariante 18: a presença vem da sala, e o Parceiro só corrige. O autor é o
+   * Parceiro, e é a única ação do catálogo feita por ele — a sala errou sobre
+   * quem ele atendeu, e a operadora precisa ver quem disse o contrário.
+   */
+  corrigir_presenca: {
+    icone: () => "check",
+    tom: () => "neutral",
+    predicado: (ev, t) => [
+      fraco("corrigiu a presença: "),
+      forte(nomeDoAlvo(ev)),
+      fraco(` participou da ${t.session}`),
+      ...daEmpresa(ev),
+    ],
+  },
 } as const satisfies Record<string, Definicao>;
 
 export type AcaoAuditada = keyof typeof ACOES;
@@ -285,6 +300,7 @@ export function rotuloDaAcao(acao: AcaoAuditada, t: Terms): string {
     desativar_conta: "Desativar acesso",
     reativar_conta: "Reativar acesso",
     redefinir_senha: "Nova senha",
+    corrigir_presenca: "Correção de presença",
   };
   return cap(ROTULOS[acao]);
 }

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { botaoDaSala, quandoAbreASala } from "@/components/agenda/EntrarNaSala";
 import { LinhaDeSessao } from "@/components/agenda/LinhaDeSessao";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { ButtonLink } from "@/components/ui/ButtonLink";
@@ -115,7 +116,15 @@ export default async function Page() {
             ) : (
               <ul className="flex flex-col">
                 {proximas.slice(0, 4).map((s) => (
-                  <LinhaDeSessao key={s.id} sessao={s} fuso={fuso} agora={agora} />
+                  <LinhaDeSessao
+                    key={s.id}
+                    sessao={s}
+                    fuso={fuso}
+                    agora={agora}
+                    visao={{ lado: "partner", parceiro: t.partner }}
+                    direita={botaoDaSala(s, agora)}
+                    detalhe={quandoAbreASala(s, agora, fuso)}
+                  />
                 ))}
               </ul>
             )}

@@ -1,4 +1,5 @@
 import type postgres from "postgres";
+import { registrarAuditoria } from "@/lib/audit";
 import { paraJsonb } from "@/lib/db/jsonb";
 import { paraInstante } from "@/lib/db/instantes";
 import type { Ator } from "@/lib/ledger/operacoes";
@@ -37,6 +38,14 @@ export class PedidoJaRespondido extends Error {
   constructor(mensagem: string) {
     super(mensagem);
     this.name = "PedidoJaRespondido";
+  }
+}
+
+/** A correção de presença só vale para quem a sala deu como ausente. */
+export class CorrecaoRecusada extends Error {
+  constructor(mensagem: string) {
+    super(mensagem);
+    this.name = "CorrecaoRecusada";
   }
 }
 
@@ -273,6 +282,68 @@ export async function fechamentoNaTransacao(
   }
 
   return true;
+}
+
+/**
+ * `no_show_professional → done`: o Parceiro diz que o Profissional participou
+ * e a sala não registrou (invariante 18 — o Parceiro só corrige).
+ *
+ * Só este sentido, decisão de 28/09/2026. Nos dois status a ficha já foi gasta,
+ * então corrigir não move dinheiro: muda o histórico e o que conta como sessão
+ * realizada. A falta do **próprio** Parceiro não passa por aqui — ela já estornou
+ * e compensou, e desfazê-la tiraria ficha da carteira de outra pessoa por decisão
+ * de quem tem interesse no resultado. Isso fica com a operadora.
+ *
+ * Grava `audit_logs` na mesma transação, com a pessoa afetada em `entity_id`
+ * (é por ela que o feed da operadora e o histórico por pessoa encontram a linha)
+ * e a sessão no `before`/`after`.
+ */
+export async function correcaoDePresencaNaTransacao(
+  tx: postgres.TransactionSql,
+  resposta: Resposta,
+): Promise<void> {
+  const [linha] = await tx<
+    { status: string; org_id: string; professional_id: string; attended_partner: boolean | null }[]
+  >`
+    select status::text, org_id, professional_id, attended_partner from bookings
+     where id = ${resposta.bookingId} and partner_id = ${resposta.partnerId}
+       for update`;
+  if (!linha) throw new SessaoNaoEncontrada();
+  if (linha.status !== "no_show_professional") {
+    throw new CorrecaoRecusada(
+      linha.status === "done"
+        ? "Essa sessão já conta como realizada."
+        : "Só dá para corrigir a presença de quem a sala deu como ausente.",
+    );
+  }
+
+  // `done` é "os dois estiveram lá". Quem afirma que a sessão aconteceu estava
+  // nela: se a sala também perdeu a entrada do Parceiro, a presença dele sobe
+  // junto — sem efeito em dinheiro, porque a falta do Profissional não estorna.
+  await tx`
+    update bookings set status = 'done', attended_professional = true, attended_partner = true
+     where id = ${resposta.bookingId}`;
+  await tx`update partners set session_count = session_count + 1 where id = ${resposta.partnerId}`;
+
+  await registrarAuditoria(tx, {
+    ator: { id: resposta.partnerId, role: "partner" },
+    orgId: linha.org_id,
+    acao: "corrigir_presenca",
+    entidade: "bookings",
+    entidadeId: linha.professional_id,
+    antes: {
+      sessao: resposta.bookingId,
+      status: "no_show_professional",
+      presenca_profissional: false,
+      presenca_parceiro: linha.attended_partner === true,
+    },
+    depois: {
+      sessao: resposta.bookingId,
+      status: "done",
+      presenca_profissional: true,
+      presenca_parceiro: true,
+    },
+  });
 }
 
 export type ResultadoDaRodada = {
