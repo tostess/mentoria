@@ -824,7 +824,7 @@ F16 formato grupo · F18 dashboards e exclusão de conta.
   **Exceção provisória, decidida em 27/09:** até o domínio próprio existir, a produção usa o
   `tostes`, com a mesma chave. Não há colisão de sala — o nome é o `booking_id` —, e sem webhook não
   há evento cruzado. O custo é que a chave de Development, que fica no `.env.local` e não é
-  *sensitive*, abre e lê salas de produção; é também por isso que girá-la passou a ser urgente. A
+  *sensitive*, abre e lê salas de produção. A chave colada no chat do spike foi girada em 28/09. A
   mídia continua em São Paulo porque o `geo` vai em cada sala, não só no domínio.
 - **Mídia em São Paulo; o Daily sabe o mínimo.** `geo: "sa-east-1"` no domínio de produção,
   `user_name` = primeiro nome, `user_id` = `profiles.id` opaco, gravação desligada. Os metadados de
@@ -929,7 +929,7 @@ Fase: **P5 na `main` e em produção desde 27/09/2026.** Protótipo aprovado em 
 chegando por consulta de 15 s e a correção de presença só do Profissional). O vídeo funcionou no
 celular pelo Preview da `p5`; a migração `sala_e_presente` foi aplicada no `mentoria` antes do push.
 Em produção o vídeo roda, provisoriamente, no domínio de teste `tostes` (chave cadastrada em
-Production e redeploy em 27/09). Faltam girar a chave e, quando o nome sair, o domínio próprio — ver
+Production e redeploy em 27/09). Falta, quando o nome sair, o domínio próprio — ver
 "P5 — o que falta para o piloto", abaixo. O piloto espera ainda o `send-reminders` (P5+), que espera
 o Resend e o domínio remetente.
 
@@ -1013,8 +1013,9 @@ Operação, para não redescobrir:
 A P5 está em produção desde 27/09. Para o vídeo chegar ao piloto de 10/11:
 
 1. ✅ **Teste do celular** no Preview da `p5` com o domínio `tostes` — o vídeo funcionou.
-2. **Girar a chave do Daily** que foi colada no chat do spike (`max_api_keys: 2` deixa girar sem
-   parar), e trocar nos **três** ambientes — Production usa a mesma chave desde 27/09.
+2. ✅ **Chave do Daily girada** em 28/09: a nova foi gerada no painel, entrou no `.env.local` e foi
+   trocada nos três ambientes por *pipe* (`.claude/settings.local.json` libera `npx vercel env
+   add/rm`), com redeploy da produção e do Preview da `p5`. Falta só apagar a antiga no Daily.
 3. ✅ **Merge** em 27/09: `db:migrate:prod` antes do push, fast-forward da `p5` na `main`.
 4. **Domínio Daily de produção**, com chave própria cadastrada só em Production (e `geo`
    `sa-east-1` no domínio). Depende do nome da plataforma. **Não bloqueia mais o piloto:** até lá a
