@@ -495,7 +495,7 @@ esquema, constraints e RLS · auth, papéis e config · motor de agenda.
 - **P4** ✅ Busca simples, agendamento, agenda das duas visões com confirmar e recusar,
   `expire-pending`, `close-sessions`
 - **P5** ✅ Sala Daily, presença lida da sala, presente de 1 ficha dentro da sala, correção de
-  presença — na branch `p5`; em produção depende do domínio Daily próprio
+  presença — na `main` e em produção desde 27/09; o vídeo em produção depende do domínio Daily próprio
 - **P5+** `send-reminders` 24h e 1h — espera Resend e o domínio remetente
 
 Fora do piloto: convite por token, candidatura espontânea, console do RH, personalização por
@@ -920,15 +920,12 @@ F16 formato grupo · F18 dashboards e exclusão de conta.
 
 ## Estado atual
 
-Fase: **P5 fechada na branch `p5`, sem merge.** Protótipo aprovado em 28/09 (com o presente
-chegando por consulta de 15 s e a correção de presença só do Profissional). A migração
-`sala_e_presente` está só no `mentoria-dev`. O que falta para o piloto — teste do celular, giro da
-chave do Daily, `db:migrate:prod` antes do merge, domínio Daily de produção — está em "P5 — o que
-falta para o piloto", abaixo. Depois da P5 o piloto só espera o `send-reminders` (P5+), que espera o
-Resend e o domínio remetente.
-
-A P4 está na `main` e em produção desde 27/09/2026 — seis migrações no `mentoria`, deploy de pé,
-`expire-pending` e `close-sessions` recusando chamada sem segredo.
+Fase: **P5 na `main` e em produção desde 27/09/2026.** Protótipo aprovado em 28/09 (com o presente
+chegando por consulta de 15 s e a correção de presença só do Profissional). O vídeo funcionou no
+celular pelo Preview da `p5`; a migração `sala_e_presente` foi aplicada no `mentoria` antes do push.
+Em produção a sala ainda diz "o vídeo ainda não está configurado neste ambiente": falta o domínio
+Daily de produção, e com ele o giro da chave — ver "P5 — o que falta para o piloto", abaixo. Depois
+disso o piloto só espera o `send-reminders` (P5+), que espera o Resend e o domínio remetente.
 
 O piloto já tem o ciclo da ficha inteiro sem vídeo: o Profissional acha um Parceiro em `/parceiros`
 (primeiro horário livre de cada um, no fuso dele), escolhe um horário em `/parceiros/[id]` e agenda;
@@ -975,8 +972,9 @@ as transações em `ledger/transacoes.test.ts`, `bookings/reserva.test.ts`,
 
 ### Produção
 
-No ar em `mentoria-bay.vercel.app` e completa desde 27/09/2026. O `mentoria` tem as seis
-migrações até a P4, conferidas por consulta (27 tabelas com RLS, 37 policies, triggers dos
+No ar em `mentoria-bay.vercel.app` e completa desde 27/09/2026. O `mentoria` tem as sete
+migrações até a P5 (`sala_e_presente` em 27/09, conferida por consulta: `fichas_used` e
+`fichas_extra` na `org_usage`, colunas da extensão fora), as seis primeiras conferidas por consulta (27 tabelas com RLS, 37 policies, triggers dos
 livros-caixa, `bookings_no_overlap`, `app_config`, hook, view `partner_professionals`); o hook está
 ligado e a operadora `tostess` entrou pela tela. As seis variáveis estão nos três ambientes, com o recorte da invariante 17. A única conta em
 produção é a da operadora; os dados de demonstração (Faculdade Aurora, Mariana Costa, Helena Braga)
@@ -1006,16 +1004,12 @@ Operação, para não redescobrir:
 
 ### P5 — o que falta para o piloto
 
-O código da P5 está completo na branch `p5`. Para ela chegar ao piloto de 10/11:
+A P5 está em produção desde 27/09. Para o vídeo chegar ao piloto de 10/11:
 
-1. **Teste do celular**, com você, pelo roteiro de `docs/spike-video.md` §5 (Safari no iPhone,
-   Chrome no Android: permissão, troca de câmera, tela bloqueada), agora na tela de verdade — um
-   Preview da branch com o domínio `tostes`. É também onde se confere a saída pelo botão do Prebuilt,
-   que em `localhost` não dá para ver (o Chrome barra o redirecionamento para a rede local).
+1. ✅ **Teste do celular** no Preview da `p5` com o domínio `tostes` — o vídeo funcionou.
 2. **Girar a chave do Daily** que foi colada no chat do spike (`max_api_keys: 2` deixa girar sem
    parar), e trocar em Preview e Development.
-3. **Merge:** `npm run db:migrate:prod` **antes** do push — o painel da operadora passa a ler
-   `fichas_used` e `fichas_extra`, que só existem com a migração `sala_e_presente`.
+3. ✅ **Merge** em 27/09: `db:migrate:prod` antes do push, fast-forward da `p5` na `main`.
 4. **Domínio Daily de produção**, com chave própria cadastrada só em Production (e `geo`
    `sa-east-1` no domínio). Depende do nome da plataforma. Sem ele, em produção a sala diz "o vídeo
    ainda não está configurado neste ambiente" e o `close-sessions` segue a regra da P4. **É o que
