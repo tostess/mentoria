@@ -23,7 +23,7 @@ import { isStaff } from "./auth";
  * A sessão. Invariante 7: sobreposição é impedida pelo **banco**, por uma
  * constraint de exclusão sobre `(partner_id, tstzrange(start_at, end_at))`
  * para status ativos — criada na migração à mão porque o Drizzle não modela
- * `exclude using gist`. Ela cobre inclusive a sessão estendida para 60 min.
+ * `exclude using gist`. Ela cobre também o `update` de `end_at`, não só o insert.
  *
  * Invariante 4: nenhuma policy de escrita. Reserva é transação SQL com
  * `service_role` (invariante 6).
@@ -44,8 +44,6 @@ export const bookings = pgTable(
     startAt: timestamp("start_at", { withTimezone: true }).notNull(),
     endAt: timestamp("end_at", { withTimezone: true }).notNull(),
     durationMin: integer("duration_min").notNull().default(30),
-    /** Invariante 20: minutos somados dentro da sala. Não custa ficha. */
-    extendedBy: integer("extended_by").notNull().default(0),
     priceFichas: integer("price_fichas").notNull().default(1),
     status: bookingStatus("status").notNull().default("pending"),
     /** Invariante 18: presença é derivada da sala; o Parceiro só corrige. */
@@ -114,8 +112,9 @@ export const briefings = pgTable(
 );
 
 /**
- * Invariante 18: gravado pelo webhook do Daily. O Parceiro nunca escreve aqui
- * — ele corrige `bookings.attended_*`, e a correção grava `audit_logs`.
+ * Invariante 18: gravado pelo fechamento da sessão, a partir da presença que o
+ * Daily registrou (`GET /meetings`). O Parceiro nunca escreve aqui — ele corrige
+ * `bookings.attended_*`, e a correção grava `audit_logs`.
  */
 export const sessionEvents = pgTable(
   "session_events",

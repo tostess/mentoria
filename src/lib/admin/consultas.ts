@@ -50,7 +50,7 @@ export async function resumoDaPlataforma(): Promise<ResumoDaPlataforma> {
       (select coalesce(sum(contracted_fichas), 0) from orgs)::int         as fichas_contratadas,
       (select coalesce(sum(balance), 0) from org_wallets)::int            as fichas_em_contrato,
       (select coalesce(sum(fichas_allocated), 0) from org_usage)::int     as fichas_alocadas,
-      (select coalesce(sum(fichas_spent), 0) from org_usage)::int         as fichas_usadas,
+      (select coalesce(sum(fichas_used), 0) from org_usage)::int          as fichas_usadas,
       (select count(*) from partners where status = 'active')::int        as parceiros_ativos,
       (select count(*) from profiles
         where role = 'professional' and deleted_at is null)::int          as profissionais`);
@@ -69,9 +69,11 @@ export async function resumoDaPlataforma(): Promise<ResumoDaPlataforma> {
 export type UtilizacaoDaEmpresa = {
   orgId: string;
   nome: string;
-  alocadas: number;
+  /** Alocadas mais as que chegaram sem sair do contrato (presente, compensação). */
+  recebidas: number;
+  /** Gastas em sessão menos as que voltaram por estorno. */
   usadas: number;
-  /** Null quando nada foi alocado: 0 ÷ 0 não é 0% de utilização, é sem dado. */
+  /** Null quando nada foi recebido: 0 ÷ 0 não é 0% de utilização, é sem dado. */
   taxa: number | null;
 };
 
@@ -83,13 +85,13 @@ export async function utilizacaoPorEmpresa(): Promise<UtilizacaoDaEmpresa[]> {
   const linhas = await getDb().execute<{
     org_id: string;
     nome: string;
-    alocadas: number;
+    recebidas: number;
     usadas: number;
   }>(raw`
-    select o.id                                       as org_id,
-           o.name                                     as nome,
-           coalesce(sum(u.fichas_allocated), 0)::int  as alocadas,
-           coalesce(sum(u.fichas_spent), 0)::int      as usadas
+    select o.id                                                          as org_id,
+           o.name                                                        as nome,
+           coalesce(sum(u.fichas_allocated + u.fichas_extra), 0)::int    as recebidas,
+           coalesce(sum(u.fichas_used), 0)::int                          as usadas
       from orgs o
       left join org_usage u on u.org_id = o.id
      where o.active
@@ -99,9 +101,9 @@ export async function utilizacaoPorEmpresa(): Promise<UtilizacaoDaEmpresa[]> {
   return linhas.map((linha) => ({
     orgId: linha.org_id,
     nome: linha.nome,
-    alocadas: linha.alocadas,
+    recebidas: linha.recebidas,
     usadas: linha.usadas,
-    taxa: linha.alocadas === 0 ? null : Math.round((linha.usadas / linha.alocadas) * 100),
+    taxa: linha.recebidas === 0 ? null : Math.round((linha.usadas / linha.recebidas) * 100),
   }));
 }
 

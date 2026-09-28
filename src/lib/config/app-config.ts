@@ -21,8 +21,11 @@ export type FichaPolicy = {
   price30: number;
   cancelWindowHours: number;
   partnerNoShowBonus: number;
+  /**
+   * A política da plataforma. O presente confere a cota em
+   * `partners.gift_quota_monthly`, que é da pessoa e pode divergir desta.
+   */
   giftQuotaMonthly: number;
-  extensionQuotaMonthly: number;
   idleNudgeAfterDays: number;
 };
 
@@ -68,7 +71,6 @@ export const DEFAULT_FICHA_POLICY: FichaPolicy = {
   cancelWindowHours: 12,
   partnerNoShowBonus: 1,
   giftQuotaMonthly: 3,
-  extensionQuotaMonthly: 3,
   idleNudgeAfterDays: 21,
 };
 
@@ -134,7 +136,6 @@ function parseFichaPolicy(value: unknown): FichaPolicy {
     cancelWindowHours: int(v.cancel_window_hours, d.cancelWindowHours),
     partnerNoShowBonus: int(v.partner_no_show_bonus, d.partnerNoShowBonus),
     giftQuotaMonthly: int(v.gift_quota_monthly, d.giftQuotaMonthly),
-    extensionQuotaMonthly: int(v.extension_quota_monthly, d.extensionQuotaMonthly),
     idleNudgeAfterDays: int(v.idle_nudge_after_days, d.idleNudgeAfterDays),
   };
 }

@@ -43,6 +43,13 @@
       "when": 1790552996831,
       "tag": "20260927234956_perfil_para_parceiro",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790557431721,
+      "tag": "20260928010351_sala_e_presente",
+      "breakpoints": true
     }
   ]
 }

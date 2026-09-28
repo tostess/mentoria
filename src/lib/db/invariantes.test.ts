@@ -168,7 +168,7 @@ run("invariante 7 — sobreposição é impedida pelo banco", () => {
     ).rejects.toThrow(/bookings_no_overlap|conflicting key|exclusion constraint/i);
   });
 
-  it("a extensão para 60 min também é coberta", async () => {
+  it("alongar o fim de uma sessão também é coberto, não só o insert", async () => {
     await expect(
       inRollback(async (tx) => {
         const { orgId, professionalId, partnerId } = await seed(tx);
@@ -183,10 +183,9 @@ run("invariante 7 — sobreposição é impedida pelo banco", () => {
           values (${orgId}, ${partnerId}, ${professionalId},
                   ${inicio}::timestamptz + interval '30 min',
                   ${inicio}::timestamptz + interval '60 min', 'confirmed')`;
-        // Estender a primeira para 60 min invade a segunda.
+        // Empurrar o fim da primeira para 60 min invade a segunda.
         await tx`
-          update bookings set end_at = ${inicio}::timestamptz + interval '60 min',
-                              extended_by = 30
+          update bookings set end_at = ${inicio}::timestamptz + interval '60 min'
            where id = ${b.id}`;
       }),
     ).rejects.toThrow(/bookings_no_overlap|conflicting key|exclusion constraint/i);

@@ -21,9 +21,9 @@ import { bookings } from "./sessions";
 import { isStaff } from "./auth";
 
 /**
- * Quota mensal de presente e de extensão do Parceiro. `period` é `YYYYMM`:
- * a quota **não acumula**, então o período é parte da chave e o mês novo
- * começa zerado sem precisar de job de reset.
+ * Quota mensal de presente do Parceiro. `period` é `YYYYMM`: a quota **não
+ * acumula**, então o período é parte da chave e o mês novo começa zerado sem
+ * precisar de job de reset.
  */
 export const giftQuotas = pgTable(
   "gift_quotas",
@@ -33,13 +33,11 @@ export const giftQuotas = pgTable(
       .references(() => partners.id, { onDelete: "cascade" }),
     period: text("period").notNull(),
     giftsUsed: integer("gifts_used").notNull().default(0),
-    extensionsUsed: integer("extensions_used").notNull().default(0),
   },
   (t) => [
     primaryKey({ columns: [t.partnerId, t.period] }),
     check("gift_quotas_period_format", sql`${t.period} ~ '^[0-9]{6}$'`),
     check("gift_quotas_gifts_nonneg", sql`${t.giftsUsed} >= 0`),
-    check("gift_quotas_extensions_nonneg", sql`${t.extensionsUsed} >= 0`),
     pgPolicy("gift_quotas_select_self", {
       for: "select",
       to: authenticatedRole,

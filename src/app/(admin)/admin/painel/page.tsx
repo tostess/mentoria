@@ -85,7 +85,8 @@ export default async function Page() {
         <div className="grid grid-cols-1 items-start gap-[18px] lg:grid-cols-[1.55fr_1fr]">
           <Card title={`Utilização por ${t.org.toLowerCase()}`} icone="dashboard">
             <p className="mb-4 text-[13px] leading-[1.5] text-[#8E7C86]">
-              {cap(t.fichas)} usadas ÷ alocadas, desde o início do contrato. É a conta que decide
+              {cap(t.fichas)} usadas ÷ recebidas, desde o início do contrato. Usada não conta
+              pedido que voltou; recebida inclui presente de {t.partner}. É a conta que decide
               renovação.
             </p>
 
@@ -108,7 +109,7 @@ export default async function Page() {
                 <thead>
                   <tr>
                     <Th>{t.org}</Th>
-                    <Th align="right">Alocadas</Th>
+                    <Th align="right">Recebidas</Th>
                     <Th align="right">Usadas</Th>
                     <Th>Utilização</Th>
                   </tr>
@@ -125,7 +126,7 @@ export default async function Page() {
                         </Link>
                       </Td>
                       <Td align="right">
-                        <span className="font-mono tabular-nums">{linha.alocadas}</span>
+                        <span className="font-mono tabular-nums">{linha.recebidas}</span>
                       </Td>
                       <Td align="right">
                         <span className="font-mono tabular-nums">{linha.usadas}</span>

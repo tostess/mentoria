@@ -32,7 +32,6 @@ describe("parseAppConfig", () => {
           cancel_window_hours: 12,
           partner_no_show_bonus: 1,
           gift_quota_monthly: 3,
-          extension_quota_monthly: 3,
           idle_nudge_after_days: 21,
         },
       },

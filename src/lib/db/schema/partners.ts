@@ -43,9 +43,12 @@ export const partners = pgTable(
     autoConfirm: boolean("auto_confirm").notNull().default(false),
     engagement: engagementType("engagement").notNull().default("voluntario"),
     contractedHoursMonthly: numeric("contracted_hours_monthly"),
-    /** Invariante 20: presentear ou estender — escolhe um, dentro da sala. */
+    /**
+     * Invariante 20: quantas fichas o Parceiro pode presentear por mês, dentro
+     * da sala. É esta coluna, e não `app_config`, que o presente confere: a cota
+     * é da pessoa, e a operadora pode mudá-la para um Parceiro só.
+     */
     giftQuotaMonthly: integer("gift_quota_monthly").notNull().default(3),
-    extensionQuotaMonthly: integer("extension_quota_monthly").notNull().default(3),
     ratingAvg: numeric("rating_avg"),
     ratingCount: integer("rating_count").notNull().default(0),
     sessionCount: integer("session_count").notNull().default(0),

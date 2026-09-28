@@ -8,6 +8,7 @@ import { requireRole } from "@/lib/auth/session";
 import { loadAppConfig } from "@/lib/config/load";
 import { DURACAO_DA_SESSAO_MIN } from "@/lib/config/limites";
 import { dataHora, quandoRelativo } from "@/lib/formato";
+import { fichasUsadas } from "@/lib/ledger/uso";
 import { carregarCarteira, carregarExtrato } from "@/lib/profissional/dados";
 import { cap, countFichas } from "@/lib/terms";
 
@@ -42,9 +43,7 @@ export default async function Page() {
   }
 
   const extrato = await carregarExtrato(sessao.userId);
-  const usadas = extrato
-    .filter((l) => l.quantidade < 0)
-    .reduce((soma, l) => soma + Math.abs(l.quantidade), 0);
+  const usadas = fichasUsadas(extrato);
 
   return (
     <>
