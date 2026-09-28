@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   ChaveInvalida,
   chaveAjuste,
+  chaveEstorno,
   chaveGasto,
   chaveAlocacaoManual,
   chaveAlocacaoMensal,
@@ -20,6 +21,7 @@ import {
 const USER = "11111111-1111-4111-8111-111111111111";
 const ORG = "22222222-2222-4222-8222-222222222222";
 const TOKEN = "3f2b91ca-7d4e-4a1b-9c0d-5e6f7a8b9c0d";
+const BOOKING = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
 
 describe("periodo", () => {
   it("formata YYYYMM com mês de dois dígitos", () => {
@@ -103,7 +105,6 @@ describe("chaves por tipo de lançamento", () => {
 });
 
 describe("chave do gasto", () => {
-  const BOOKING = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
 
   /**
    * A reserva tem identificador natural — uma sessão, um gasto —, então a chave
@@ -126,5 +127,26 @@ describe("chave do gasto", () => {
   it("não colide com as outras chaves do mesmo identificador", () => {
     expect(chaveGasto(BOOKING)).not.toBe(chaveAjuste(BOOKING, TOKEN));
     expect(chaveGasto(BOOKING).startsWith("alloc")).toBe(false);
+  });
+});
+
+describe("chave de estorno", () => {
+  it("é uma por sessão, no formato refund_{bookingId}", () => {
+    expect(chaveEstorno(BOOKING)).toBe(`refund_${BOOKING}`);
+    expect(chaveEstorno(BOOKING.toUpperCase())).toBe(chaveEstorno(BOOKING));
+  });
+
+  it("não depende do caminho: não há parâmetro para recusa ou expiração", () => {
+    // A garantia de um estorno só por sessão mora na aridade. Um segundo
+    // parâmetro seria a porta para `decline_` e `expire_` coexistirem.
+    expect(chaveEstorno.length).toBe(1);
+  });
+
+  it("não colide com o gasto da mesma sessão", () => {
+    expect(chaveEstorno(BOOKING)).not.toBe(chaveGasto(BOOKING));
+  });
+
+  it("recusa o que não é uuid", () => {
+    expect(() => chaveEstorno("abc")).toThrow(ChaveInvalida);
   });
 });

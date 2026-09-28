@@ -2,7 +2,7 @@ import type postgres from "postgres";
 import { registrarAuditoria } from "@/lib/audit";
 import type { Role } from "@/lib/auth/claims";
 import { TetoDaCarteira } from "./erros";
-import { chaveCompra } from "./keys";
+import { chaveCompra, chaveEstorno, chaveGasto } from "./keys";
 
 /**
  * O movimento da ficha, escrito dentro de uma transação que já existe.
@@ -150,6 +150,58 @@ export async function alocacaoNaTransacao(
     saldoContrato: naEmpresa.balance_after,
     saldoCarteira: naCarteira.balance_after,
   };
+}
+
+export type Estorno = {
+  bookingId: string;
+  /** Quem devolveu — o Parceiro que recusou. Nulo quando foi o trabalho agendado. */
+  ator: Ator | null;
+  /** Frase para o extrato do Profissional. Sem termo de domínio escrito à mão. */
+  motivo: string;
+};
+
+/**
+ * `refund` na carteira do Profissional: a ficha gasta numa sessão volta.
+ *
+ * O valor e a carteira **não** são parâmetros. Saem do lançamento de gasto da
+ * própria sessão (`spend_{bookingId}`), e é isso que garante que o estorno
+ * devolve exatamente o que saiu, para quem pagou, na empresa que pagou — nunca
+ * mais, nunca para outro. Sessão sem gasto não tem o que estornar, e chegar aqui
+ * com uma é defeito, não caso de uso.
+ *
+ * **Não confere o teto da carteira**, ao contrário da alocação. A ficha já era
+ * da pessoa; devolvê-la não é distribuir ficha nova, e recusar o estorno porque
+ * a carteira encheu no meio-tempo seria o produto ficando com a ficha dela.
+ *
+ * A idempotência é a chave `refund_{bookingId}` (invariante 16), uma por sessão
+ * seja qual for o caminho. Quem chama já trava a sessão e confere o status antes
+ * — a chave é a segunda cerca, a que não depende de ninguém lembrar da primeira.
+ *
+ * Sem `audit_logs`: o estorno acontece por decisão do Parceiro sobre a própria
+ * agenda ou pelo cron, e nenhum dos dois é ação de admin, moderador ou RH sobre
+ * terceiro (invariante 12). O próprio lançamento, com `booking_id` e
+ * `by_user_id`, é o registro.
+ */
+export async function estornoNaTransacao(
+  tx: postgres.TransactionSql,
+  estorno: Estorno,
+): Promise<{ quantidade: number; saldoCarteira: number }> {
+  const [gasto] = await tx<{ user_id: string; org_id: string; amount: number }[]>`
+    select user_id, org_id, amount from wallet_ledger
+     where idempotency_key = ${chaveGasto(estorno.bookingId)}`;
+
+  if (!gasto) throw new Error(`sessão sem gasto para estornar: ${estorno.bookingId}`);
+
+  const quantidade = -gasto.amount;
+
+  const [lancamento] = await tx<{ balance_after: number }[]>`
+    insert into wallet_ledger (user_id, org_id, type, amount, balance_after, booking_id,
+                               by_user_id, reason, idempotency_key)
+    values (${gasto.user_id}, ${gasto.org_id}, 'refund', ${quantidade}, 0, ${estorno.bookingId},
+            ${estorno.ator?.id ?? null}, ${estorno.motivo}, ${chaveEstorno(estorno.bookingId)})
+    returning balance_after`;
+
+  return { quantidade, saldoCarteira: lancamento.balance_after };
 }
 
 /**

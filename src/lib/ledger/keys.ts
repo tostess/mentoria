@@ -92,6 +92,19 @@ export function chaveGasto(bookingId: string): string {
   return `spend_${exigeId(bookingId)}`;
 }
 
+/**
+ * Estorno da ficha de uma sessão.
+ *
+ * **Uma chave por sessão, seja qual for o caminho** — recusa do Parceiro,
+ * expiração pelo cron e, depois, cancelamento. Se cada caminho tivesse a sua
+ * (`decline_…`, `expire_…`), o Parceiro recusando no minuto em que o cron expira
+ * o pedido devolveria a ficha duas vezes. Com uma só, quem chega depois colide
+ * na `unique` do livro-caixa.
+ */
+export function chaveEstorno(bookingId: string): string {
+  return `refund_${exigeId(bookingId)}`;
+}
+
 /** Ajuste de correção (invariante 3: corrige-se lançando, nunca editando). */
 export function chaveAjuste(alvoId: string, token: string): string {
   return `adjust_${alvoId}_${exigeToken(token)}`;

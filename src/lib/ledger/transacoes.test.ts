@@ -1,8 +1,10 @@
 import { afterAll, describe, expect, it } from "vitest";
 import postgres from "postgres";
 import { TetoDaCarteira, ehChaveRepetida, ehSaldoNegativo } from "./erros";
-import { chaveAlocacaoManual } from "./keys";
-import { alocacaoNaTransacao, compraNaTransacao } from "./operacoes";
+import { chaveAlocacaoManual, chaveEstorno } from "./keys";
+import { alocacaoNaTransacao, compraNaTransacao, estornoNaTransacao } from "./operacoes";
+import { reservaNaTransacao } from "@/lib/bookings/operacoes";
+import { parceiroComRotina } from "@/lib/db/cenario-de-teste";
 import {
   empresaNaTransacao,
   parceiroNaTransacao,
@@ -563,5 +565,154 @@ run("criação de Profissional", () => {
     expect(resultado.perfil.org_id).toBe(resultado.orgId);
     expect(resultado.carteira.balance).toBe(0);
     expect(resultado.carteira.org_id).toBe(resultado.orgId);
+  });
+});
+
+run("estorno da ficha de uma sessão", () => {
+  /**
+   * A sessão nasce pela reserva de verdade — `spend` e booking pela função que o
+   * Route Handler chama —, porque o estorno lê o gasto da própria sessão para
+   * saber quanto devolver e a quem. Um `spend` escrito à mão aqui testaria um
+   * lançamento que a aplicação talvez nem produza.
+   *
+   * Terça 29/09, 9h em São Paulo, vista de sexta 25/09 às 9h.
+   */
+  const AGORA = new Date("2026-09-25T12:00:00Z");
+  const TERCA_9H = new Date("2026-09-29T12:00:00Z");
+
+  async function sessaoReservada(tx: postgres.TransactionSql, naCarteira = 2) {
+    const ator = await operadora(tx);
+    const orgId = await empresa(tx, ator);
+    const professionalId = await profissional(tx, orgId, ator);
+    const partnerId = await parceiroComRotina(tx, ator, {
+      regras: [{ diaDaSemana: 2, inicioMin: 540, fimMin: 720 }],
+    });
+    await compraNaTransacao(tx, { orgId, fichas: 20, referencia: null, token: token(), ator });
+    await alocacaoNaTransacao(tx, {
+      orgId,
+      userId: professionalId,
+      quantidade: naCarteira,
+      tetoCarteira: 6,
+      chave: chaveAlocacaoManual(professionalId, token()),
+      ator,
+    });
+
+    const bookingId = crypto.randomUUID();
+    await reservaNaTransacao(tx, {
+      bookingId,
+      orgId,
+      partnerId,
+      professionalId,
+      inicio: TERCA_9H,
+      agora: AGORA,
+      limites: { horizonteDias: 14, avisoMinimoHoras: 12, duracaoMin: 30, passoMin: 30 },
+      precoFichas: 1,
+      maxPendentes: 2,
+    });
+
+    return { ator, orgId, professionalId, partnerId, bookingId };
+  }
+
+  it("devolve à carteira exatamente o que a sessão gastou", async () => {
+    const resultado = await inRollback(async (tx) => {
+      const s = await sessaoReservada(tx);
+      const antes = await tx<{ balance: number }[]>`
+        select balance from wallets where user_id = ${s.professionalId}`;
+
+      const estorno = await estornoNaTransacao(tx, {
+        bookingId: s.bookingId,
+        ator: { id: s.partnerId, role: "partner" },
+        motivo: "Pedido recusado",
+      });
+
+      const [linha] = await tx<
+        { type: string; amount: number; booking_id: string; by_user_id: string; reason: string }[]
+      >`
+        select type::text, amount, booking_id, by_user_id, reason from wallet_ledger
+         where idempotency_key = ${chaveEstorno(s.bookingId)}`;
+
+      return { s, antes: antes[0].balance, estorno, linha };
+    });
+
+    expect(resultado.antes).toBe(1);
+    expect(resultado.estorno).toEqual({ quantidade: 1, saldoCarteira: 2 });
+    expect(resultado.linha.type).toBe("refund");
+    expect(resultado.linha.amount).toBe(1);
+    expect(resultado.linha.booking_id).toBe(resultado.s.bookingId);
+    expect(resultado.linha.by_user_id).toBe(resultado.s.partnerId);
+    expect(resultado.linha.reason).toBe("Pedido recusado");
+  });
+
+  it("o segundo estorno da mesma sessão colide na chave, venha de onde vier (invariante 16)", async () => {
+    const resultado = await inRollback(async (tx) => {
+      const s = await sessaoReservada(tx);
+
+      // Parceiro recusa...
+      await estornoNaTransacao(tx, {
+        bookingId: s.bookingId,
+        ator: { id: s.partnerId, role: "partner" },
+        motivo: "Pedido recusado",
+      });
+
+      // ...e o cron chega no mesmo minuto para expirar o mesmo pedido.
+      const erro = await tx
+        .savepoint(async (sp) => {
+          await estornoNaTransacao(sp, {
+            bookingId: s.bookingId,
+            ator: null,
+            motivo: "Pedido expirou sem resposta",
+          });
+          return null;
+        })
+        .then(() => null)
+        .catch((falha: unknown) => falha);
+
+      const [carteira] = await tx<{ balance: number }[]>`
+        select balance from wallets where user_id = ${s.professionalId}`;
+      const [refunds] = await tx<{ n: number }[]>`
+        select count(*)::int as n from wallet_ledger
+         where booking_id = ${s.bookingId} and type = 'refund'`;
+
+      return { erro, carteira: carteira.balance, refunds: refunds.n };
+    });
+
+    expect(ehChaveRepetida(resultado.erro)).toBe(true);
+    expect(resultado.refunds).toBe(1);
+    expect(resultado.carteira).toBe(2);
+  });
+
+  it("devolve mesmo com a carteira no teto — a ficha já era da pessoa", async () => {
+    const resultado = await inRollback(async (tx) => {
+      const s = await sessaoReservada(tx, 6);
+      // Gastou 1 (sobrou 5); a recarga enche de novo até o teto de 6.
+      await alocacaoNaTransacao(tx, {
+        orgId: s.orgId,
+        userId: s.professionalId,
+        quantidade: 1,
+        tetoCarteira: 6,
+        chave: chaveAlocacaoManual(s.professionalId, token()),
+        ator: s.ator,
+      });
+
+      return estornoNaTransacao(tx, {
+        bookingId: s.bookingId,
+        ator: null,
+        motivo: "Pedido expirou sem resposta",
+      });
+    });
+
+    expect(resultado.saldoCarteira).toBe(7);
+  });
+
+  it("recusa estornar sessão que não gastou ficha", async () => {
+    await expect(
+      inRollback((tx) =>
+        estornoNaTransacao(tx, {
+          bookingId: crypto.randomUUID(),
+          ator: null,
+          motivo: "Pedido expirou sem resposta",
+        }),
+      ),
+    ).rejects.toThrow(/sem gasto/);
   });
 });
