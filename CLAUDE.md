@@ -40,13 +40,14 @@ ambientes desde 27/09/2026 — Production com o `mentoria`, Preview e Developmen
 `mentoria-dev` — e os segredos de Production e Preview são *sensitive*: não saem da Vercel.
 A pasta está ligada ao projeto por `vercel link` (`.vercel/`, ignorada pelo git).
 
-Mais duas, do spike do vídeo (27/09/2026), **só em Preview e Development**: `DAILY_API_KEY` (REST
-do Daily, domínio `tostes`) e `DAILY_WEBHOOK_SECRET` (HMAC do webhook, base64 sorteado aqui).
-Invariante 5: só servidor, sem `NEXT_PUBLIC_`; Preview *sensitive*. A chave é lida por
+Mais duas, do spike do vídeo (27/09/2026): `DAILY_API_KEY` (REST do Daily, domínio `tostes`) em
+Preview e Development e, **provisoriamente, também em Production** (desde 27/09, *sensitive*), e
+`DAILY_WEBHOOK_SECRET` (HMAC do webhook, base64 sorteado aqui) só em Preview e Development.
+Invariante 5: só servidor, sem `NEXT_PUBLIC_`; Preview e Production *sensitive*. A chave é lida por
 `requireDailyApiKey()` em `lib/env.server.ts`; o segredo do webhook não tem leitor enquanto a
-presença vier de `/meetings`. **Production não tem chave de propósito** — um domínio Daily por
-ambiente, e o de produção depende do nome da plataforma. Sem ela a sala responde 503 e o
-`close-sessions` volta à regra da P4. A conta Daily tem cartão cadastrado — sem ele nenhuma chamada
+presença vier de `/meetings`. A produção usa o domínio de teste até o domínio próprio existir, que
+depende do nome da plataforma — ver "Um domínio Daily por ambiente". Sem chave a sala responde 503
+e o `close-sessions` volta à regra da P4. A conta Daily tem cartão cadastrado — sem ele nenhuma chamada
 abre.
 
 Escolhida por RLS (protege o multi-tenant), constraints (garantem o livro-caixa) e SQL (relatório
@@ -819,8 +820,12 @@ F16 formato grupo · F18 dashboards e exclusão de conta.
   webhook fica para quando houver uso em tempo real.
 - **Um domínio Daily por ambiente.** O domínio aceita um webhook só e a chave é por domínio: com um
   domínio só, sala de teste chegaria à produção. `tostes` é Preview/Development; Production ganha
-  domínio próprio, com chave própria cadastrada só lá — e ele depende do nome da plataforma. Até
-  lá, a produção não tem vídeo.
+  domínio próprio, com chave própria cadastrada só lá — e ele depende do nome da plataforma.
+  **Exceção provisória, decidida em 27/09:** até o domínio próprio existir, a produção usa o
+  `tostes`, com a mesma chave. Não há colisão de sala — o nome é o `booking_id` —, e sem webhook não
+  há evento cruzado. O custo é que a chave de Development, que fica no `.env.local` e não é
+  *sensitive*, abre e lê salas de produção; é também por isso que girá-la passou a ser urgente. A
+  mídia continua em São Paulo porque o `geo` vai em cada sala, não só no domínio.
 - **Mídia em São Paulo; o Daily sabe o mínimo.** `geo: "sa-east-1"` no domínio de produção,
   `user_name` = primeiro nome, `user_id` = `profiles.id` opaco, gravação desligada. Os metadados de
   reunião ficam no Daily (EUA): transferência internacional (LGPD art. 33) a constar na política.
@@ -923,9 +928,10 @@ F16 formato grupo · F18 dashboards e exclusão de conta.
 Fase: **P5 na `main` e em produção desde 27/09/2026.** Protótipo aprovado em 28/09 (com o presente
 chegando por consulta de 15 s e a correção de presença só do Profissional). O vídeo funcionou no
 celular pelo Preview da `p5`; a migração `sala_e_presente` foi aplicada no `mentoria` antes do push.
-Em produção a sala ainda diz "o vídeo ainda não está configurado neste ambiente": falta o domínio
-Daily de produção, e com ele o giro da chave — ver "P5 — o que falta para o piloto", abaixo. Depois
-disso o piloto só espera o `send-reminders` (P5+), que espera o Resend e o domínio remetente.
+Em produção o vídeo roda, provisoriamente, no domínio de teste `tostes` (chave cadastrada em
+Production e redeploy em 27/09). Faltam girar a chave e, quando o nome sair, o domínio próprio — ver
+"P5 — o que falta para o piloto", abaixo. O piloto espera ainda o `send-reminders` (P5+), que espera
+o Resend e o domínio remetente.
 
 O piloto já tem o ciclo da ficha inteiro sem vídeo: o Profissional acha um Parceiro em `/parceiros`
 (primeiro horário livre de cada um, no fuso dele), escolhe um horário em `/parceiros/[id]` e agenda;
@@ -1008,12 +1014,12 @@ A P5 está em produção desde 27/09. Para o vídeo chegar ao piloto de 10/11:
 
 1. ✅ **Teste do celular** no Preview da `p5` com o domínio `tostes` — o vídeo funcionou.
 2. **Girar a chave do Daily** que foi colada no chat do spike (`max_api_keys: 2` deixa girar sem
-   parar), e trocar em Preview e Development.
+   parar), e trocar nos **três** ambientes — Production usa a mesma chave desde 27/09.
 3. ✅ **Merge** em 27/09: `db:migrate:prod` antes do push, fast-forward da `p5` na `main`.
 4. **Domínio Daily de produção**, com chave própria cadastrada só em Production (e `geo`
-   `sa-east-1` no domínio). Depende do nome da plataforma. Sem ele, em produção a sala diz "o vídeo
-   ainda não está configurado neste ambiente" e o `close-sessions` segue a regra da P4. **É o que
-   bloqueia o piloto** — se o nome não sair a tempo, vale um domínio provisório.
+   `sa-east-1` no domínio). Depende do nome da plataforma. **Não bloqueia mais o piloto:** até lá a
+   produção usa o `tostes` (decisão de 27/09). Na troca, é só substituir `DAILY_API_KEY` em
+   Production e fazer o redeploy; salas antigas do `tostes` já terão expirado.
 
 ### P5 — o que ficou de fora, de propósito
 
