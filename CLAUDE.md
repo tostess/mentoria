@@ -40,12 +40,14 @@ ambientes desde 27/09/2026 — Production com o `mentoria`, Preview e Developmen
 `mentoria-dev` — e os segredos de Production e Preview são *sensitive*: não saem da Vercel.
 A pasta está ligada ao projeto por `vercel link` (`.vercel/`, ignorada pelo git).
 
-Mais duas, do spike do vídeo (27/09/2026), **só em Preview e Development — pendentes de
-Production**: `DAILY_API_KEY` (REST do Daily, domínio `tostes`) e `DAILY_WEBHOOK_SECRET` (HMAC do
-webhook, base64 sorteado aqui). Invariante 5: só servidor, sem `NEXT_PUBLIC_`; Preview *sensitive*.
-Hoje só `src/app/api/lab/video/_lib/servidor.ts`, na branch `spike/video`, as lê. Production espera
-a decisão 4 da P5 (um domínio Daily por ambiente). A conta Daily tem cartão cadastrado — sem ele
-nenhuma chamada abre.
+Mais duas, do spike do vídeo (27/09/2026), **só em Preview e Development**: `DAILY_API_KEY` (REST
+do Daily, domínio `tostes`) e `DAILY_WEBHOOK_SECRET` (HMAC do webhook, base64 sorteado aqui).
+Invariante 5: só servidor, sem `NEXT_PUBLIC_`; Preview *sensitive*. A chave é lida por
+`requireDailyApiKey()` em `lib/env.server.ts`; o segredo do webhook não tem leitor enquanto a
+presença vier de `/meetings`. **Production não tem chave de propósito** — um domínio Daily por
+ambiente, e o de produção depende do nome da plataforma. Sem ela a sala responde 503 e o
+`close-sessions` volta à regra da P4. A conta Daily tem cartão cadastrado — sem ele nenhuma chamada
+abre.
 
 Escolhida por RLS (protege o multi-tenant), constraints (garantem o livro-caixa) e SQL (relatório
 vira query, não cron de pré-agregação).
@@ -449,8 +451,8 @@ pending ──confirmar──▶ confirmed ──fim + 15min──▶ done
 ### Indicador que sustenta a renovação
 
 **Taxa de utilização** = fichas usadas ÷ fichas recebidas, por empresa e mês. Usada é gasta menos
-estornada (pedido recusado ou expirado não é uso); recebida é alocada mais presenteada (ficha de
-presente gasta não pode empurrar a taxa acima de 100%). Empresa que paga e não usa não renova, então
+estornada (pedido recusado ou expirado não é uso); recebida é alocada mais o que chegou sem sair do
+contrato — presente e compensação (gasta, essa ficha não pode empurrar a taxa acima de 100%). Empresa que paga e não usa não renova, então
 subutilização é problema de produto. Em Postgres é uma view sobre `wallet_ledger` — não precisa de
 cron de pré-agregação, só de materialização se ficar lenta.
 
@@ -821,15 +823,54 @@ F16 formato grupo · F18 dashboards e exclusão de conta.
 - **Mídia em São Paulo; o Daily sabe o mínimo.** `geo: "sa-east-1"` no domínio de produção,
   `user_name` = primeiro nome, `user_id` = `profiles.id` opaco, gravação desligada. Os metadados de
   reunião ficam no Daily (EUA): transferência internacional (LGPD art. 33) a constar na política.
-- **Iframe do Prebuilt no piloto.** Sem dependência nova. O custo conhecido é a frase do Prebuilt
-  ao expulsar ("Você foi removido da chamada…"); `redirect_on_meeting_exit` é medido antes da tela
-  de fim, e se não servir `daily-js` entra registrado, só para ela.
+- **Iframe do Prebuilt no piloto, sem `daily-js`.** Medido em 28/09 (`docs/spike-video.md` §6):
+  `redirect_on_meeting_exit` só existe no **token** (na sala é 400), leva o iframe para o endereço
+  dado quando a pessoa clica em sair, e **não** age na expulsão pela expiração. Então a tela de fim
+  tem dois caminhos: a página troca o iframe pela nossa tela quando o relógio passa de `end_at` + 5
+  (o fim normal), e o token aponta o redirecionamento para uma página nossa que manda a janela de
+  cima para a mesma tela (a saída voluntária). Em `localhost` o redirecionamento não chega — o
+  Chrome barra página pública navegando para a rede local; em Preview funciona.
 - **O presente: 1 por sessão, só na sala, fora do teto e fora do contrato.** `wallet_ledger gift
   (+1)` e `gift_quotas.gifts_used + 1` na mesma transação, com chave `gift_{bookingId}` — a segunda
   tentativa colide, e é o banco que garante o "1 por sessão". Só o Parceiro da sessão, sessão
   `confirmed`, do início até a sala fechar. Ignora `max_balance` porque recusar o presente na frente
   do Profissional seria o pior momento possível para um limite, e a cota (3 por mês) já o limita. Não
   debita `org_ledger`: a ficha não saiu do contrato da empresa, saiu do Parceiro.
+- **A cota do presente é a coluna do Parceiro, não `app_config`.** `partners.gift_quota_monthly` é
+  da pessoa e a operadora pode mudá-la para um só; `ficha_policy.gift_quota_monthly` fica como a
+  política da plataforma. A cota é conferida e gasta num comando só (`insert … on conflict do update
+  … where gifts_used < cota`), porque ler e depois somar perderia a corrida entre duas sessões do
+  mesmo Parceiro. O mês é o de São Paulo, a mesma fronteira da recarga.
+- **A extensão saiu do esquema, não só da tela.** A migração `sala_e_presente` derruba
+  `bookings.extended_by`, `partners.extension_quota_monthly`, `gift_quotas.extensions_used` e a chave
+  em `app_config`. Coluna morta com nome de regra viva é convite para alguém reimplementá-la sem
+  saber por que caiu.
+- **Utilização conta uso líquido sobre tudo o que foi recebido.** Achado na P5: desde a P4 existe
+  estorno, e `org_usage` só tinha gasto bruto — pedido recusado contava como ficha usada, no painel
+  da operadora e no "Já usadas" de `/fichas`. No `mentoria-dev` a Faculdade Aurora aparecia com 86%
+  (6 ÷ 7) e o número certo era 43% (3 ÷ 7). A view ganhou `fichas_used` (gasto − estorno) e
+  `fichas_extra` (presente + compensação, que chegam sem sair do contrato e, gastas, empurrariam a
+  taxa acima de 100%). A conta do Profissional é `fichasUsadas` em `lib/ledger/uso.ts`, com o mesmo
+  critério.
+- **Sem chave do Daily, o fechamento volta à regra da P4.** Sem sala ninguém teria como entrar, e
+  marcar `no_show_professional` em toda sessão seria inventar falta — com a ficha indo embora junto.
+  É o caso da produção enquanto não houver domínio próprio. Com chave e Daily fora do ar é o
+  contrário: a sessão não fecha e fica para a próxima rodada, porque aí existe sala e o que falta é
+  a resposta dela.
+- **O `room_name` é gravado antes de qualquer chamada ao Daily.** O fechamento só pergunta ao Daily
+  por sessão com `room_name`; sem ele, ninguém recebeu token, logo ninguém entrou. Gravar depois
+  abriria a janela em que a pessoa entra, a escrita falha e o fechamento a dá como ausente.
+- **Compareceu é quem esteve na sala durante `[início, fim)`.** Testar a câmera às 8h52 e sair não
+  conta; chegar às 9h10 e ficar conta; entrar na tolerância depois do fim não conta. A presença é
+  casada por `user_id` = `profiles.id`, e cada entrada vira duas linhas em `session_events`
+  (`participant.joined`, `participant.left`) — os nomes de evento do webhook do Daily, para o dia em
+  que ele entrar gravar o mesmo vocabulário.
+- **A falta do Parceiro estorna e compensa com `adjust`, não `gift`.** Presente é gesto do Parceiro e
+  conta na cota dele; compensação é a plataforma reparando uma falha. Chave `noshow_{bookingId}`,
+  valor de `partner_no_show_bonus` (zero desliga). As duas entram em `fichas_extra`.
+- **Motivo no livro-caixa não leva nome de ninguém.** "Presente recebido na sessão", e não "Presente
+  de Helena": o livro-caixa é imutável e sobrevive à anonimização da LGPD — um nome ali seria o único
+  que a exclusão de conta não alcança.
 
 ## Descartado
 
@@ -851,10 +892,15 @@ F16 formato grupo · F18 dashboards e exclusão de conta.
 
 ## Estado atual
 
-Fase: **P5 em andamento na branch `p5`.** A P4 está na `main` e em produção desde 27/09/2026 —
-seis migrações no `mentoria`, deploy de pé, `expire-pending` e `close-sessions` recusando chamada
-sem segredo. As decisões da P5 foram fechadas no começo da sessão de 27/09 (a extensão saiu; ver
-"Decisões tomadas" e "Descartado"); o roteiro está abaixo.
+Fase: **P5 parte 1 na branch `p5`, sem merge.** Decisões fechadas (a extensão saiu), protótipo
+`docs/prototipo-p5.html` **aguardando aprovação**, e o servidor inteiro da P5 pronto e exercitado:
+migração `sala_e_presente` (só no `mentoria-dev`), `lib/video/` (cliente do Daily, sala, presença),
+`POST /api/sessoes/[id]/entrar`, `POST /api/sessoes/[id]/presentear` e o `close-sessions` lendo a
+presença. Faltam as telas, que esperam o protótipo. **Antes do merge**, `npm run db:migrate:prod` —
+o painel da operadora passa a ler `fichas_used` e `fichas_extra`, que só existem com a migração.
+
+A P4 está na `main` e em produção desde 27/09/2026 — seis migrações no `mentoria`, deploy de pé,
+`expire-pending` e `close-sessions` recusando chamada sem segredo.
 
 O piloto já tem o ciclo da ficha inteiro sem vídeo: o Profissional acha um Parceiro em `/parceiros`
 (primeiro horário livre de cada um, no fuso dele), escolhe um horário em `/parceiros/[id]` e agenda;
@@ -877,10 +923,20 @@ consomem pela **mesma** função, `avaliarAgenda` em `lib/bookings/operacoes.ts`
 que todo horário oferecido é aceito pela reserva. A tela de disponibilidade do Parceiro lê pela
 sessão dele. Os limites de `app_config` chegam a todos por `limitesDoMotor`.
 
-454 testes em 27 arquivos. Invariante 19 em `src/lib/auth/hook.test.ts`; invariantes 3, 4, 7, 8, 9,
-10 e 16 em `src/lib/db/invariantes.test.ts`; as transações em `ledger/transacoes.test.ts`,
-`bookings/reserva.test.ts`, `bookings/transicoes.test.ts` e `ledger/mensal.test.ts`, todas chamando as funções que a aplicação
-chama. Invariante 5 travada por `server-only` mais teste estático.
+O vídeo tem servidor e ainda não tem tela. `entrar` confere participante e janela, grava
+`room_name`, cria a sala (expira em fim + 5, dois lugares, mídia em São Paulo) e emite um token por
+chamada; `presentear` confere sessão, janela e cota e lança `gift`; o `close-sessions` pergunta ao
+Daily quem entrou e decide `done`/`no_show_*`, estornando e compensando a falta do Parceiro. Tudo
+isso foi exercitado no `next dev` contra o `mentoria-dev` e o Daily de verdade, com dois navegadores
+sem tela entrando na sala.
+
+505 testes em 32 arquivos. Invariante 19 em
+`src/lib/auth/hook.test.ts`; invariantes 3, 4, 7, 8, 9, 10 e 16 em `src/lib/db/invariantes.test.ts`;
+as transações em `ledger/transacoes.test.ts`, `bookings/reserva.test.ts`,
+`bookings/transicoes.test.ts` (com a presença), `bookings/presente.test.ts` e
+`ledger/mensal.test.ts`, todas chamando as funções que a aplicação chama. As regras puras do vídeo em
+`lib/video/*.test.ts`. Invariante 5 travada por `server-only` mais teste estático, agora com
+`DAILY_*` na lista.
 
 
 ### Produção
@@ -925,28 +981,26 @@ no iPhone, Chrome no Android: permissão, troca de câmera, tela bloqueada) ante
 ser dada por pronta; e girar a chave do Daily que foi colada no chat do spike (`max_api_keys: 2`
 deixa girar sem parar).
 
-**Nesta ordem:**
+**Feito na parte 1 (27–28/09):** protótipo; cliente do Daily em `lib/video/daily.ts`; migração
+`sala_e_presente`; presente (`bookings/presente.ts` + rota); entrada (`video/entrada.ts` + rota);
+presença no `close-sessions`; utilização corrigida; `redirect_on_meeting_exit` medido.
 
-1. **Protótipo** `docs/prototipo-p5.html`: sala dos dois lados com relógio nosso fora do iframe,
-   presente do Parceiro com a animação, o presente chegando para o Profissional, tela de fim,
-   estados antes da janela e depois do fim, celular.
-2. **Cliente do Daily** em `lib/video/daily.ts`, trazido do spike (`garantirSala`, `emitirToken`,
-   `reunioes`, `ErroDaily` e os testes), puro. `DAILY_API_KEY` lida em `lib/env.server.ts` e na
-   lista da invariante 5 em `server-only.test.ts`.
-3. **Migração:** sai do esquema o que era da extensão (`bookings.extended_by`,
-   `partners.extension_quota_monthly`, `gift_quotas.extensions_used`, a chave em `app_config`), e
-   `org_usage` passa a medir usada líquida de estorno e recebida com presente.
-4. **Presente:** `presenteNaTransacao` com teste; `POST /api/sessoes/[id]/presentear`.
-5. **Entrar:** `POST /api/sessoes/[id]/entrar` — participante lido do JWT (invariante 19), sessão
-   `confirmed`, janela de início − 10 min até `end_at` + 5; `garantirSala` e token como na seção
-   *Vídeo*; grava `room_name`. Escrita com `service_role` (invariante 4).
-6. **Presença:** `close-sessions` lê `/meetings`, grava `session_events` e `attended_*` e decide
-   `done`/`no_show_*`, trocando a regra provisória da P4. `no_show_partner` estorna e dá o bônus de
-   `partner_no_show_bonus`.
-7. **Tela da sessão**, depois do protótipo aprovado, com o iframe (`allow="camera; microphone;
-   fullscreen; display-capture; autoplay"`) e o relógio real.
-8. **Medir `redirect_on_meeting_exit`** antes de fechar a tela de fim.
-9. **Correção de presença** pelo Parceiro, gravando `audit_logs` (invariante 18).
+**Próxima sessão, nesta ordem:**
+
+1. **Aprovação do protótipo**, com as duas perguntas das anotações: o presente chegando para o
+   Profissional por consulta a cada 15 s ao próprio extrato, e a proposta de correção de presença
+   (o Parceiro corrige só a do Profissional, só de `no_show_professional` para `done`).
+2. **Tela da sessão** — `/sala/[id]` e `/parceiro/sala/[id]`, fora da casca, com o iframe
+   (`allow="camera; microphone; fullscreen; display-capture; autoplay"`), o relógio nosso, o painel
+   do presente (`presenteNaSala` já devolve cota e se já deu), a tela de antes e a de fim. A página
+   troca o iframe pela tela de fim em `end_at` + 5; o token ganha `redirect_on_meeting_exit` para
+   uma página nossa que leva a janela de cima para a mesma tela (origem tirada da requisição, nunca
+   fixa). Botão "Entrar na sala" no início e na agenda dos dois lados. Ícone `presente` (lucide
+   `Gift`) no mapa.
+3. **Rótulos novos** na agenda: `no_show_partner` e `no_show_professional`, e a linha do presente na
+   sessão em que ele foi dado.
+4. **Correção de presença** pelo Parceiro, gravando `audit_logs` (invariante 18) — ação nova no
+   catálogo de `lib/admin/atividade.ts`.
 
 O código do spike que não entra acima morre com a branch `spike/video` — a lista está em
 `docs/spike-video.md`, seção final.

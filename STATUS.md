@@ -4,6 +4,7 @@ Uma linha por sessão, mais recente no topo. Atualizar **antes** do commit final
 
 | Data | Etapa | O que foi feito | Pendências | Commit |
 |---|---|---|---|---|
+| 2026-09-27/28 | P5 (parte 1) | Estado real conferido: a P4 já estava na `main`, publicada e com a migração no `mentoria`. Branch `p5`. **Decisões fechadas com você: a extensão saiu** — o gesto do Parceiro na sala é presentear 1 ficha (só na sala, 1 por sessão, fora do teto e do contrato); expulsão em fim + 5; presença por `/meetings`; um domínio Daily por ambiente; mídia em São Paulo; iframe. Invariantes 7, 18 e 20 reescritas. Protótipo `docs/prototipo-p5.html`. Migração `sala_e_presente` (tira a extensão do esquema; `org_usage` com `fichas_used` e `fichas_extra`) aplicada no `mentoria-dev`; `lib/video/` (cliente do Daily do spike, `sala.ts`, `presenca.ts`, `entrada.ts`); `bookings/presente.ts`; `close-sessions` decidindo `done`/`no_show_*` pela sala, com estorno e compensação; `POST /api/sessoes/[id]/entrar` e `/presentear`; `DAILY_*` na cerca da invariante 5. **Defeito da P4 achado e corrigido:** estorno contava como ficha usada no painel e em `/fichas` (Aurora: 86% → 43%). `redirect_on_meeting_exit` medido (§6 do spike). 51 testes novos (505 no total) | **Protótipo aguardando aprovação**; telas da sala; correção de presença; `db:migrate:prod` antes do merge; teste do celular e giro da chave do Daily com você | — |
 | 2026-09-27 | P4 (parte 2) | Protótipo aprovado. Migração `perfil_para_parceiro`: view `partner_professionals` (nome, foto, cargo, área e empresa de quem marcou com o Parceiro — sem e-mail, telefone nem dado do contrato), aplicada no `mentoria-dev`, com 4 testes de comportamento como usuário; `avaliarAgenda` compartilhada entre tela e reserva, com teste de que todo horário oferecido é aceito; `horariosLivres` e `primeiroHorarioDeCada`; formatação de agenda por fuso em `lib/formato.ts`; rótulos de status tipados pelo enum; `separarAgenda` e `limiteDeResposta`; `POST /api/bookings/:id/confirmar` e `/recusar`; telas `/inicio`, `/parceiros`, `/parceiros/[id]`, `/agenda`, `/parceiro/inicio`, `/parceiro/sessoes`; ícones `alerta`, `info`, `fuso`, `chevron-left`; 28 testes novos (454 no total). Verificado no `next dev --webpack` contra o `mentoria-dev`: reserva, 401/403/404/409, recusa com estorno, confirmação, e cliques reais em Chrome headless por CDP (agendar, recusar em dois passos, corrida com 409, celular 390px) sem erro de console | **`db:migrate:prod` antes do merge**; merge na `main` publica telas e crons | — |
 | 2026-09-27 | P4 (parte 1) | Branch `p4` a partir da `main`, com o commit de documentação do spike (roteiro da P5 e `docs/spike-video.md`) trazido por *cherry-pick* — o código do laboratório ficou na `spike/video`. As quatro decisões fechadas pela recomendação (recusa estorna, `close-sessions` marca `done` até a P5, estorno com chave única `refund_{bookingId}`, `send-reminders` para depois da P5) e a máquina de estados ganhou a aresta da recusa; protótipo `docs/prototipo-p4.html` (início e agenda do Profissional, busca, página do Parceiro com horários e confirmação, início e sessões do Parceiro, celular); `estornoNaTransacao` + `chaveEstorno`; `lib/bookings/transicoes.ts` (confirmar, recusar, expirar, fechar, rodadas por sessão); `/api/cron/expire-pending` e `/api/cron/close-sessions` no `vercel.json`, exercitados no `next dev` contra o `mentoria-dev` (200 com segredo, 401 sem); 22 testes novos (426 no total) | **Protótipo aguardando aprovação**, com a pergunta "o Parceiro vê cargo e empresa de quem pediu?"; telas e Route Handlers de confirmar/recusar; os crons novos só chegam à Vercel com o merge | — |
 | 2026-09-27 | P5-0 (spike) | **Branch `spike/video`, sem merge.** Vídeo medido com Chrome headless por CDP (sem dependência nova) contra o Daily: criação concorrente (uma 200, demais 400 `invalid-request-error` igual a nome inválido → `garantirSala` confirma por `GET`, com teste); `nbf`/`exp` do token só controlam entrada, permanência é `eject_at_*`; **extensão pelo `exp` da sala refutada** — a expulsão é fixada na entrada de cada pessoa — e fim pelo servidor (`/eject` por `user_ids`) medido em 1–2 s; aviso do Prebuilt só nos últimos 5 min; `/meetings` dá presença exata sem webhook; `canExtend`: com descanso 15 a constraint não recusa a extensão (`tstzrange` semiaberto), o descanso é que se viola. Lab em `/lab/video` e `/api/lab/video/*`, 404 com `VERCEL_ENV=production`, cerca estática em `_lib/lab.test.ts`; rota de webhook com assinatura HMAC (503/401/200 exercitados localmente); `DAILY_API_KEY` e `DAILY_WEBHOOK_SECRET` em Preview (*sensitive*) e Development; `docs/spike-video.md`; roteiro da P5 no CLAUDE.md com 7 decisões; 26 testes novos (430 no total) | Teste no celular (roteiro no doc, §5); webhook adiado — falta bypass da proteção do Preview; decisões da P5 em aberto; chave do Daily foi colada no chat — girar depois do spike; P4 continua sendo a próxima feature | `spike/video` |
@@ -57,6 +58,28 @@ Uma linha por sessão, mais recente no topo. Atualizar **antes** do commit final
 
 ## Decisões de sessão
 _(dependência escolhida, atalho tomado, dívida assumida — o que não merece o CLAUDE.md)_
+
+- **2026-09-28 (P5, verificação):** a sessão confirmada da Mariana com a Helena de **08/10 deixou de
+  existir nessa data**: foi trazida para 27/09 às 22h para exercitar as rotas, ganhou o presente
+  (Mariana +1 ficha, `gift` no livro-caixa; `gift_quotas` da Helena em 202609 com 1 usado), recebeu
+  dois navegadores sem tela na sala e foi fechada pelo `close-sessions` como `done`, com as duas
+  presenças e quatro linhas em `session_events`. Ficou registrada como realizada em 27/09,
+  21h51–22h21. A sala `8b0d1622…` no Daily expirou sozinha.
+- **2026-09-28 (P5, verificação):** os navegadores sem tela entraram com um **token de medição**
+  emitido à parte — mesmo `user_id`, sem a tela de teste de câmera —, porque o token da rota liga
+  `enable_prejoin_ui` e navegador sem tela não clica em "Participar". A sala e o token da rota foram
+  conferidos pelo que o Daily devolve (`GET /rooms` e o conteúdo do JWT), e a presença pela leitura
+  real do `close-sessions`.
+- **2026-09-28 (P5):** `/meetings` de reunião derrubada à força continua `ongoing: true` por alguns
+  minutos, com a duração até a última notícia. Não afeta o fechamento, que roda 15 min depois do fim
+  e 10 min depois de a sala expulsar todo mundo.
+- **2026-09-28 (P5):** `redirect_on_meeting_exit` foi medido com salas `lab-redirect-*`, apagadas no
+  fim de cada rodada. Um dos tokens de medição apareceu na saída do terminal — de uma sala que não
+  chegou a existir; não abre nada.
+- **2026-09-28 (P5):** a cota de presente do mês é conferida contra `partners.gift_quota_monthly`,
+  não contra `app_config`. Quem cria Parceiro não lê `app_config` para preencher a coluna (nasce com o
+  default 3 do esquema); se a política da plataforma mudar, os Parceiros existentes não mudam junto.
+  Dívida pequena, anotada.
 
 - **2026-09-27 (P4, verificação):** o `next dev` com Turbopack devolveu 500 em toda tela: o processo
   filho do PostCSS morre com `0xc0000142` no ambiente do Claude Code (as rotas de API passavam

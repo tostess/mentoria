@@ -309,6 +309,30 @@ podeEstender({ sessao, outrasDoParceiro, bufferMin, extensoesNoMes, cotaMensal, 
 
 ---
 
+## 6. Tela de fim: `redirect_on_meeting_exit` (medido em 28/09/2026, P5 parte 1)
+
+Página local com o Prebuilt dentro de `<iframe allow="camera; microphone; …">`, Chrome sem tela
+dirigido por CDP, sala de teste com `exp` de 45–50 s e `eject_at_room_exp: true`. A URL do iframe
+foi lida pelos alvos de depuração (`/json`, tipo `iframe`): iframe de outro domínio não aparece em
+`Page.getFrameTree` da página.
+
+| Cenário | O que se viu |
+|---|---|
+| `redirect_on_meeting_exit` como propriedade **de sala** | **400** `invalid-request-error`: `invalid property name 'redirect_on_meeting_exit'`. Só existe no token. |
+| No token, pessoa **expulsa pela expiração da sala** | Sem redirecionamento. O iframe fica em "You were removed from the call — Contact the meeting host if you were removed unexpectedly" (foto). Saída registrada em `/meetings` no segundo exato do `exp`. |
+| No token, pessoa **clica em Leave** no Prebuilt | O iframe navega para o endereço do token, com `?recent-call=tostes/<sala>` acrescentado, ~5 s depois do clique, e fica lá. |
+| O mesmo, com o endereço em `http://localhost` | O iframe cai em `chrome-error://chromewebdata/` e o pedido nunca chega ao servidor local — o Chrome não deixa página pública navegar para a rede local. Em desenvolvimento o redirecionamento não funciona; em Preview e Production, com `https` público, funciona. |
+
+**Consequência para a tela.** Os dois fins têm caminho, e nenhum depende de `daily-js`:
+
+- **Expulsão pela expiração** (o fim normal): a página troca o iframe pela tela de fim nossa quando o
+  relógio passa de `end_at` + 5 — o mesmo segundo em que o Daily expulsa. A frase do Prebuilt nunca
+  fica na tela.
+- **Saída voluntária** (botão Leave): o token leva `redirect_on_meeting_exit` para uma página nossa
+  do mesmo domínio, que carrega dentro do iframe e manda a janela de cima para a tela de fim.
+
+---
+
 ## O código do spike
 
 Tudo em `src/app/lab/video/` e `src/app/api/lab/video/`, 404 com `VERCEL_ENV === "production"`
