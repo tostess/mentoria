@@ -494,7 +494,8 @@ esquema, constraints e RLS · auth, papéis e config · motor de agenda.
 - **P3** ✅ Carteiras, `allocate-monthly`, `POST /api/bookings` transacional
 - **P4** ✅ Busca simples, agendamento, agenda das duas visões com confirmar e recusar,
   `expire-pending`, `close-sessions`
-- **P5** Sala Daily, presença lida da sala, presente de 1 ficha dentro da sala
+- **P5** ✅ Sala Daily, presença lida da sala, presente de 1 ficha dentro da sala, correção de
+  presença — na branch `p5`; em produção depende do domínio Daily próprio
 - **P5+** `send-reminders` 24h e 1h — espera Resend e o domínio remetente
 
 Fora do piloto: convite por token, candidatura espontânea, console do RH, personalização por
@@ -871,6 +872,33 @@ F16 formato grupo · F18 dashboards e exclusão de conta.
 - **Motivo no livro-caixa não leva nome de ninguém.** "Presente recebido na sessão", e não "Presente
   de Helena": o livro-caixa é imutável e sobrevive à anonimização da LGPD — um nome ali seria o único
   que a exclusão de conta não alcança.
+- **A sala é uma rota só, `/sala/[id]`, dos dois papéis, fora da casca.** O protótipo falava em
+  duas; a sala é a mesma para os dois lados e só o painel muda. A tabela de acesso barra o papel
+  (`/sala` é de Profissional e Parceiro, e de mais ninguém — nem da operadora); quem é participante
+  de qual sessão, a página confere pela RLS de `bookings` e de novo no código, porque a policy deixa
+  a equipe ler e ler não é participar. Fora da sidebar porque no celular não cabem navegação e
+  chamada juntas.
+- **O token não vai no HTML.** A página renderiza sem ele e o cliente pede ao montar. O Prebuilt
+  consome o `?t=` na primeira leitura, então um token no HTML voltaria inútil a cada recarga — e
+  ficaria no cache do navegador sem servir para nada.
+- **O relógio da sala conta pelo relógio do servidor.** A página manda o instante em que renderizou
+  e o cliente soma o deslocamento: celular com hora errada não faz a tela de fim aparecer antes ou
+  depois do Daily expulsar. A fase (antes, sessão, reta final, tolerância, fechada) é função pura em
+  `lib/video/relogio.ts`, com teste, porque é ela que troca o vídeo pela tela de fim.
+- **O presente chega ao Profissional por consulta de 15 s, sem canal em tempo real.**
+  `GET /api/sessoes/[id]/presente` lê o próprio extrato pela RLS dele. Realtime do Supabase exigiria
+  publicação da tabela e autorização de canal para um evento que acontece, no máximo, uma vez por
+  sessão; 15 s de atraso não estragam o momento.
+- **A falta muda de nome com quem olha.** Quem faltou lê "Você não entrou"; quem ficou esperando lê
+  "{Parceiro} faltou" ou "Não compareceu". `rotuloDoStatus` recebe o lado e o termo; sem eles, o
+  rótulo neutro de antes continua valendo.
+- **Corrigir a presença marca as duas.** `done` é "os dois estiveram lá", e quem afirma que a sessão
+  aconteceu estava nela. Achado rodando: a sala que perdeu os dois deixava `done` com
+  `attended_partner = false`. Sem efeito em dinheiro — a falta do Profissional não estorna. A
+  auditoria guarda as duas presenças de antes e de depois.
+- **A correção fica na coluna do meio, abaixo da frase que ela responde.** Na coluna do selo, a
+  confirmação aberta espremia nome e horário numa coluna de uma palavra por linha (visto na foto da
+  verificação).
 
 ## Descartado
 
@@ -892,12 +920,12 @@ F16 formato grupo · F18 dashboards e exclusão de conta.
 
 ## Estado atual
 
-Fase: **P5 parte 1 na branch `p5`, sem merge.** Decisões fechadas (a extensão saiu), protótipo
-`docs/prototipo-p5.html` **aguardando aprovação**, e o servidor inteiro da P5 pronto e exercitado:
-migração `sala_e_presente` (só no `mentoria-dev`), `lib/video/` (cliente do Daily, sala, presença),
-`POST /api/sessoes/[id]/entrar`, `POST /api/sessoes/[id]/presentear` e o `close-sessions` lendo a
-presença. Faltam as telas, que esperam o protótipo. **Antes do merge**, `npm run db:migrate:prod` —
-o painel da operadora passa a ler `fichas_used` e `fichas_extra`, que só existem com a migração.
+Fase: **P5 fechada na branch `p5`, sem merge.** Protótipo aprovado em 28/09 (com o presente
+chegando por consulta de 15 s e a correção de presença só do Profissional). A migração
+`sala_e_presente` está só no `mentoria-dev`. O que falta para o piloto — teste do celular, giro da
+chave do Daily, `db:migrate:prod` antes do merge, domínio Daily de produção — está em "P5 — o que
+falta para o piloto", abaixo. Depois da P5 o piloto só espera o `send-reminders` (P5+), que espera o
+Resend e o domínio remetente.
 
 A P4 está na `main` e em produção desde 27/09/2026 — seis migrações no `mentoria`, deploy de pé,
 `expire-pending` e `close-sessions` recusando chamada sem segredo.
@@ -923,14 +951,20 @@ consomem pela **mesma** função, `avaliarAgenda` em `lib/bookings/operacoes.ts`
 que todo horário oferecido é aceito pela reserva. A tela de disponibilidade do Parceiro lê pela
 sessão dele. Os limites de `app_config` chegam a todos por `limitesDoMotor`.
 
-O vídeo tem servidor e ainda não tem tela. `entrar` confere participante e janela, grava
-`room_name`, cria a sala (expira em fim + 5, dois lugares, mídia em São Paulo) e emite um token por
-chamada; `presentear` confere sessão, janela e cota e lança `gift`; o `close-sessions` pergunta ao
-Daily quem entrou e decide `done`/`no_show_*`, estornando e compensando a falta do Parceiro. Tudo
-isso foi exercitado no `next dev` contra o `mentoria-dev` e o Daily de verdade, com dois navegadores
-sem tela entrando na sala.
+A **sala** é `/sala/[id]`, dos dois lados, fora da casca: o Prebuilt num iframe, o relógio nosso
+por fora (começa em / faltam / termina em, dourado nos últimos 5 min, vermelho na tolerância), e o
+painel de cada lado — o presente do Parceiro, em dois passos, com a cota em bolinhas; a carteira do
+Profissional, que consulta a cada 15 s e mostra o aviso animado quando o presente chega. Antes da
+janela, a tela diz a hora e abre sozinha; depois, `/sala/[id]/fim` mostra o encerramento (ou "você
+saiu", com a volta, se a sala ainda está aberta). O botão "Entrar na sala" aparece no início e na
+agenda dos dois lados só enquanto a porta está aberta. `entrar` confere participante e janela, grava
+`room_name`, cria a sala e emite um token por chamada, com o redirecionamento de saída para a tela de
+fim; o `close-sessions` pergunta ao Daily quem entrou e decide `done`/`no_show_*`. A falta tem nome
+de acordo com quem olha, e o Parceiro corrige, na agenda dele, a do Profissional que a sala perdeu.
+Tudo exercitado no `next dev` contra o `mentoria-dev` e o Daily de verdade: chamadas às rotas,
+navegadores sem tela entrando na chamada, e as telas dirigidas por clique nos dois papéis.
 
-505 testes em 32 arquivos. Invariante 19 em
+523 testes em 33 arquivos. Invariante 19 em
 `src/lib/auth/hook.test.ts`; invariantes 3, 4, 7, 8, 9, 10 e 16 em `src/lib/db/invariantes.test.ts`;
 as transações em `ledger/transacoes.test.ts`, `bookings/reserva.test.ts`,
 `bookings/transicoes.test.ts` (com a presença), `bookings/presente.test.ts` e
@@ -970,37 +1004,31 @@ Operação, para não redescobrir:
 - **`next dev` com Turbopack não compila CSS no ambiente do Claude Code** (processo filho do PostCSS
   morre com `0xc0000142`). Para verificação local por HTTP ou Chrome headless, `next dev --webpack`.
 
-### P5 — roteiro
+### P5 — o que falta para o piloto
 
-Escopo: sala Daily, presença lida da sala, presente de 1 ficha dentro da sala. As sete decisões do
-spike foram fechadas em 27/09/2026: a extensão saiu, e o resto está em "Decisões tomadas".
-Medições em `docs/spike-video.md`. Motor de agenda **travado**: a P5 consome, não altera.
+O código da P5 está completo na branch `p5`. Para ela chegar ao piloto de 10/11:
 
-**Com você, fora do código:** o teste do celular pelo roteiro de `docs/spike-video.md` §5 (Safari
-no iPhone, Chrome no Android: permissão, troca de câmera, tela bloqueada) antes de a tela da sala
-ser dada por pronta; e girar a chave do Daily que foi colada no chat do spike (`max_api_keys: 2`
-deixa girar sem parar).
+1. **Teste do celular**, com você, pelo roteiro de `docs/spike-video.md` §5 (Safari no iPhone,
+   Chrome no Android: permissão, troca de câmera, tela bloqueada), agora na tela de verdade — um
+   Preview da branch com o domínio `tostes`. É também onde se confere a saída pelo botão do Prebuilt,
+   que em `localhost` não dá para ver (o Chrome barra o redirecionamento para a rede local).
+2. **Girar a chave do Daily** que foi colada no chat do spike (`max_api_keys: 2` deixa girar sem
+   parar), e trocar em Preview e Development.
+3. **Merge:** `npm run db:migrate:prod` **antes** do push — o painel da operadora passa a ler
+   `fichas_used` e `fichas_extra`, que só existem com a migração `sala_e_presente`.
+4. **Domínio Daily de produção**, com chave própria cadastrada só em Production (e `geo`
+   `sa-east-1` no domínio). Depende do nome da plataforma. Sem ele, em produção a sala diz "o vídeo
+   ainda não está configurado neste ambiente" e o `close-sessions` segue a regra da P4. **É o que
+   bloqueia o piloto** — se o nome não sair a tempo, vale um domínio provisório.
 
-**Feito na parte 1 (27–28/09):** protótipo; cliente do Daily em `lib/video/daily.ts`; migração
-`sala_e_presente`; presente (`bookings/presente.ts` + rota); entrada (`video/entrada.ts` + rota);
-presença no `close-sessions`; utilização corrigida; `redirect_on_meeting_exit` medido.
+### P5 — o que ficou de fora, de propósito
 
-**Próxima sessão, nesta ordem:**
+- **Webhook do Daily.** A presença vem de `/meetings` no fechamento; o esqueleto do webhook, a
+  assinatura e os testes ficaram na branch `spike/video`, para quando houver uso em tempo real.
+- **Cota do presente vinda de `app_config` na criação do Parceiro.** A coluna nasce com o default 3
+  do esquema; mudar a política da plataforma não muda os Parceiros existentes.
+- **Presente fora da sala.** Decisão de 27/09: só dentro. O Parceiro não tem como presentear depois,
+  pela agenda.
 
-1. **Aprovação do protótipo**, com as duas perguntas das anotações: o presente chegando para o
-   Profissional por consulta a cada 15 s ao próprio extrato, e a proposta de correção de presença
-   (o Parceiro corrige só a do Profissional, só de `no_show_professional` para `done`).
-2. **Tela da sessão** — `/sala/[id]` e `/parceiro/sala/[id]`, fora da casca, com o iframe
-   (`allow="camera; microphone; fullscreen; display-capture; autoplay"`), o relógio nosso, o painel
-   do presente (`presenteNaSala` já devolve cota e se já deu), a tela de antes e a de fim. A página
-   troca o iframe pela tela de fim em `end_at` + 5; o token ganha `redirect_on_meeting_exit` para
-   uma página nossa que leva a janela de cima para a mesma tela (origem tirada da requisição, nunca
-   fixa). Botão "Entrar na sala" no início e na agenda dos dois lados. Ícone `presente` (lucide
-   `Gift`) no mapa.
-3. **Rótulos novos** na agenda: `no_show_partner` e `no_show_professional`, e a linha do presente na
-   sessão em que ele foi dado.
-4. **Correção de presença** pelo Parceiro, gravando `audit_logs` (invariante 18) — ação nova no
-   catálogo de `lib/admin/atividade.ts`.
-
-O código do spike que não entra acima morre com a branch `spike/video` — a lista está em
+O código do spike que não entrou morre com a branch `spike/video` — a lista está em
 `docs/spike-video.md`, seção final.
