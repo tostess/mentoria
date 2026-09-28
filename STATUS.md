@@ -60,6 +60,12 @@ Uma linha por sessão, mais recente no topo. Atualizar **antes** do commit final
 ## Decisões de sessão
 _(dependência escolhida, atalho tomado, dívida assumida — o que não merece o CLAUDE.md)_
 
+- **2026-09-28 (P5, teste no celular):** Preview da branch `p5` em
+  `mentoria-git-p5-tostess-projects.vercel.app` (push da `p5` para o GitHub; produção intocada).
+  Para o teste foi criada no `mentoria-dev` uma sessão nova Mariana × Helena, confirmada, **27/09
+  23h26–23h56** (`60ff5c76…`, `created_via = 'teste-celular'`), gravada à mão como a reserva grava —
+  booking e `spend_{id}` na mesma transação —, porque o aviso mínimo de 12 h impede marcar para agora
+  pela tela. Mariana ficou com 5 fichas. A sessão de demonstração de 29/09 às 9h não foi tocada.
 - **2026-09-28 (P5 parte 2, verificação):** a sessão da Mariana com a Helena de **01/10 também
   deixou de existir nessa data**: virou a sessão de verificação das telas — trazida para 27/09 às 23h,
   presente dado pela tela (Mariana chegou a 6 fichas, o teto; `gift_quotas` da Helena em 202609 com
