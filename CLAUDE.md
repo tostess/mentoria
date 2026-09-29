@@ -122,7 +122,10 @@ vira query, não cron de pré-agregação).
 - RLS e audit log evoluem **junto** com cada feature.
 - Toda mudança em `scheduling/`, livros-caixa ou policies acompanha teste.
 - Migração é sempre arquivo versionado em `supabase/migrations/`. Nunca alterar esquema pelo painel.
-- Protótipo HTML single-file antes de codar tela nova.
+- **Protótipo é no código.** Tela nova nasce direto na aplicação, com os componentes do sistema de
+  design e dado do `mentoria-dev`, e é aprovada rodando (`next dev` ou Preview da branch), com
+  captura de tela nos dois tamanhos. Ajuste pedido na aprovação é feito na própria tela. Os
+  `docs/prototipo-*.html` das fases anteriores ficam como histórico e não são mais atualizados.
 - Rotas que chamam a Claude API exportam `maxDuration`; conferir o teto do plano da Vercel.
 - Busca de Parceiros é filtro no cliente sobre a lista de ativos cacheada. Sem serviço externo
   abaixo de 200 Parceiros.
@@ -928,8 +931,12 @@ F16 formato grupo · F18 dashboards e exclusão de conta.
   invariante 12 é sobre ação sobre terceiro. A senha nova gerada pelo admin continua auditada.
 - **A janela de senha vai por portal para o `body`.** O menu da conta mora na parte da sidebar que no
   celular fica `display: none`, e um `<dialog>` dentro de pai escondido não aparece nem com
-  `showModal()`. É uma janela sobre a casca, não tela nova — por isso não teve protótipo HTML; a
-  verificação foi por captura de tela no Chrome sem tela, nos dois tamanhos.
+  `showModal()`.
+
+- **Protótipo no código, não em HTML à parte (29/09/2026).** O protótipo HTML single-file era
+  refeito depois em React: tudo o que a aprovação ajustava era retrabalho em dobro, e o HTML não
+  tinha dado real, vocabulário do banco nem o comportamento de verdade. Agora a tela é construída
+  na aplicação e aprovada rodando. O menu da conta foi o primeiro caso.
 
 ## Descartado
 
