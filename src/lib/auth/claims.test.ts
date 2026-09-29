@@ -20,6 +20,7 @@ describe("parseClaims", () => {
       role: "professional",
       orgId: ORG,
       email: "pessoa@empresa.com.br",
+      senhaProvisoria: false,
     });
   });
 
@@ -73,5 +74,37 @@ describe("parseClaims", () => {
   it("e-mail ausente não impede a sessão — identidade é o `sub`", () => {
     const session = parseClaims({ sub: USER, user_role: "admin" });
     expect(session?.email).toBeNull();
+  });
+
+  describe("senha provisória — vem do `app_metadata`, que só o servidor escreve", () => {
+    it("marca quando `senha_provisoria` é true", () => {
+      const session = parseClaims(
+        claims({ user_role: "partner", app_metadata: { provider: "email", senha_provisoria: true } }),
+      );
+      expect(session?.senhaProvisoria).toBe(true);
+    });
+
+    it("não marca quando a pessoa já trocou (false) ou quando a chave não existe", () => {
+      expect(
+        parseClaims(claims({ user_role: "partner", app_metadata: { senha_provisoria: false } }))
+          ?.senhaProvisoria,
+      ).toBe(false);
+      expect(parseClaims(claims({ user_role: "partner", app_metadata: {} }))?.senhaProvisoria).toBe(
+        false,
+      );
+    });
+
+    it("só o booleano verdadeiro marca — texto não é marca", () => {
+      expect(
+        parseClaims(claims({ user_role: "partner", app_metadata: { senha_provisoria: "true" } }))
+          ?.senhaProvisoria,
+      ).toBe(false);
+    });
+
+    it("`senha_provisoria` na raiz do token não conta — não é de lá que o servidor escreve", () => {
+      expect(
+        parseClaims(claims({ user_role: "partner", senha_provisoria: true }))?.senhaProvisoria,
+      ).toBe(false);
+    });
   });
 });

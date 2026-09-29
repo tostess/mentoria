@@ -50,6 +50,13 @@
       "when": 1790557431721,
       "tag": "20260928010351_sala_e_presente",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790647212930,
+      "tag": "20260929020012_senha_provisoria",
+      "breakpoints": true
     }
   ]
 }

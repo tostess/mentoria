@@ -3,6 +3,7 @@ import "server-only";
 import { randomInt, randomUUID } from "node:crypto";
 import type postgres from "postgres";
 import { getSql } from "@/lib/db";
+import { CHAVE_SENHA_PROVISORIA } from "@/lib/auth/senha";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   empresaNaTransacao,
@@ -101,6 +102,8 @@ async function comIdentidade(
     email,
     password: senha,
     email_confirm: true,
+    // Senha que o admin vai repassar: a pessoa é convidada a trocá-la ao entrar.
+    app_metadata: { [CHAVE_SENHA_PROVISORIA]: true },
   });
 
   if (error !== null) {

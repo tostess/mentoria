@@ -497,6 +497,8 @@ esquema, constraints e RLS · auth, papéis e config · motor de agenda.
   `expire-pending`, `close-sessions`
 - **P5** ✅ Sala Daily, presença lida da sala, presente de 1 ficha dentro da sala, correção de
   presença — na `main` e em produção desde 27/09; o vídeo em produção depende do domínio Daily próprio
+- **Conta** ✅ Menu da conta na sidebar ("Redefinir senha" e "Sair") e aviso de senha provisória
+  ao entrar — na branch `conta`; a migração `senha_provisoria` vai para o `mentoria` antes do merge
 - **P5+** `send-reminders` 24h e 1h — espera Resend e o domínio remetente
 
 Fora do piloto: convite por token, candidatura espontânea, console do RH, personalização por
@@ -905,6 +907,30 @@ F16 formato grupo · F18 dashboards e exclusão de conta.
   confirmação aberta espremia nome e horário numa coluna de uma palavra por linha (visto na foto da
   verificação).
 
+- **Senha provisória é marca em `app_metadata`, não coluna de `profiles`.** Toda senha dada por
+  outra pessoa — criação pelo admin, senha nova pelo admin, e as contas que já existiam (migração
+  `senha_provisoria`) — leva `app_metadata.senha_provisoria = true`. Três motivos: chega no JWT e
+  vira `Session.senhaProvisoria` sem consulta (a casca renderiza em paralelo com a página); só o
+  `service_role` escreve, então ninguém se livra do aviso sem trocar a senha; e `profiles` é legível
+  por colegas de empresa, que não precisam saber quem ainda usa a senha que chegou pelo WhatsApp.
+  O `seed:admin` marca quando sorteia e não marca quando a senha vem por `--senha`.
+- **A troca confere a senha atual, troca, e só então tira a marca.** A atual é conferida por um
+  cliente avulso, sem cookie, cuja sessão é encerrada com `scope: "local"` (o `global` derrubaria a
+  sessão em que a pessoa está). A troca vai pela sessão da própria pessoa (`updateUser`), a marca sai
+  pelo `service_role`, e `refreshSession()` põe no cookie um token sem ela — sem isso o aviso ficaria
+  até o token vencer. Medido contra o `mentoria-dev`: a sessão sobrevive à troca, e os códigos
+  `same_password` e `invalid_credentials` chegam como esperado. Se a marca não sair, o aviso volta
+  para quem já trocou: incômodo, não inseguro.
+- **O aviso não bloqueia.** Abre sozinho ao entrar; "Agora não" vale até a próxima entrada, porque a
+  casca não remonta ao navegar. Fica uma bolinha dourada no menu da conta enquanto a marca existir.
+  A sala (`/sala/[id]`) não tem casca e não mostra o aviso — ninguém troca senha no meio da sessão.
+- **Trocar a própria senha não grava `audit_logs`.** Mesma leitura de "Parceiro mexendo em si": a
+  invariante 12 é sobre ação sobre terceiro. A senha nova gerada pelo admin continua auditada.
+- **A janela de senha vai por portal para o `body`.** O menu da conta mora na parte da sidebar que no
+  celular fica `display: none`, e um `<dialog>` dentro de pai escondido não aparece nem com
+  `showModal()`. É uma janela sobre a casca, não tela nova — por isso não teve protótipo HTML; a
+  verificação foi por captura de tela no Chrome sem tela, nos dois tamanhos.
+
 ## Descartado
 
 - Firebase / Firestore. - Chat livre fora da janela de 24h da sessão. - Ranking público.
@@ -967,7 +993,11 @@ de acordo com quem olha, e o Parceiro corrige, na agenda dele, a do Profissional
 Tudo exercitado no `next dev` contra o `mentoria-dev` e o Daily de verdade: chamadas às rotas,
 navegadores sem tela entrando na chamada, e as telas dirigidas por clique nos dois papéis.
 
-523 testes em 33 arquivos. Invariante 19 em
+Toda casca tem o **menu da conta** no pé da sidebar, com "Redefinir senha" e "Sair", e quem entra
+com senha provisória recebe a janela de troca ao entrar (`components/conta/JanelaDeSenha.tsx`,
+`trocarSenha` em `lib/auth/actions.ts`, regras puras em `lib/auth/senha.ts`).
+
+535 testes em 34 arquivos. Invariante 19 em
 `src/lib/auth/hook.test.ts`; invariantes 3, 4, 7, 8, 9, 10 e 16 em `src/lib/db/invariantes.test.ts`;
 as transações em `ledger/transacoes.test.ts`, `bookings/reserva.test.ts`,
 `bookings/transicoes.test.ts` (com a presença), `bookings/presente.test.ts` e

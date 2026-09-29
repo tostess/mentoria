@@ -2,6 +2,7 @@ import "server-only";
 
 import type postgres from "postgres";
 import { registrarAuditoria } from "@/lib/audit";
+import { CHAVE_SENHA_PROVISORIA } from "@/lib/auth/senha";
 import { getSql } from "@/lib/db";
 import type { Ator } from "@/lib/ledger/operacoes";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -181,7 +182,13 @@ export async function novaSenhaProvisoria(
   const email = await emailAtual(id, alvo.papel, orgId);
   const senha = senhaProvisoria();
 
-  const { error } = await createAdminClient().auth.admin.updateUserById(id, { password: senha });
+  // A marca volta junto: senha nova dada pelo admin é provisória de novo, e o
+  // aviso reaparece no próximo acesso — no mesmo pedido, para não haver senha
+  // provisória sem marca nem por um instante.
+  const { error } = await createAdminClient().auth.admin.updateUserById(id, {
+    password: senha,
+    app_metadata: { [CHAVE_SENHA_PROVISORIA]: true },
+  });
   if (error !== null) throw new Error(`não foi possível trocar a senha: ${error.message}`);
 
   await getSql().begin((tx) =>

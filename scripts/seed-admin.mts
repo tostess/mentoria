@@ -114,16 +114,22 @@ async function principal() {
   let criada = false;
 
   if (userId === null) {
+    // Senha sorteada é provisória: a operadora é convidada a trocá-la ao entrar.
+    // Senha escolhida com `--senha` já é dela. Mesma chave de `lib/auth/senha.ts`.
     const { data, error } = await admin.auth.admin.createUser({
       email,
       password: senha,
       email_confirm: true,
+      app_metadata: { senha_provisoria: senhaEscolhida === null },
     });
     if (error) throw new Error(`createUser: ${error.message}`);
     userId = data.user.id;
     criada = true;
   } else if (senhaEscolhida !== null) {
-    const { error } = await admin.auth.admin.updateUserById(userId, { password: senha });
+    const { error } = await admin.auth.admin.updateUserById(userId, {
+      password: senha,
+      app_metadata: { senha_provisoria: false },
+    });
     if (error) throw new Error(`updateUserById: ${error.message}`);
   }
 

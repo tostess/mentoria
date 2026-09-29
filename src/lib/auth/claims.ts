@@ -30,6 +30,13 @@ export type Session = {
   /** Sempre null para papéis de plataforma. */
   orgId: string | null;
   email: string | null;
+  /**
+   * A senha em uso foi dada por outra pessoa — criação, senha nova pelo admin,
+   * ou conta que já existia quando a regra entrou. Vem de
+   * `app_metadata.senha_provisoria`, que só o `service_role` escreve: a pessoa
+   * não consegue se declarar livre do aviso sem trocar a senha de verdade.
+   */
+  senhaProvisoria: boolean;
 };
 
 export function isRole(value: unknown): value is Role {
@@ -75,5 +82,16 @@ export function parseClaims(claims: unknown): Session | null {
   if (orgId !== null && !UUID.test(orgId)) return null;
   if (ORG_SCOPED_ROLES.includes(role) !== (orgId !== null)) return null;
 
-  return { userId, role, orgId, email: text(record.email) };
+  return {
+    userId,
+    role,
+    orgId,
+    email: text(record.email),
+    senhaProvisoria: senhaProvisoria(record.app_metadata),
+  };
+}
+
+function senhaProvisoria(appMetadata: unknown): boolean {
+  if (typeof appMetadata !== "object" || appMetadata === null) return false;
+  return (appMetadata as Record<string, unknown>).senha_provisoria === true;
 }
