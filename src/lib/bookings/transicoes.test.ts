@@ -14,13 +14,19 @@ import type { Limites } from "@/lib/scheduling";
 import type { EntradaNaSala } from "@/lib/video/presenca";
 import { reservaNaTransacao } from "./operacoes";
 import {
+  CancelamentoRecusado,
   CorrecaoRecusada,
+  MOTIVO_CANCELAMENTO,
+  MOTIVO_CANCELAMENTO_DO_OUTRO_LADO,
   MOTIVO_COMPENSACAO,
+  MOTIVO_COMPENSACAO_CANCELAMENTO,
+  MOTIVO_PEDIDO_CANCELADO,
   MOTIVO_EXPIRACAO,
   MOTIVO_RECUSA,
   MOTIVO_SEM_ATENDIMENTO,
   PedidoJaRespondido,
   SessaoNaoEncontrada,
+  cancelamentoNaTransacao,
   confirmacaoNaTransacao,
   correcaoDePresencaNaTransacao,
   expiracaoNaTransacao,
@@ -633,5 +639,233 @@ run("fechar — presença lida da sala (invariante 18)", () => {
     expect(r.extras).toHaveLength(2);
     expect(r.saldo).toBe(3);
     expect(r.segunda.erros.filter((e) => e.startsWith(r.s.bookingId))).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------- F7
+
+/** 6 h antes da sessão de terça: dentro do prazo de 12 h, antes de a sala abrir. */
+const EM_CIMA = new Date(TERCA_9H.getTime() - 6 * HORA);
+const SALA_ABRE = new Date(TERCA_9H.getTime() - 10 * MINUTO);
+
+type Lado = "professional" | "partner";
+
+function cancelar(
+  tx: postgres.TransactionSql,
+  bookingId: string,
+  ator: { id: string; lado: Lado },
+  agora: Date,
+  esperado: { estorna: boolean; compensa: boolean },
+  compensacao = 1,
+) {
+  return cancelamentoNaTransacao(tx, { bookingId, ator, agora, janelaHoras: 12, compensacao, esperado });
+}
+
+const DEVOLVE = { estorna: true, compensa: false };
+const NAO_DEVOLVE = { estorna: false, compensa: false };
+const DEVOLVE_E_COMPENSA = { estorna: true, compensa: true };
+
+run("cancelar — Profissional", () => {
+  it("pedido pendente: cancela, e a ficha volta", async () => {
+    const r = await emRollback(async (tx) => {
+      const s = await cenario(tx);
+      const retorno = await cancelar(tx, s.bookingId, { id: s.professionalId, lado: "professional" }, PEDIDO_EM, DEVOLVE);
+      return { s, retorno, ...(await estado(tx, s.bookingId, s.professionalId)) };
+    });
+
+    expect(r.retorno).toEqual({ estornou: true, compensou: 0 });
+    expect(r.status).toBe("cancelled");
+    expect(r.cancelled_by).toBe(r.s.professionalId);
+    expect(r.saldo).toBe(2);
+    expect(r.estornos).toEqual([{ reason: MOTIVO_PEDIDO_CANCELADO, by_user_id: r.s.professionalId }]);
+  });
+
+  it("confirmada, antes do prazo: a ficha volta", async () => {
+    const r = await emRollback(async (tx) => {
+      const s = await cenario(tx, { autoConfirm: true });
+      await cancelar(tx, s.bookingId, { id: s.professionalId, lado: "professional" }, PEDIDO_EM, DEVOLVE);
+      return estado(tx, s.bookingId, s.professionalId);
+    });
+
+    expect(r.status).toBe("cancelled");
+    expect(r.saldo).toBe(2);
+    expect(r.estornos.map((e) => e.reason)).toEqual([MOTIVO_CANCELAMENTO]);
+  });
+
+  it("confirmada, depois do prazo: cancela, a ficha fica gasta e o horário reabre", async () => {
+    const r = await emRollback(async (tx) => {
+      const s = await cenario(tx, { autoConfirm: true });
+      const retorno = await cancelar(tx, s.bookingId, { id: s.professionalId, lado: "professional" }, EM_CIMA, NAO_DEVOLVE);
+      const antes = await estado(tx, s.bookingId, s.professionalId);
+
+      const outra = await profissional(tx, s.orgId, s.ator, "Outra Pessoa");
+      await darFichas(tx, { orgId: s.orgId, userId: outra, ator: s.ator, contrato: 5, naCarteira: 1 });
+      const nova = await s.reservar(TERCA_9H, outra);
+      return { retorno, nova, ...antes };
+    });
+
+    expect(r.retorno).toEqual({ estornou: false, compensou: 0 });
+    expect(r.status).toBe("cancelled");
+    expect(r.saldo).toBe(1);
+    expect(r.estornos).toHaveLength(0);
+    expect(r.nova.inicio.toISOString()).toBe(TERCA_9H.toISOString());
+  });
+
+  it("o prazo virou depois de a tela prometer a ficha de volta: recusa e não mexe em nada", async () => {
+    const r = await emRollback(async (tx) => {
+      const s = await cenario(tx, { autoConfirm: true });
+      const erro = await falha(tx, (sp) =>
+        cancelar(sp, s.bookingId, { id: s.professionalId, lado: "professional" }, EM_CIMA, DEVOLVE),
+      );
+      return { erro, ...(await estado(tx, s.bookingId, s.professionalId)) };
+    });
+
+    expect(r.erro).toBeInstanceOf(CancelamentoRecusado);
+    expect((r.erro as Error).message).toMatch(/prazo/);
+    expect(r.status).toBe("confirmed");
+    expect(r.saldo).toBe(1);
+  });
+
+  it("quando a sala abre, não dá mais para cancelar", async () => {
+    const r = await emRollback(async (tx) => {
+      const s = await cenario(tx, { autoConfirm: true });
+      const erro = await falha(tx, (sp) =>
+        cancelar(sp, s.bookingId, { id: s.professionalId, lado: "professional" }, SALA_ABRE, NAO_DEVOLVE),
+      );
+      return { erro, ...(await estado(tx, s.bookingId, s.professionalId)) };
+    });
+
+    expect(r.erro).toBeInstanceOf(CancelamentoRecusado);
+    expect((r.erro as Error).message).toMatch(/sala já abriu/);
+    expect(r.status).toBe("confirmed");
+  });
+
+  it("sessão de outra pessoa responde como se não existisse", async () => {
+    const r = await emRollback(async (tx) => {
+      const s = await cenario(tx);
+      const outra = await profissional(tx, s.orgId, s.ator, "Outra Pessoa");
+      const erro = await falha(tx, (sp) =>
+        cancelar(sp, s.bookingId, { id: outra, lado: "professional" }, PEDIDO_EM, DEVOLVE),
+      );
+      // O Profissional dono tentando pelo lado do Parceiro também não acha.
+      const trocado = await falha(tx, (sp) =>
+        cancelar(sp, s.bookingId, { id: s.professionalId, lado: "partner" }, PEDIDO_EM, DEVOLVE),
+      );
+      return { erro, trocado, ...(await estado(tx, s.bookingId, s.professionalId)) };
+    });
+
+    expect(r.erro).toBeInstanceOf(SessaoNaoEncontrada);
+    expect(r.trocado).toBeInstanceOf(SessaoNaoEncontrada);
+    expect(r.status).toBe("pending");
+  });
+
+  it("cancelar duas vezes: a segunda é recusada e a ficha volta uma vez só", async () => {
+    const r = await emRollback(async (tx) => {
+      const s = await cenario(tx);
+      const quem = { id: s.professionalId, lado: "professional" } as const;
+      await cancelar(tx, s.bookingId, quem, PEDIDO_EM, DEVOLVE);
+      const erro = await falha(tx, (sp) => cancelar(sp, s.bookingId, quem, PEDIDO_EM, DEVOLVE));
+      return { erro, ...(await estado(tx, s.bookingId, s.professionalId)) };
+    });
+
+    expect(r.erro).toBeInstanceOf(CancelamentoRecusado);
+    expect((r.erro as Error).message).toMatch(/já foi cancelada/);
+    expect(r.saldo).toBe(2);
+    expect(r.estornos).toHaveLength(1);
+  });
+
+  it("o Parceiro que tenta confirmar pedido já cancelado ouve quem cancelou", async () => {
+    const erro = await emRollback(async (tx) => {
+      const s = await cenario(tx);
+      await cancelar(tx, s.bookingId, { id: s.professionalId, lado: "professional" }, PEDIDO_EM, DEVOLVE);
+      return falha(tx, (sp) =>
+        confirmacaoNaTransacao(sp, { bookingId: s.bookingId, partnerId: s.partnerId, agora: PEDIDO_EM }),
+      );
+    });
+
+    expect(erro).toBeInstanceOf(PedidoJaRespondido);
+    expect((erro as Error).message).toMatch(/Quem pediu cancelou/);
+  });
+});
+
+run("cancelar — Parceiro", () => {
+  it("confirmada, antes do prazo: a ficha volta, sem compensação", async () => {
+    const r = await emRollback(async (tx) => {
+      const s = await cenario(tx, { autoConfirm: true });
+      const retorno = await cancelar(tx, s.bookingId, { id: s.partnerId, lado: "partner" }, PEDIDO_EM, DEVOLVE);
+      return { s, retorno, ...(await estado(tx, s.bookingId, s.professionalId)), ...(await fechamento(tx, s.bookingId)) };
+    });
+
+    expect(r.retorno).toEqual({ estornou: true, compensou: 0 });
+    expect(r.status).toBe("cancelled");
+    expect(r.cancelled_by).toBe(r.s.partnerId);
+    // A reserva automática preenche `confirmed_at`: é o que separa este cancelamento da recusa.
+    expect(r.confirmed_at).not.toBeNull();
+    expect(r.saldo).toBe(2);
+    expect(r.extras).toEqual([{ type: "refund", amount: 1, reason: MOTIVO_CANCELAMENTO_DO_OUTRO_LADO }]);
+  });
+
+  it("em cima da hora: a ficha volta e vem a compensação da falta", async () => {
+    const r = await emRollback(async (tx) => {
+      const s = await cenario(tx, { autoConfirm: true });
+      const retorno = await cancelar(tx, s.bookingId, { id: s.partnerId, lado: "partner" }, EM_CIMA, DEVOLVE_E_COMPENSA);
+      return { retorno, ...(await estado(tx, s.bookingId, s.professionalId)), ...(await fechamento(tx, s.bookingId)) };
+    });
+
+    expect(r.retorno).toEqual({ estornou: true, compensou: 1 });
+    // 2 alocadas − 1 gasta + 1 estorno + 1 compensação.
+    expect(r.saldo).toBe(3);
+    expect(r.extras).toEqual([
+      { type: "adjust", amount: 1, reason: MOTIVO_COMPENSACAO_CANCELAMENTO },
+      { type: "refund", amount: 1, reason: MOTIVO_CANCELAMENTO_DO_OUTRO_LADO },
+    ]);
+  });
+
+  it("compensação zerada em app_config: só devolve", async () => {
+    const r = await emRollback(async (tx) => {
+      const s = await cenario(tx, { autoConfirm: true });
+      const retorno = await cancelar(tx, s.bookingId, { id: s.partnerId, lado: "partner" }, EM_CIMA, DEVOLVE_E_COMPENSA, 0);
+      return { retorno, ...(await fechamento(tx, s.bookingId)) };
+    });
+
+    expect(r.retorno).toEqual({ estornou: true, compensou: 0 });
+    expect(r.extras.map((e) => e.type)).toEqual(["refund"]);
+  });
+
+  it("a tela prometeu cancelar sem compensar e o prazo virou: recusa", async () => {
+    const r = await emRollback(async (tx) => {
+      const s = await cenario(tx, { autoConfirm: true });
+      const erro = await falha(tx, (sp) =>
+        cancelar(sp, s.bookingId, { id: s.partnerId, lado: "partner" }, EM_CIMA, DEVOLVE),
+      );
+      return { erro, ...(await estado(tx, s.bookingId, s.professionalId)) };
+    });
+
+    expect(r.erro).toBeInstanceOf(CancelamentoRecusado);
+    expect(r.status).toBe("confirmed");
+  });
+
+  it("pedido pendente não se cancela — recusa-se", async () => {
+    const r = await emRollback(async (tx) => {
+      const s = await cenario(tx);
+      const erro = await falha(tx, (sp) =>
+        cancelar(sp, s.bookingId, { id: s.partnerId, lado: "partner" }, PEDIDO_EM, DEVOLVE),
+      );
+      return { erro, ...(await estado(tx, s.bookingId, s.professionalId)) };
+    });
+
+    expect(r.erro).toBeInstanceOf(CancelamentoRecusado);
+    expect((r.erro as Error).message).toMatch(/recuse/);
+    expect(r.status).toBe("pending");
+  });
+
+  it("sessão de outro Parceiro responde como se não existisse", async () => {
+    const erro = await emRollback(async (tx) => {
+      const s = await cenario(tx, { autoConfirm: true });
+      const outro = await parceiroComRotina(tx, s.ator);
+      return falha(tx, (sp) => cancelar(sp, s.bookingId, { id: outro, lado: "partner" }, PEDIDO_EM, DEVOLVE));
+    });
+
+    expect(erro).toBeInstanceOf(SessaoNaoEncontrada);
   });
 });

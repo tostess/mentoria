@@ -10,7 +10,8 @@ import { diaDaSemanaCurto, diaDoMes, intervalo } from "@/lib/formato";
  * e o status.
  *
  * Server Component de propósito: formata no fuso de quem olha sem levar o luxon
- * para o bundle. Quem precisa de botão (confirmar, recusar) passa em `direita`.
+ * para o bundle. Quem precisa de botão (confirmar, recusar) passa em `direita`; o que abre
+ * confirmação larga (cancelar, corrigir presença) vai em `detalhe`, na coluna do meio.
  */
 export function LinhaDeSessao({
   sessao,
@@ -31,7 +32,7 @@ export function LinhaDeSessao({
   visao?: Visao;
 }) {
   const passada = sessao.fim.getTime() <= agora.getTime();
-  const { rotulo, variante } = rotuloDoStatus(sessao.status, sessao.recusadaPeloParceiro, visao);
+  const { rotulo, variante } = rotuloDoStatus(sessao.status, sessao.cancelamento, visao);
   const sub = [sessao.outro.cargo, sessao.outro.empresa].filter(Boolean).join(" · ");
 
   return (

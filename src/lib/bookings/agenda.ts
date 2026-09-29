@@ -22,10 +22,38 @@ export type SessaoNaAgenda = {
   fim: Date;
   status: string;
   criadaEm: Date;
-  /** `cancelled_by` é o Parceiro: na P4, a única forma de cancelar é recusar. */
-  recusadaPeloParceiro: boolean;
+  /** Quem cancelou, quando `status = 'cancelled'`; `null` em qualquer outro status. */
+  cancelamento: Cancelamento | null;
   outro: PessoaDaSessao;
 };
+
+/**
+ * `eraPedido` separa a recusa (o Parceiro diante de pedido pendente) do
+ * cancelamento de sessão confirmada — mesmo status no banco, histórias
+ * diferentes para quem lê. Sai de `confirmed_at`: só a confirmação o preenche,
+ * inclusive a automática da reserva.
+ */
+export type Cancelamento = { por: "partner" | "professional"; eraPedido: boolean };
+
+/** Lê o cancelamento da linha de `bookings`. Quem cancelou fora dos dois lados não existe hoje. */
+export function cancelamentoDaLinha(linha: {
+  status: unknown;
+  cancelled_by: unknown;
+  confirmed_at: unknown;
+  partner_id: string;
+  professional_id: string;
+}): Cancelamento | null {
+  if (linha.status !== "cancelled") return null;
+  const eraPedido = linha.confirmed_at === null || linha.confirmed_at === undefined;
+  if (linha.cancelled_by === linha.partner_id) return { por: "partner", eraPedido };
+  if (linha.cancelled_by === linha.professional_id) return { por: "professional", eraPedido };
+  return null;
+}
+
+/** A recusa da P4: o Parceiro disse não a um pedido pendente. */
+export function foiRecusa(s: Pick<SessaoNaAgenda, "cancelamento">): boolean {
+  return s.cancelamento?.por === "partner" && s.cancelamento.eraPedido;
+}
 
 /**
  * Próximas (pendentes e confirmadas que ainda não terminaram), da mais cedo

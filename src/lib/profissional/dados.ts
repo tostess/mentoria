@@ -3,7 +3,7 @@ import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { rotuloDoLancamento } from "@/lib/ledger/rotulos";
 import type { NomeIcone } from "@/components/ui/icones";
-import type { SessaoNaAgenda } from "@/lib/bookings/agenda";
+import { cancelamentoDaLinha, type SessaoNaAgenda } from "@/lib/bookings/agenda";
 
 /**
  * A carteira do Profissional, lida **pelo cliente da sessão dele**.
@@ -122,23 +122,35 @@ export async function carregarExtrato(
     });
 }
 
+/** O que o extrato diz de uma sessão: a ficha voltou, veio compensação, veio presente. */
+export type MovimentosDaSessao = { estorno: boolean; compensacao: number; presente: boolean };
+
 /**
- * As sessões em que o Profissional ganhou presente, pelo próprio extrato — a
- * agenda diz "Helena te deu 1 ficha" na sessão em que foi.
+ * Os lançamentos de cada sessão, pelo próprio extrato — a agenda diz "a ficha
+ * voltou" ou "Helena te deu 1 ficha" pelo que o livro-caixa registrou, e não
+ * pelo que o status sugere. É o que separa o cancelamento a tempo do que foi
+ * depois do prazo: mesmo status, dinheiro diferente.
  */
-export async function sessoesComPresente(userId: string): Promise<Set<string>> {
+export async function movimentosPorSessao(userId: string): Promise<Map<string, MovimentosDaSessao>> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("wallet_ledger")
-    .select("booking_id")
+    .select("booking_id, type, amount")
     .eq("user_id", userId)
-    .eq("type", "gift");
-  if (error !== null) throw new Error(`presentes: ${error.message}`);
-  return new Set(
-    (data ?? [])
-      .map((l) => (l as Record<string, unknown>).booking_id)
-      .filter((id): id is string => typeof id === "string"),
-  );
+    .in("type", ["refund", "adjust", "gift"])
+    .not("booking_id", "is", null);
+  if (error !== null) throw new Error(`lançamentos das sessões: ${error.message}`);
+
+  const mapa = new Map<string, MovimentosDaSessao>();
+  for (const l of (data ?? []).map((x) => x as Record<string, unknown>)) {
+    if (typeof l.booking_id !== "string") continue;
+    const m = mapa.get(l.booking_id) ?? { estorno: false, compensacao: 0, presente: false };
+    if (l.type === "refund") m.estorno = true;
+    if (l.type === "gift") m.presente = true;
+    if (l.type === "adjust") m.compensacao += inteiro(l.amount, 0);
+    mapa.set(l.booking_id, m);
+  }
+  return mapa;
 }
 
 // ---------------------------------------------------------------- P4
@@ -239,7 +251,7 @@ export async function carregarAgendaDoProfissional(
   const supabase = await createClient();
   const { data: sessoes, error } = await supabase
     .from("bookings")
-    .select("id, partner_id, start_at, end_at, status, created_at, cancelled_by")
+    .select("id, partner_id, start_at, end_at, status, created_at, cancelled_by, confirmed_at")
     .eq("professional_id", userId)
     .order("start_at", { ascending: false })
     .limit(100);
@@ -271,7 +283,13 @@ export async function carregarAgendaDoProfissional(
         fim,
         status: texto(l.status) ?? "pending",
         criadaEm: data(l.created_at) ?? inicio,
-        recusadaPeloParceiro: l.cancelled_by === l.partner_id,
+        cancelamento: cancelamentoDaLinha({
+          status: l.status,
+          cancelled_by: l.cancelled_by,
+          confirmed_at: l.confirmed_at,
+          partner_id: l.partner_id,
+          professional_id: userId,
+        }),
         outro: {
           id: l.partner_id,
           nome: pessoa?.nome ?? nomePadrao,

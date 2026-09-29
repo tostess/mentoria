@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { limiteDeResposta, separarAgenda, type SessaoNaAgenda } from "./agenda";
+import {
+  cancelamentoDaLinha,
+  foiRecusa,
+  limiteDeResposta,
+  separarAgenda,
+  type SessaoNaAgenda,
+} from "./agenda";
 
 const AGORA = new Date("2026-09-29T12:10:00Z");
 
@@ -11,7 +17,7 @@ function sessao(id: string, inicioIso: string, status: string): SessaoNaAgenda {
     fim: new Date(inicio.getTime() + 30 * 60_000),
     status,
     criadaEm: new Date("2026-09-25T12:00:00Z"),
-    recusadaPeloParceiro: false,
+    cancelamento: null,
     outro: { id: "x", nome: "X", foto: null, cargo: null, empresa: null },
   };
 }
@@ -51,5 +57,38 @@ describe("limiteDeResposta", () => {
   it("é o início da sessão quando ela chega antes do prazo", () => {
     const inicio = new Date("2026-09-26T00:00:00Z");
     expect(limiteDeResposta({ criadaEm, inicio }, 48)).toEqual(inicio);
+  });
+});
+
+describe("cancelamentoDaLinha", () => {
+  const base = { partner_id: "parceiro", professional_id: "profissional" };
+
+  it("o Parceiro diante de pedido pendente é recusa", () => {
+    const c = cancelamentoDaLinha({ ...base, status: "cancelled", cancelled_by: "parceiro", confirmed_at: null });
+    expect(c).toEqual({ por: "partner", eraPedido: true });
+    expect(foiRecusa({ cancelamento: c })).toBe(true);
+  });
+
+  it("o Parceiro cancelando sessão confirmada não é recusa", () => {
+    const c = cancelamentoDaLinha({
+      ...base,
+      status: "cancelled",
+      cancelled_by: "parceiro",
+      confirmed_at: "2026-09-25T12:00:00Z",
+    });
+    expect(c).toEqual({ por: "partner", eraPedido: false });
+    expect(foiRecusa({ cancelamento: c })).toBe(false);
+  });
+
+  it("o Profissional cancelando nunca é recusa, com pedido ou sem", () => {
+    const pedido = cancelamentoDaLinha({ ...base, status: "cancelled", cancelled_by: "profissional", confirmed_at: null });
+    expect(pedido).toEqual({ por: "professional", eraPedido: true });
+    expect(foiRecusa({ cancelamento: pedido })).toBe(false);
+  });
+
+  it("fora de cancelled não há cancelamento, mesmo com cancelled_by preenchido", () => {
+    expect(
+      cancelamentoDaLinha({ ...base, status: "confirmed", cancelled_by: "parceiro", confirmed_at: null }),
+    ).toBeNull();
   });
 });

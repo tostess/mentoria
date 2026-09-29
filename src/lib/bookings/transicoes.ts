@@ -6,14 +6,17 @@ import type { Ator } from "@/lib/ledger/operacoes";
 import { compensacaoNaTransacao, estornoNaTransacao } from "@/lib/ledger/operacoes";
 import type { Acesso } from "@/lib/ledger/mensal";
 import { compareceu, desfecho, type EntradaNaSala } from "@/lib/video/presenca";
+import { fraseDaRecusa, regraDoCancelamento, type LadoDoCancelamento } from "./cancelamento";
 
 /**
  * As arestas da máquina de estados.
  *
  * ```
  * pending ──confirmar──▶ confirmed ──fim + tolerância──▶ done
- *    │  └──recusar──▶ cancelled (estorno)    ├──ninguém ou só o Parceiro──▶ no_show_professional
- *    └──48h, ou o horário passou──▶ expired  └──só o Profissional──▶ no_show_partner (estorno + compensação)
+ *    │  ├──recusar──▶ cancelled (estorno)    ├──ninguém ou só o Parceiro──▶ no_show_professional
+ *    │  └──Profissional cancela──▶ cancelled (estorno)
+ *    └──48h, ou o horário passou──▶ expired  ├──só o Profissional──▶ no_show_partner (estorno + compensação)
+ *                                            └──cancelar, até a sala abrir──▶ cancelled (ver `cancelamento.ts`)
  * ```
  *
  * Mesmo desenho de `operacoes.ts`: cada transição recebe a transação, sem
@@ -49,16 +52,34 @@ export class CorrecaoRecusada extends Error {
   }
 }
 
+/**
+ * O cancelamento não pode ser feito como a tela disse: o prazo virou entre a
+ * página abrir e o clique, a sala abriu, ou a sessão já não está ativa.
+ */
+export class CancelamentoRecusado extends Error {
+  constructor(mensagem: string) {
+    super(mensagem);
+    this.name = "CancelamentoRecusado";
+  }
+}
+
 /** O que o extrato do Profissional mostra. Sem termo de domínio: vai para o banco. */
 export const MOTIVO_RECUSA = "Pedido recusado";
 export const MOTIVO_EXPIRACAO = "Pedido expirou sem resposta";
 export const MOTIVO_SEM_ATENDIMENTO = "A sessão não aconteceu";
 export const MOTIVO_COMPENSACAO = "Compensação pela sessão que não aconteceu";
+export const MOTIVO_PEDIDO_CANCELADO = "Pedido cancelado";
+export const MOTIVO_CANCELAMENTO = "Sessão cancelada com antecedência";
+export const MOTIVO_CANCELAMENTO_DO_OUTRO_LADO = "Sessão cancelada por quem ia atender";
+export const MOTIVO_COMPENSACAO_CANCELAMENTO = "Compensação pelo cancelamento em cima da hora";
 
 type LinhaTravada = {
   status: string;
   start_at: string;
+  end_at: string;
   created_at: string;
+  professional_id: string;
+  cancelled_by: string | null;
 };
 
 /**
@@ -74,7 +95,7 @@ async function travarDoParceiro(
   partnerId: string,
 ): Promise<LinhaTravada> {
   const [linha] = await tx<LinhaTravada[]>`
-    select status::text, start_at, created_at from bookings
+    select status::text, start_at, end_at, created_at, professional_id, cancelled_by from bookings
      where id = ${bookingId} and partner_id = ${partnerId}
        for update`;
   if (!linha) throw new SessaoNaoEncontrada();
@@ -87,7 +108,9 @@ function exigePendente(linha: LinhaTravada, agora: Date): void {
     throw new PedidoJaRespondido(
       linha.status === "expired"
         ? "Esse pedido expirou e a ficha já voltou para quem pediu."
-        : "Esse pedido já foi respondido.",
+        : linha.status === "cancelled" && linha.cancelled_by === linha.professional_id
+          ? "Quem pediu cancelou esse pedido."
+          : "Esse pedido já foi respondido.",
     );
   }
   if (new Date(linha.start_at).getTime() <= agora.getTime()) {
@@ -151,6 +174,104 @@ export async function recusaNaTransacao(
     motivo: MOTIVO_RECUSA,
   });
   return { saldoCarteira };
+}
+
+export type PedidoDeCancelamento = {
+  bookingId: string;
+  /** Vem do JWT: o id e o lado de quem cancela (invariante 19). */
+  ator: { id: string; lado: LadoDoCancelamento };
+  agora: Date;
+  /** `cancel_window_hours`. */
+  janelaHoras: number;
+  /** `partner_no_show_bonus`, para o Parceiro que cancela em cima da hora. */
+  compensacao: number;
+  /**
+   * O que a tela disse que ia acontecer. Se o prazo virou entre a página abrir e
+   * o clique, o veredito muda — e dinheiro não se move sem a pessoa ter lido a
+   * frase certa. A transação recusa, a tela recarrega e mostra a frase nova.
+   */
+  esperado: { estorna: boolean; compensa: boolean };
+};
+
+/**
+ * `pending | confirmed → cancelled`, pelo Profissional ou pelo Parceiro (F7).
+ *
+ * A regra é `regraDoCancelamento`, a mesma que a tela usa para decidir o que
+ * dizer; aqui ela roda de novo com a sessão travada. O estorno usa a chave única
+ * `refund_{bookingId}` — a mesma da recusa e da expiração —, e a compensação a
+ * `noshow_{bookingId}`, a mesma da falta: um cancelamento que corresse com o
+ * fechamento não devolveria nem compensaria duas vezes.
+ *
+ * Sem `audit_logs`: é a pessoa mexendo na própria sessão, como a recusa.
+ * `cancelled_by` e `cancelled_at` ficam na linha.
+ */
+export async function cancelamentoNaTransacao(
+  tx: postgres.TransactionSql,
+  pedido: PedidoDeCancelamento,
+): Promise<{ estornou: boolean; compensou: number }> {
+  const { bookingId, ator, agora } = pedido;
+  // Duas consultas, e não uma coluna escolhida por parâmetro: o `where` de cada
+  // lado fica escrito por inteiro. Sessão de outra pessoa responde como
+  // inexistente, como em `travarDoParceiro`.
+  const [linha] =
+    ator.lado === "partner"
+      ? await tx<LinhaTravada[]>`
+          select status::text, start_at, end_at, created_at, professional_id, cancelled_by
+            from bookings where id = ${bookingId} and partner_id = ${ator.id} for update`
+      : await tx<LinhaTravada[]>`
+          select status::text, start_at, end_at, created_at, professional_id, cancelled_by
+            from bookings where id = ${bookingId} and professional_id = ${ator.id} for update`;
+  if (!linha) throw new SessaoNaoEncontrada();
+
+  const veredito = regraDoCancelamento(
+    { status: linha.status, inicio: new Date(linha.start_at), fim: new Date(linha.end_at) },
+    ator.lado,
+    agora,
+    pedido.janelaHoras,
+  );
+  if (!veredito.pode) throw new CancelamentoRecusado(fraseDaRecusa(veredito.motivo, linha.status));
+  if (
+    veredito.estorna !== pedido.esperado.estorna ||
+    veredito.compensa !== pedido.esperado.compensa
+  ) {
+    throw new CancelamentoRecusado(
+      ator.lado === "partner"
+        ? "O prazo mudou enquanto a página estava aberta: agora o cancelamento compensa quem ia participar. Confira antes de cancelar."
+        : "O prazo para cancelar com a ficha de volta acabou de passar. Confira antes de cancelar.",
+    );
+  }
+
+  await tx`
+    update bookings
+       set status = 'cancelled',
+           cancelled_at = ${paraInstante(agora)}::text::timestamptz,
+           cancelled_by = ${ator.id}
+     where id = ${bookingId}`;
+
+  const autor: Ator = { id: ator.id, role: ator.lado };
+  if (veredito.estorna) {
+    await estornoNaTransacao(tx, {
+      bookingId,
+      ator: autor,
+      motivo:
+        ator.lado === "partner"
+          ? MOTIVO_CANCELAMENTO_DO_OUTRO_LADO
+          : linha.status === "pending"
+            ? MOTIVO_PEDIDO_CANCELADO
+            : MOTIVO_CANCELAMENTO,
+    });
+  }
+
+  const compensou = veredito.compensa ? Math.max(0, pedido.compensacao) : 0;
+  if (compensou > 0) {
+    await compensacaoNaTransacao(tx, {
+      bookingId,
+      quantidade: compensou,
+      motivo: MOTIVO_COMPENSACAO_CANCELAMENTO,
+    });
+  }
+
+  return { estornou: veredito.estorna, compensou };
 }
 
 // ---------------------------------------------------------------- trabalho agendado

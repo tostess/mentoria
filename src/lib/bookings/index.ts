@@ -23,11 +23,13 @@ import {
   type Reserva,
 } from "./operacoes";
 import {
+  cancelamentoNaTransacao,
   confirmacaoNaTransacao,
   correcaoDePresencaNaTransacao,
   expirarPendentesNaConexao,
   fecharSessoesNaConexao,
   recusaNaTransacao,
+  type PedidoDeCancelamento,
   type Resposta,
   type ResultadoDaRodada,
 } from "./transicoes";
@@ -44,8 +46,13 @@ import {
 
 export { ParceiroIndisponivel, ProfissionalInvalido } from "./operacoes";
 export type { Pedido, Reserva } from "./operacoes";
-export { CorrecaoRecusada, PedidoJaRespondido, SessaoNaoEncontrada } from "./transicoes";
-export type { Resposta, ResultadoDaRodada } from "./transicoes";
+export {
+  CancelamentoRecusado,
+  CorrecaoRecusada,
+  PedidoJaRespondido,
+  SessaoNaoEncontrada,
+} from "./transicoes";
+export type { PedidoDeCancelamento, Resposta, ResultadoDaRodada } from "./transicoes";
 export { PresenteRecusado } from "./presente";
 export type { CotaDoMes, PedidoDePresente } from "./presente";
 
@@ -113,6 +120,21 @@ export async function recusarPedido(resposta: Resposta): Promise<{ saldoCarteira
   );
 }
 
+/**
+ * O Profissional ou o Parceiro cancela a própria sessão (F7). `comTraducao` pela
+ * mesma segunda cerca da recusa: a trava já teria dito "já cancelada", então
+ * colidir em `refund_` ou `noshow_` é defeito e sobe como `LancamentoRepetido`.
+ */
+export async function cancelarSessao(
+  pedido: PedidoDeCancelamento,
+): Promise<{ estornou: boolean; compensou: number }> {
+  const sql = getSql();
+  return comTraducao(
+    () => sql.begin((tx) => cancelamentoNaTransacao(tx, pedido)),
+    "Não foi possível cancelar.",
+  );
+}
+
 /** `expire-pending`, na conexão de verdade: cada sessão commita sozinha. */
 export async function expirarPendentes(agora: Date, config: AppConfig): Promise<ResultadoDaRodada> {
   return expirarPendentesNaConexao(acessoDaConexao(getSql()), {
@@ -159,15 +181,25 @@ export async function corrigirPresenca(resposta: Resposta): Promise<void> {
 }
 
 /**
- * As sessões em que o Parceiro deu presente, para a agenda dele. Privilegiada,
- * com ele no `where`: a policy de `wallet_ledger` não o deixa ler a carteira de
- * ninguém, e aqui ele só fica sabendo dos lançamentos que ele mesmo fez.
+ * O que o livro-caixa registrou nas sessões do Parceiro, para a agenda dele: em
+ * quais ele deu presente, e em quais o Profissional recebeu compensação — pela
+ * falta ou pelo cancelamento em cima da hora. Privilegiada, com ele no `where`:
+ * a policy de `wallet_ledger` não o deixa ler a carteira de ninguém, e aqui ele
+ * só fica sabendo de lançamentos das sessões dele, sem valor nem saldo.
  */
-export async function presentesDoParceiro(partnerId: string): Promise<Set<string>> {
-  const linhas = await getSql()<{ booking_id: string }[]>`
-    select booking_id from wallet_ledger
-     where type = 'gift' and by_user_id = ${partnerId} and booking_id is not null`;
-  return new Set(linhas.map((l) => l.booking_id));
+export async function movimentosDoParceiro(
+  partnerId: string,
+): Promise<{ presentes: Set<string>; compensadas: Set<string> }> {
+  const linhas = await getSql()<{ booking_id: string; type: string }[]>`
+    select w.booking_id, w.type::text as type from wallet_ledger w
+     where w.booking_id is not null
+       and ((w.type = 'gift' and w.by_user_id = ${partnerId})
+            or (w.type = 'adjust' and exists (
+                  select 1 from bookings b where b.id = w.booking_id and b.partner_id = ${partnerId})))`;
+  return {
+    presentes: new Set(linhas.filter((l) => l.type === "gift").map((l) => l.booking_id)),
+    compensadas: new Set(linhas.filter((l) => l.type === "adjust").map((l) => l.booking_id)),
+  };
 }
 
 /** A cota do mês e se esta sessão já ganhou presente, para a sala do Parceiro. */

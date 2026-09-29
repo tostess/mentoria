@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { SessaoNaAgenda } from "@/lib/bookings/agenda";
+import { cancelamentoDaLinha, type SessaoNaAgenda } from "@/lib/bookings/agenda";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -30,7 +30,7 @@ export async function carregarSessoesDoParceiro(
   const supabase = await createClient();
   const { data: sessoes, error } = await supabase
     .from("bookings")
-    .select("id, professional_id, start_at, end_at, status, created_at, cancelled_by")
+    .select("id, professional_id, start_at, end_at, status, created_at, cancelled_by, confirmed_at")
     .eq("partner_id", partnerId)
     .order("start_at", { ascending: false })
     .limit(200);
@@ -73,7 +73,13 @@ export async function carregarSessoesDoParceiro(
         fim,
         status: texto(l.status) ?? "pending",
         criadaEm: instante(l.created_at) ?? inicio,
-        recusadaPeloParceiro: l.cancelled_by === partnerId,
+        cancelamento: cancelamentoDaLinha({
+          status: l.status,
+          cancelled_by: l.cancelled_by,
+          confirmed_at: l.confirmed_at,
+          partner_id: partnerId,
+          professional_id: l.professional_id,
+        }),
         outro: pessoas.get(l.professional_id) ?? {
           id: l.professional_id,
           nome: nomePadrao,

@@ -1,6 +1,7 @@
 import type { PillVariant } from "@/components/ui/Pill";
 import type { bookingStatus } from "@/lib/db/schema/enums";
 import { cap } from "@/lib/terms";
+import type { Cancelamento } from "./agenda";
 
 /**
  * O status da sessão como a tela o chama.
@@ -8,10 +9,11 @@ import { cap } from "@/lib/terms";
  * Tipado pelo próprio enum do esquema, como `ledger/rotulos.ts`: um status novo
  * no Postgres sem rótulo aqui deixa de compilar em vez de aparecer cru.
  *
- * `cancelled` tem dois nomes porque tem duas histórias. Na P4 só o Parceiro
- * cancela — é a recusa —, e quem lê precisa saber isso: "recusada" diz que a
- * ficha voltou porque o Parceiro não pôde; "cancelada" fica para quando o
- * cancelamento do Profissional existir (F7).
+ * `cancelled` tem dois nomes porque tem duas histórias. O Parceiro dizendo não a
+ * um pedido pendente é "Recusada"; o resto — o Profissional desistindo, ou
+ * qualquer lado desmarcando sessão confirmada (F7) — é "Cancelada". Para o
+ * Profissional, a sessão que o Parceiro desmarcou é má notícia e aparece em
+ * vermelho; quem cancelou a própria sessão lê em cinza.
  */
 
 export type StatusDaSessao = (typeof bookingStatus.enumValues)[number];
@@ -35,10 +37,13 @@ export type Visao = { lado: "professional" | "partner"; parceiro: string };
 
 export function rotuloDoStatus(
   status: string,
-  recusadaPeloParceiro: boolean,
+  cancelamento: Cancelamento | null,
   visao?: Visao,
 ): { rotulo: string; variante: PillVariant } {
-  if (status === "cancelled" && recusadaPeloParceiro) return { rotulo: "Recusada", variante: "bad" };
+  if (status === "cancelled" && cancelamento?.por === "partner") {
+    if (cancelamento.eraPedido) return { rotulo: "Recusada", variante: "bad" };
+    if (visao?.lado === "professional") return { rotulo: "Cancelada", variante: "bad" };
+  }
   if (visao !== undefined && (status === "no_show_partner" || status === "no_show_professional")) {
     const faltouQuemOlha = (status === "no_show_partner") === (visao.lado === "partner");
     if (faltouQuemOlha) return { rotulo: "Você não entrou", variante: "wait" };

@@ -436,7 +436,8 @@ RLS habilitado em **todas** as tabelas. Princípios das policies:
 admin registra contrato ──▶ org_ledger purchase  (+N)
 RH aloca ────────────────▶ org_ledger allocate (−1) + wallet_ledger allocate (+1)  [1 transação]
 profissional agenda ─────▶ wallet_ledger spend (−1) + insert bookings              [1 transação]
-cancelou a tempo ────────▶ wallet_ledger refund (+1)
+Profissional cancela ────▶ wallet_ledger refund (+1), se pedido ou > cancel_window_hours
+Parceiro cancela ────────▶ wallet_ledger refund (+1) + adjust (+bônus) se < cancel_window_hours
 Parceiro presenteia ─────▶ wallet_ledger gift (+1) + gift_quotas (+1)              [1 transação, na sala]
 colaborador sai ─────────▶ wallet_ledger reclaim (−saldo) + org_ledger reclaim (+saldo)
 ```
@@ -446,11 +447,16 @@ colaborador sai ─────────▶ wallet_ledger reclaim (−saldo) 
 ```
 pending ──confirmar──▶ confirmed ──fim + 15min──▶ done
    │  │                    │
-   │  └──Parceiro recusa──▶ cancelled (estorno imediato)
-   │ 48h sem resposta      ├──cancelar──▶ cancelled (estorno se > cancel_window_hours)
+   │  ├──Parceiro recusa──▶ cancelled (estorno imediato)
+   │  └──Profissional cancela──▶ cancelled (estorno)
+   │ 48h sem resposta      ├──Profissional cancela──▶ cancelled (estorno se > cancel_window_hours)
+   │                       ├──Parceiro cancela──▶ cancelled (estorno; + bônus se < cancel_window_hours)
    ▼                       ├──ninguém ou só Parceiro entrou──▶ no_show_professional (ficha some)
  expired (estorno)         └──só profissional entrou──▶ no_show_partner (estorno + bônus)
 ```
+
+Cancelar só vale até a sala abrir (início − 10 min); a regra inteira é `regraDoCancelamento`, em
+`lib/bookings/cancelamento.ts`.
 
 ### Indicador que sustenta a renovação
 
@@ -501,11 +507,14 @@ esquema, constraints e RLS · auth, papéis e config · motor de agenda.
 - **P5** ✅ Sala Daily, presença lida da sala, presente de 1 ficha dentro da sala, correção de
   presença — na `main` e em produção desde 27/09; o vídeo em produção depende do domínio Daily próprio
 - **Conta** ✅ Menu da conta na sidebar ("Redefinir senha" e "Sair") e aviso de senha provisória
-  ao entrar — na branch `conta`; a migração `senha_provisoria` vai para o `mentoria` antes do merge
+  ao entrar — na `main` e em produção desde 29/09, com a migração `senha_provisoria` no `mentoria`
+- **F7 (cancelamento)** Profissional e Parceiro cancelam a própria sessão até a sala abrir, com
+  estorno e compensação pela regra do prazo — na branch `f7`, aguardando aprovação rodando. Trazida
+  para dentro do piloto em 29/09; a fila de espera continua fora
 - **P5+** `send-reminders` 24h e 1h — espera Resend e o domínio remetente
 
 Fora do piloto: convite por token, candidatura espontânea, console do RH, personalização por
-empresa, briefing, avaliação, cancelamento com estorno, moderação.
+empresa, briefing, avaliação, fila de espera, moderação.
 
 **Produto (nov/2026 – fev/2027):** F1.5 convite e moderação · F2 console do RH · F3 grade semanal
 completa · F4 personalização por empresa · F6 briefing · F7 cancelamento e fila de espera ·
@@ -805,7 +814,7 @@ F16 formato grupo · F18 dashboards e exclusão de conta.
 - **Instante sai formatado do servidor, no fuso de quem olha.** Os componentes de cliente recebem
   texto e o ISO para devolver; o luxon não vai para o bundle. `lib/formato.ts` ganhou as funções
   de agenda com o fuso como parâmetro, e o default continua o da tela.
-- **Na P4 cancelada é sinônimo de recusada.** O único caminho para `cancelled` é a recusa do Parceiro;
+- **Na P4 cancelada era sinônimo de recusada** (superado pela F7 — ver "Recusa e cancelamento"). O único caminho para `cancelled` era a recusa do Parceiro;
   a tela chama de "Recusada" e diz que a ficha voltou. "Cancelada" fica para a F7.
 - **`send-reminders` saiu da P4 e foi para depois da P5.** Não há Resend, nem chave, nem domínio
   remetente — que depende do nome da plataforma. O piloto é operado à mão; lembrete entra junto com
@@ -938,6 +947,35 @@ F16 formato grupo · F18 dashboards e exclusão de conta.
   tinha dado real, vocabulário do banco nem o comportamento de verdade. Agora a tela é construída
   na aplicação e aprovada rodando. O menu da conta foi o primeiro caso.
 
+- **Cancelar vale até a sala abrir, dos dois lados (F7, 29/09/2026).** Depois de início − 10 min
+  já pode haver alguém na sala, e quem não vier é falta — a presença resolve. Como a sala só nasce
+  dentro da janela, nenhuma sala do Daily fica aberta para sessão cancelada.
+- **O Profissional cancela depois do prazo e perde a ficha.** Pedido pendente devolve sempre;
+  confirmada devolve até `cancel_window_hours` antes do início. Depois disso ainda pode cancelar —
+  o horário volta para a agenda do Parceiro —, mas a ficha conta como usada, igual à falta. Com
+  `min_notice_hours` igual à janela, quem marca em cima da hora cancela sem estorno: aceito.
+- **O Parceiro cancela sessão confirmada e a ficha volta sempre; em cima da hora, compensa.** Com
+  menos de `cancel_window_hours`, o Profissional recebe também `partner_no_show_bonus`, com a mesma
+  chave `noshow_{bookingId}` da falta — cancelar em cima da hora é falta avisada. Pedido pendente o
+  Parceiro não cancela: recusa.
+- **A tela diz o que vai acontecer com a ficha, e o servidor confere que ainda é verdade.** O
+  corpo de `POST /api/bookings/:id/cancelar` é `{ estorna, compensa }` — o que a frase lida
+  prometeu. Se o prazo virou entre a página abrir e o clique, o veredito muda e a transação
+  recusa com 409 em vez de mover a ficha de um jeito que a pessoa não leu. Tela e transação
+  decidem pela mesma função pura, `regraDoCancelamento`.
+- **Recusa e cancelamento: mesmo status, histórias diferentes.** `SessaoNaAgenda.cancelamento`
+  guarda quem cancelou e se ainda era pedido (`confirmed_at` nulo — a confirmação automática da
+  reserva também o preenche). Parceiro diante de pedido é "Recusada"; o resto é "Cancelada", em
+  vermelho só para o Profissional que teve a sessão desmarcada pelo Parceiro.
+- **O histórico diz o que o livro-caixa registrou, não o que o status sugere.** Cancelar a tempo e
+  depois do prazo dão o mesmo `cancelled`; o que separa os dois é o `refund`. A agenda do
+  Profissional lê os lançamentos de cada sessão pelo próprio extrato (`movimentosPorSessao`); a do
+  Parceiro, em quais sessões dele houve presente ou compensação (`movimentosDoParceiro`,
+  privilegiada, sem valor nem saldo).
+- **Cancelar não grava `audit_logs` nem avisa ninguém.** É a pessoa mexendo na própria sessão, como
+  a recusa; `cancelled_by` e `cancelled_at` ficam na linha. O outro lado vê na agenda — aviso por
+  e-mail chega com o Resend, e a tela do Parceiro diz isso.
+
 ## Descartado
 
 - Firebase / Firestore. - Chat livre fora da janela de 24h da sessão. - Ranking público.
@@ -958,7 +996,11 @@ F16 formato grupo · F18 dashboards e exclusão de conta.
 
 ## Estado atual
 
-Fase: **P5 na `main` e em produção desde 27/09/2026.** Protótipo aprovado em 28/09 (com o presente
+Fase: **F7 (cancelamento) na branch `f7`, aguardando aprovação rodando.** A `conta` entrou na
+`main` e em produção em 29/09, com a migração `senha_provisoria` aplicada no `mentoria` antes do
+push. A F7 não tem migração: usa as colunas `cancelled_at`/`cancelled_by` que existem desde a Etapa 3.
+
+Antes dela: **P5 na `main` e em produção desde 27/09/2026.** Protótipo aprovado em 28/09 (com o presente
 chegando por consulta de 15 s e a correção de presença só do Profissional). O vídeo funcionou no
 celular pelo Preview da `p5`; a migração `sala_e_presente` foi aplicada no `mentoria` antes do push.
 Em produção o vídeo roda, provisoriamente, no domínio de teste `tostes` (chave cadastrada em
@@ -1004,7 +1046,7 @@ Toda casca tem o **menu da conta** no pé da sidebar, com "Redefinir senha" e "S
 com senha provisória recebe a janela de troca ao entrar (`components/conta/JanelaDeSenha.tsx`,
 `trocarSenha` em `lib/auth/actions.ts`, regras puras em `lib/auth/senha.ts`).
 
-535 testes em 34 arquivos. Invariante 19 em
+568 testes em 35 arquivos (com a F7, na branch `f7`). Invariante 19 em
 `src/lib/auth/hook.test.ts`; invariantes 3, 4, 7, 8, 9, 10 e 16 em `src/lib/db/invariantes.test.ts`;
 as transações em `ledger/transacoes.test.ts`, `bookings/reserva.test.ts`,
 `bookings/transicoes.test.ts` (com a presença), `bookings/presente.test.ts` e
@@ -1015,12 +1057,14 @@ as transações em `ledger/transacoes.test.ts`, `bookings/reserva.test.ts`,
 
 ### Produção
 
-No ar em `mentoria-bay.vercel.app` e completa desde 27/09/2026. O `mentoria` tem as sete
-migrações até a P5 (`sala_e_presente` em 27/09, conferida por consulta: `fichas_used` e
+No ar em `mentoria-bay.vercel.app` e completa desde 27/09/2026. O `mentoria` tem as oito
+migrações até a `conta` (`senha_provisoria` em 29/09, conferida por consulta: as três contas
+marcadas; `sala_e_presente` em 27/09, conferida por consulta: `fichas_used` e
 `fichas_extra` na `org_usage`, colunas da extensão fora), as seis primeiras conferidas por consulta (27 tabelas com RLS, 37 policies, triggers dos
 livros-caixa, `bookings_no_overlap`, `app_config`, hook, view `partner_professionals`); o hook está
-ligado e a operadora `tostess` entrou pela tela. As seis variáveis estão nos três ambientes, com o recorte da invariante 17. A única conta em
-produção é a da operadora; os dados de demonstração (Faculdade Aurora, Mariana Costa, Helena Braga)
+ligado e a operadora `tostess` entrou pela tela. As seis variáveis estão nos três ambientes, com o recorte da invariante 17. Em produção há três
+contas — a operadora, um Parceiro e um Profissional, criados em 27/09 —, todas com senha provisória
+marcada; os dados de demonstração (Faculdade Aurora, Mariana Costa, Helena Braga)
 existem só no `mentoria-dev`.
 
 Operação, para não redescobrir:
@@ -1058,6 +1102,18 @@ A P5 está em produção desde 27/09. Para o vídeo chegar ao piloto de 10/11:
    `sa-east-1` no domínio). Depende do nome da plataforma. **Não bloqueia mais o piloto:** até lá a
    produção usa o `tostes` (decisão de 27/09). Na troca, é só substituir `DAILY_API_KEY` em
    Production e fazer o redeploy; salas antigas do `tostes` já terão expirado.
+
+### F7 — o que ficou de fora, de propósito
+
+- **Fila de espera.** O horário cancelado volta à agenda e aparece para quem procurar; ninguém é
+  avisado de que ele abriu.
+- **Aviso ao outro lado.** Sem Resend não há e-mail: quem teve a sessão cancelada descobre pela
+  agenda. A tela do Parceiro diz isso.
+- **Motivo do cancelamento.** Nem o Profissional nem o Parceiro escrevem por quê; o esquema não tem
+  coluna para isso, e a F6 (briefing) é o lugar natural para a conversa antes da sessão.
+- **Cancelamento pela operadora.** Não há tela no admin; continua sendo operação à mão no banco.
+- **"Cancelar" no início.** Só a agenda dos dois lados oferece; o início mostra a próxima sessão e
+  leva à agenda.
 
 ### P5 — o que ficou de fora, de propósito
 
