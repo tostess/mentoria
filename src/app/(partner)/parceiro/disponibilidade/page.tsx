@@ -1,4 +1,5 @@
-import { DisponibilidadeForm } from "@/components/parceiro/DisponibilidadeForm";
+import { NovaFolga, RemoverFolga } from "@/components/parceiro/Folgas";
+import { GradeSemanal } from "@/components/parceiro/GradeSemanal";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -9,10 +10,19 @@ import { loadAppConfig } from "@/lib/config/load";
 import { DURACAO_DA_SESSAO_MIN, limitesDoMotor } from "@/lib/config/limites";
 import {
   carregarExcecoes,
+  carregarFolgas,
   carregarOcupacoes,
   carregarPerfil,
   carregarRegras,
 } from "@/lib/parceiro/dados";
+import {
+  agruparFolgas,
+  noRelogio,
+  rotuloDaFolga,
+  sessoesNoBloqueio,
+  type GrupoDeFolga,
+  type MomentoLocal,
+} from "@/lib/parceiro/grade";
 import { paraTexto } from "@/lib/parceiro/horarios";
 import { avaliarSlots, type Slot } from "@/lib/scheduling";
 
@@ -48,6 +58,12 @@ export default async function Page() {
   const regras = await carregarRegras(sessao.userId);
   const excecoes = await carregarExcecoes(sessao.userId);
   const ocupacoes = await carregarOcupacoes(sessao.userId, agora);
+  const hoje = noRelogio(agora, perfil.fuso).dia;
+  const folgas = agruparFolgas(await carregarFolgas(sessao.userId, hoje));
+  const sessoesLocais = ocupacoes.map((o) => ({
+    inicio: noRelogio(o.inicio, perfil.fuso),
+    fim: noRelogio(o.fim, perfil.fuso),
+  }));
 
   const avaliacoes = avaliarSlots({
     agora,
@@ -65,16 +81,12 @@ export default async function Page() {
   const livres = avaliacoes.filter((a) => a.recusa === null).map((a) => a.slot);
   const porDia = agrupar(livres, perfil.fuso);
 
-  // A rotina atual, para o formulário abrir com o que já existe. O modo rápido
-  // guarda o mesmo intervalo em todos os dias, então a primeira regra basta.
-  const primeira = regras[0];
-
   return (
     <>
       <PageHeader
         eyebrow={t.partner}
         title="Disponibilidade"
-        description={`Descreva a sua rotina uma vez. O ${t.professional.toLowerCase()} escolhe dentro dela, respeitando o seu descanso e o seu teto semanal.`}
+        description={`Descreva a sua semana e marque as folgas. O ${t.professional.toLowerCase()} escolhe dentro disso, respeitando o seu descanso e o seu teto semanal.`}
         actions={
           perfil.status === "active" ? (
             <Pill variant="on">Visível na busca</Pill>
@@ -85,15 +97,26 @@ export default async function Page() {
       />
 
       <div className="grid grid-cols-1 items-start gap-[18px] lg:grid-cols-[1fr_1.15fr]">
-        <Card title="Sua rotina" icone="calendar-clock">
-          <DisponibilidadeForm
-            diasIniciais={regras.map((regra) => regra.diaDaSemana)}
-            inicioInicial={paraTexto(primeira?.inicioMin ?? 540)}
-            fimInicial={paraTexto(primeira?.fimMin ?? 720)}
-            maxPorSemana={perfil.maxPorSemana}
-            duracaoMin={DURACAO_DA_SESSAO_MIN}
-          />
-        </Card>
+        <div className="flex flex-col gap-[18px]">
+          <Card title="Sua semana" icone="calendar-clock">
+            <GradeSemanal
+              inicial={regras.map((regra) => ({
+                dia: regra.diaDaSemana,
+                inicio: paraTexto(regra.inicioMin),
+                fim: paraTexto(regra.fimMin),
+              }))}
+              maxPorSemana={perfil.maxPorSemana}
+              duracaoMin={DURACAO_DA_SESSAO_MIN}
+            />
+          </Card>
+
+          <Card title="Folgas e horários extras" icone="calendar-off">
+            <div className="flex flex-col gap-5">
+              <ListaDeFolgas grupos={folgas} sessoes={sessoesLocais} />
+              <NovaFolga hoje={hoje} />
+            </div>
+          </Card>
+        </div>
 
         <div className="flex flex-col gap-[18px]">
           <Card
@@ -108,8 +131,8 @@ export default async function Page() {
               <EmptyState
                 title="Nenhum horário livre"
                 description={
-                  regras.length === 0
-                    ? "Configure a sua rotina ao lado para aparecer na busca."
+                  regras.length === 0 && excecoes.length === 0
+                    ? "Abra algum dia na sua semana para aparecer na busca."
                     : "A sua rotina existe, mas nada sobrou depois do descanso, do teto semanal e do que já está marcado."
                 }
               />
@@ -147,6 +170,60 @@ export default async function Page() {
         </div>
       </div>
     </>
+  );
+}
+
+/**
+ * As folgas e os extras de hoje em diante, um período por linha.
+ *
+ * O aviso dourado é o motivo de a lista existir aqui e não só na prévia: a
+ * folga fecha a agenda para pedidos novos, mas a sessão que já estava marcada
+ * continua de pé — e o Parceiro de férias precisa ver isso antes do dia.
+ */
+function ListaDeFolgas({
+  grupos,
+  sessoes,
+}: {
+  grupos: readonly GrupoDeFolga[];
+  sessoes: readonly { inicio: MomentoLocal; fim: MomentoLocal }[];
+}) {
+  if (grupos.length === 0) {
+    return (
+      <p className="text-[13px] leading-[1.5] text-[#8E7C86]">
+        Nenhuma folga marcada. Use para férias, um dia de congresso ou uma manhã ocupada — e o
+        horário extra para atender fora da sua semana.
+      </p>
+    );
+  }
+
+  return (
+    <ul className="flex flex-col divide-y divide-[#F3E4EC] rounded-[12px] border border-[#F3E4EC]">
+      {grupos.map((grupo) => {
+        const { periodo, faixa } = rotuloDaFolga(grupo);
+        const marcadas = sessoesNoBloqueio(grupo, sessoes);
+        return (
+          <li key={grupo.ids[0]} className="flex items-start justify-between gap-3 px-3.5 py-3">
+            <div className="flex min-w-0 flex-col gap-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <Pill variant={grupo.tipo === "extra" ? "on" : "off"}>
+                  {grupo.tipo === "extra" ? "Extra" : "Folga"}
+                </Pill>
+                <span className="font-mono text-[12.5px] tabular-nums text-[#2A1B26]">{periodo}</span>
+              </div>
+              <span className="text-[12.5px] text-[#8E7C86]">{faixa}</span>
+              {marcadas > 0 && (
+                <span className="text-[12.5px] leading-[1.45] text-[#8A5D0C]">
+                  {marcadas === 1
+                    ? "1 sessão marcada nesse período continua de pé — cancele pela agenda se não for atender."
+                    : `${marcadas} sessões marcadas nesse período continuam de pé — cancele pela agenda se não for atender.`}
+                </span>
+              )}
+            </div>
+            <RemoverFolga ids={grupo.ids} rotulo={`${periodo}, ${faixa}`} />
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 

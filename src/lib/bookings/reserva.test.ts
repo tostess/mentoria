@@ -457,3 +457,95 @@ run("horários livres — a tela e a reserva leem igual", () => {
     expect(aceitos.n).toBe(aceitos.total);
   });
 });
+
+/**
+ * Folga e horário extra (F3) chegam à reserva pela mesma leitura da tela.
+ *
+ * O motor já sabia de `partner_exceptions` desde a Etapa 5; o que estes testes
+ * provam é que a linha que a tela do Parceiro grava — uma por dia, `block` ou
+ * `extra`, faixa ou dia inteiro — é a que a reserva lê e respeita. Sem eles, um
+ * `kind` escrito diferente faria a folga aparecer na lista e não fechar nada.
+ */
+run("folgas e horários extras", () => {
+  async function excecao(
+    tx: postgres.TransactionSql,
+    partnerId: string,
+    dia: string,
+    kind: "block" | "extra",
+    faixa: [number, number] | null = null,
+  ) {
+    await tx`
+      insert into partner_exceptions (partner_id, day, kind, start_min, end_min)
+      values (${partnerId}, ${dia}, ${kind}, ${faixa?.[0] ?? null}, ${faixa?.[1] ?? null})`;
+  }
+
+  const horas = (lista: { inicio: Date }[]) => lista.map((s) => s.inicio.toISOString());
+
+  it("folga do dia inteiro fecha a terça para a tela e para a reserva", async () => {
+    const r = await emRollback(async (tx) => {
+      const base = await cenario(tx);
+      await excecao(tx, base.partnerId, "2026-09-29", "block");
+      const livres = await horariosLivresNaConexao(tx, {
+        partnerId: base.partnerId,
+        agora: AGORA,
+        limites: LIMITES,
+      });
+      const erro = await esperandoFalha(tx, (sp) => reservaNaTransacao(sp, pedido(base)));
+      return { livres: horas(livres), erro };
+    });
+
+    expect(r.livres.some((h) => h.startsWith("2026-09-29"))).toBe(false);
+    // A terça seguinte continua aberta: a folga é de um dia, não da regra.
+    expect(r.livres).toContain("2026-10-06T12:00:00.000Z");
+    expect(r.erro).toBeInstanceOf(HorarioIndisponivel);
+  });
+
+  it("folga de uma faixa fecha só a faixa", async () => {
+    const r = await emRollback(async (tx) => {
+      const base = await cenario(tx);
+      await excecao(tx, base.partnerId, "2026-09-29", "block", [540, 600]);
+      const nove = await esperandoFalha(tx, (sp) => reservaNaTransacao(sp, pedido(base)));
+      const dez = await reservaNaTransacao(tx, pedido(base, { inicio: TERCA_10H }));
+      return { nove, dez };
+    });
+
+    expect(r.nove).toBeInstanceOf(HorarioIndisponivel);
+    expect(r.dez).toBeDefined();
+  });
+
+  it("horário extra abre um dia fora da rotina", async () => {
+    // Quarta 30/09, 14h–15h em São Paulo = 17:00Z–18:00Z. A rotina é só terça.
+    const QUARTA_14H = new Date("2026-09-30T17:00:00Z");
+    const r = await emRollback(async (tx) => {
+      const base = await cenario(tx);
+      const antes = await esperandoFalha(tx, (sp) =>
+        reservaNaTransacao(sp, pedido(base, { inicio: QUARTA_14H })),
+      );
+      await excecao(tx, base.partnerId, "2026-09-30", "extra", [840, 900]);
+      const livres = await horariosLivresNaConexao(tx, {
+        partnerId: base.partnerId,
+        agora: AGORA,
+        limites: LIMITES,
+      });
+      await reservaNaTransacao(tx, pedido(base, { inicio: QUARTA_14H }));
+      return { antes, livres: horas(livres) };
+    });
+
+    expect(r.antes).toBeInstanceOf(HorarioIndisponivel);
+    expect(r.livres).toContain(QUARTA_14H.toISOString());
+    expect(r.livres).toContain("2026-09-30T17:30:00.000Z");
+    expect(r.livres).not.toContain("2026-09-30T18:00:00.000Z");
+  });
+
+  it("folga vence o horário extra do mesmo dia", async () => {
+    const QUARTA_14H = new Date("2026-09-30T17:00:00Z");
+    const erro = await emRollback(async (tx) => {
+      const base = await cenario(tx);
+      await excecao(tx, base.partnerId, "2026-09-30", "extra", [840, 900]);
+      await excecao(tx, base.partnerId, "2026-09-30", "block");
+      return esperandoFalha(tx, (sp) => reservaNaTransacao(sp, pedido(base, { inicio: QUARTA_14H })));
+    });
+
+    expect(erro).toBeInstanceOf(HorarioIndisponivel);
+  });
+});

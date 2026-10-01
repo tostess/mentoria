@@ -2,8 +2,10 @@
 
 import { refresh } from "next/cache";
 import { requireRole } from "@/lib/auth/session";
+import { DURACAO_DA_SESSAO_MIN } from "@/lib/config/limites";
 import {
   CampoInvalido,
+  ehId,
   inteiro,
   lista,
   marcado,
@@ -14,7 +16,9 @@ import {
   type FormState,
 } from "@/lib/forms";
 import { createClient } from "@/lib/supabase/server";
-import { paraMinutos } from "./horarios";
+import { carregarOcupacoes } from "./dados";
+import { lerGrade, linhasDaFolga, noRelogio, sessoesNoBloqueio, validarGrade } from "./grade";
+import { HorarioInvalido, paraMinutos } from "./horarios";
 import { fuso as campoFuso, senioridade as campoSenioridade } from "./validacao";
 
 /**
@@ -36,42 +40,23 @@ async function exigeParceiro() {
 }
 
 /**
- * Modo rápido: um intervalo, os dias que ele escolher, toda semana.
+ * A grade semanal inteira: cada dia com as faixas que o Parceiro quiser.
  *
- * Substitui todas as regras em vez de acrescentar. É o que "modo rápido"
- * significa — o Parceiro está descrevendo a rotina inteira, não somando uma
- * linha. A grade detalhada, com horário diferente por dia, é a F3, e quando ela
- * chegar esta tela precisa avisar antes de sobrescrever.
+ * Substitui todas as regras em vez de acrescentar — a tela manda a semana
+ * completa, do jeito que ele a vê. O antigo modo rápido ("os mesmos horários em
+ * vários dias") virou um atalho que só preenche a grade no cliente; nada é
+ * salvo sem ele ver o resultado, e por isso não há mais o que sobrescrever sem
+ * aviso. Grade vazia é válida: é ele saindo da busca sem precisar ser pausado.
  */
-export async function salvarDisponibilidadeAcao(
-  _anterior: FormState,
-  form: FormData,
-): Promise<FormState> {
+export async function salvarGradeAcao(_anterior: FormState, form: FormData): Promise<FormState> {
   const userId = await exigeParceiro();
 
   return validando(async () => {
-    const dias = form
-      .getAll("dias")
-      .filter((v): v is string => typeof v === "string")
-      .map((v) => {
-        if (!/^[0-6]$/.test(v)) throw new CampoInvalido("Dia da semana inválido.");
-        return Number(v);
-      });
-
-    const unicos = [...new Set(dias)].sort((a, b) => a - b);
-    if (unicos.length === 0) {
-      throw new CampoInvalido("Escolha pelo menos um dia da semana.");
-    }
-
-    const inicioMin = paraMinutos(texto(form, "inicio", "o horário de início", 5));
-    const fimMin = paraMinutos(texto(form, "fim", "o horário de término", 5));
-
-    if (fimMin <= inicioMin) {
-      throw new CampoInvalido("O término precisa ser depois do início.");
-    }
-    if (fimMin - inicioMin < 30) {
-      throw new CampoInvalido("A janela precisa ter pelo menos 30 minutos — uma sessão inteira.");
-    }
+    const bruto = form.get("grade");
+    const grade = validarGrade(
+      lerGrade(typeof bruto === "string" ? bruto : ""),
+      DURACAO_DA_SESSAO_MIN,
+    );
 
     const supabase = await createClient();
 
@@ -82,36 +67,143 @@ export async function salvarDisponibilidadeAcao(
     const apagou = await supabase.from("partner_rules").delete().eq("partner_id", userId);
     if (apagou.error !== null) throw new Error(`limpar regras: ${apagou.error.message}`);
 
-    const inseriu = await supabase.from("partner_rules").insert(
-      unicos.map((dia) => ({
-        partner_id: userId,
-        weekday: dia,
-        start_min: inicioMin,
-        end_min: fimMin,
-      })),
-    );
-    if (inseriu.error !== null) throw new Error(`gravar regras: ${inseriu.error.message}`);
+    if (grade.length > 0) {
+      const inseriu = await supabase.from("partner_rules").insert(
+        grade.map((faixa) => ({
+          partner_id: userId,
+          weekday: faixa.dia,
+          start_min: faixa.inicioMin,
+          end_min: faixa.fimMin,
+        })),
+      );
+      if (inseriu.error !== null) throw new Error(`gravar regras: ${inseriu.error.message}`);
+    }
 
     refresh();
+    if (grade.length === 0) {
+      return sucesso("Rotina vazia. Você não aparece com horário livre até abrir algum dia.");
+    }
+    const dias = new Set(grade.map((faixa) => faixa.dia)).size;
     return sucesso(
-      unicos.length === 1
-        ? "Disponibilidade salva para 1 dia da semana."
-        : `Disponibilidade salva para ${unicos.length} dias da semana.`,
+      dias === 1 ? "Rotina salva para 1 dia da semana." : `Rotina salva para ${dias} dias da semana.`,
     );
   });
 }
 
-/** Limpa a rotina inteira. O Parceiro some da busca sem precisar ser pausado. */
-export async function limparDisponibilidadeAcao(): Promise<FormState> {
+/** A data de hoje no relógio do Parceiro — a fronteira do que já passou. */
+async function hojeDoParceiro(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+): Promise<{ hoje: string; fuso: string }> {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("timezone")
+    .eq("id", userId)
+    .maybeSingle();
+  if (error !== null) throw new Error(`fuso: ${error.message}`);
+  const fuso =
+    data !== null && typeof (data as Record<string, unknown>).timezone === "string"
+      ? ((data as Record<string, unknown>).timezone as string)
+      : "America/Sao_Paulo";
+  return { hoje: noRelogio(new Date(), fuso).dia, fuso };
+}
+
+function horaOpcional(form: FormData, nome: string, rotulo: string): number {
+  const valor = form.get(nome);
+  if (typeof valor !== "string" || valor.trim() === "") {
+    throw new CampoInvalido(`Preencha ${rotulo}.`);
+  }
+  try {
+    return paraMinutos(valor);
+  } catch (erro) {
+    if (erro instanceof HorarioInvalido) throw new CampoInvalido(erro.message);
+    throw erro;
+  }
+}
+
+/**
+ * Folga (férias, um dia, uma manhã) ou horário extra num dia específico.
+ *
+ * Uma linha de `partner_exceptions` por dia, que é o que o motor lê. Sem
+ * `reason`: a policy de leitura abre as exceções de Parceiro ativo a todo
+ * autenticado — é a agenda pública dele —, e "cirurgia" ou "férias na Bahia"
+ * escritos ali seriam lidos por qualquer Profissional de qualquer empresa.
+ *
+ * Bloquear não desmarca ninguém. A mensagem diz quantas sessões já marcadas
+ * caem no período, para o Parceiro decidir se cancela pela agenda — cancelar
+ * mexe na ficha de outra pessoa e é gesto dele, não efeito colateral.
+ */
+export async function adicionarFolgaAcao(
+  _anterior: FormState,
+  form: FormData,
+): Promise<FormState> {
   const userId = await exigeParceiro();
 
   return validando(async () => {
+    const tipo = form.get("tipo") === "extra" ? ("extra" as const) : ("bloqueio" as const);
+    const diaInteiro = tipo === "bloqueio" && marcado(form, "diaInteiro");
+    const de = texto(form, "de", "a data", 10);
+    const ate = tipo === "extra" ? de : texto(form, "ate", "a data de término", 10);
+    const inicioMin = diaInteiro ? null : horaOpcional(form, "inicio", "o horário de início");
+    const fimMin = diaInteiro ? null : horaOpcional(form, "fim", "o horário de término");
+
     const supabase = await createClient();
-    const { error } = await supabase.from("partner_rules").delete().eq("partner_id", userId);
-    if (error !== null) throw new Error(`limpar regras: ${error.message}`);
+    const { hoje, fuso } = await hojeDoParceiro(supabase, userId);
+    const linhas = linhasDaFolga({ tipo, de, ate, inicioMin, fimMin }, hoje, DURACAO_DA_SESSAO_MIN);
+
+    const { error } = await supabase.from("partner_exceptions").insert(
+      linhas.map((linha) => ({
+        partner_id: userId,
+        day: linha.dia,
+        kind: linha.tipo === "bloqueio" ? "block" : "extra",
+        start_min: linha.inicioMin,
+        end_min: linha.fimMin,
+      })),
+    );
+    if (error !== null) throw new Error(`gravar folga: ${error.message}`);
 
     refresh();
-    return sucesso("Rotina apagada. Você não aparece com horário livre até configurar de novo.");
+
+    if (tipo === "extra") return sucesso("Horário extra aberto.");
+
+    const ocupacoes = await carregarOcupacoes(userId, new Date());
+    const marcadas = sessoesNoBloqueio(
+      { tipo, de, ate, inicioMin, fimMin },
+      ocupacoes.map((o) => ({ inicio: noRelogio(o.inicio, fuso), fim: noRelogio(o.fim, fuso) })),
+    );
+    const base = linhas.length === 1 ? "Folga salva." : `Folga salva para ${linhas.length} dias.`;
+    if (marcadas === 0) return sucesso(base);
+    return sucesso(
+      `${base} ${marcadas === 1 ? "A sessão que já estava marcada nesse período continua de pé" : `As ${marcadas} sessões que já estavam marcadas nesse período continuam de pé`} — se não for atender, cancele pela agenda.`,
+    );
+  });
+}
+
+/** Remove um período de folga ou um horário extra — todas as linhas do grupo. */
+export async function removerFolgaAcao(
+  _anterior: FormState,
+  form: FormData,
+): Promise<FormState> {
+  const userId = await exigeParceiro();
+
+  return validando(async () => {
+    const ids = form
+      .getAll("ids")
+      .filter((v): v is string => typeof v === "string" && ehId(v));
+    if (ids.length === 0) throw new CampoInvalido("Nada para remover.");
+
+    const supabase = await createClient();
+    // O `partner_id` é redundante com a policy, e está aqui de propósito: se a
+    // policy afrouxar um dia, a tela continua apagando só o que é dele.
+    const { error } = await supabase
+      .from("partner_exceptions")
+      .delete()
+      .in("id", ids)
+      .eq("partner_id", userId);
+    if (error !== null) throw new Error(`remover folga: ${error.message}`);
+
+    refresh();
+    return sucesso("Removido.");
   });
 }
 

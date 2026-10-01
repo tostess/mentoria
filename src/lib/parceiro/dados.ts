@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
+import type { LinhaDeFolga } from "./grade";
 import { ehDiaDaSemana } from "./horarios";
 import type { DiaDaSemana, Excecao, Ocupacao, RegraSemanal } from "@/lib/scheduling";
 
@@ -130,6 +131,36 @@ export async function carregarExcecoes(userId: string): Promise<Excecao[]> {
       fimMin: typeof linha.end_min === "number" ? linha.end_min : null,
     }))
     .filter((excecao) => excecao.dia !== "");
+}
+
+/**
+ * As folgas e os horários extras de hoje em diante, com `id`, para a lista em
+ * que o Parceiro os remove. As do passado ficam no banco e fora da tela: não
+ * mudam agenda nenhuma.
+ */
+export async function carregarFolgas(
+  userId: string,
+  hoje: string,
+): Promise<(LinhaDeFolga & { id: string })[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("partner_exceptions")
+    .select("id, day, kind, start_min, end_min")
+    .eq("partner_id", userId)
+    .gte("day", hoje);
+
+  if (error !== null) throw new Error(`folgas: ${error.message}`);
+
+  return (data ?? [])
+    .map((linha) => linha as Record<string, unknown>)
+    .filter((linha) => typeof linha.id === "string" && texto(linha.day) !== null)
+    .map((linha) => ({
+      id: linha.id as string,
+      dia: (linha.day as string).slice(0, 10),
+      tipo: linha.kind === "block" ? ("bloqueio" as const) : ("extra" as const),
+      inicioMin: typeof linha.start_min === "number" ? linha.start_min : null,
+      fimMin: typeof linha.end_min === "number" ? linha.end_min : null,
+    }));
 }
 
 /**

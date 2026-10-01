@@ -413,6 +413,54 @@ run("invariante 10 — comportamento, com RLS ativa", () => {
   });
 });
 
+/**
+ * A agenda do Parceiro é o único lugar em que o papel autenticado escreve. A
+ * tela de folgas (F3) depende disso: grava pela sessão dele, e é a policy
+ * `partner_exceptions_write_self` que impede a folga de cair na agenda de
+ * outro — o `partner_id` vem do JWT na tela, mas um POST forjado mandaria o que
+ * quisesse.
+ */
+run("agenda do Parceiro — escrita pela RLS", () => {
+  it("grava e apaga folga na própria agenda, e não toca na de outro Parceiro", async () => {
+    const r = await inRollback(async (tx) => {
+      const a = await seed(tx);
+      const b = await seed(tx);
+      const [alheia] = await tx<{ id: string }[]>`
+        insert into partner_exceptions (partner_id, day, kind)
+        values (${b.partnerId}, '2027-04-01', 'block') returning id`;
+
+      await comoUsuario(tx, { sub: a.partnerId, user_role: "partner" });
+      await tx`
+        insert into partner_exceptions (partner_id, day, kind)
+        values (${a.partnerId}, '2027-04-02', 'block')`;
+      const naAlheia = await tx
+        .savepoint(async (sp) => {
+          await sp`
+            insert into partner_exceptions (partner_id, day, kind)
+            values (${b.partnerId}, '2027-04-03', 'block')`;
+          return null;
+        })
+        .catch((erro: { code?: string }) => erro.code ?? "erro");
+      const apagouAlheia = await tx`delete from partner_exceptions where id = ${alheia.id}`;
+      const apagouPropria = await tx`
+        delete from partner_exceptions where partner_id = ${a.partnerId}`;
+      await voltarAoServidor(tx);
+
+      const [restou] = await tx<{ n: number }[]>`
+        select count(*)::int as n from partner_exceptions where id = ${alheia.id}`;
+      return {
+        naAlheia,
+        apagouAlheia: apagouAlheia.count,
+        apagouPropria: apagouPropria.count,
+        restou: restou.n,
+      };
+    });
+
+    // 42501: violação da `with check` da policy.
+    expect(r).toEqual({ naAlheia: "42501", apagouAlheia: 0, apagouPropria: 1, restou: 1 });
+  });
+});
+
 run("invariante 9 — isolamento entre empresas concorrentes", () => {
   it("um Profissional não vê o perfil de colaborador de outra empresa", async () => {
     const visto = await inRollback(async (tx) => {

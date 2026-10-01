@@ -511,6 +511,9 @@ esquema, constraints e RLS · auth, papéis e config · motor de agenda.
 - **F7 (cancelamento)** ✅ Profissional e Parceiro cancelam a própria sessão até a sala abrir, com
   estorno e compensação pela regra do prazo — na `main` e em produção desde 30/09. Trazida para
   dentro do piloto em 29/09; a fila de espera continua fora
+- **F3 (grade semanal e folgas)** O Parceiro monta a semana com várias faixas por dia e marca
+  folga (período, dia inteiro ou faixa) e horário extra numa data — na branch `f3`, aguardando
+  aprovação rodando. Trazida para dentro do piloto em 30/09
 - **P5+** `send-reminders` 24h e 1h — espera Resend e o domínio remetente
 
 Fora do piloto: convite por token, candidatura espontânea, console do RH, personalização por
@@ -661,9 +664,9 @@ F16 formato grupo · F18 dashboards e exclusão de conta.
 - **Parceiro mexendo em si não grava `audit_logs`.** A invariante 12 pede registro de ação de admin,
   moderador e RH — ação sobre terceiro. Ajustar a própria agenda não é. A exceção é a invariante 18,
   correção de presença, que chega na P5.
-- **O modo rápido substitui a rotina inteira, não acrescenta.** É o que "modo rápido" significa: o
-  Parceiro está descrevendo a semana dele, não somando uma linha. Quando a grade detalhada da F3
-  chegar, esta tela precisa avisar antes de sobrescrever o que a outra montou.
+- **O modo rápido substitui a rotina inteira, não acrescenta** (superado pela F3 — ver "A grade
+  substitui o modo rápido"). Era o que "modo rápido" significava: o Parceiro descrevendo a semana
+  dele, não somando uma linha.
 - **Ícone atravessa a fronteira por nome, não por componente.** A `Sidebar` é Server Component e
   entrega a navegação a `NavLinks`, que é cliente — e componente não é serializável. `NavItem` leva
   `icone: NomeIcone` e o mapa nome → lucide mora em `components/ui/icones.ts`. O mapa é também o
@@ -976,6 +979,30 @@ F16 formato grupo · F18 dashboards e exclusão de conta.
   a recusa; `cancelled_by` e `cancelled_at` ficam na linha. O outro lado vê na agenda — aviso por
   e-mail chega com o Resend, e a tela do Parceiro diz isso.
 
+- **A grade substitui o modo rápido; o modo rápido virou atalho (F3, 30/09/2026).** Uma tela só
+  edita a semana inteira, dia a dia, com até 6 faixas por dia, e salva tudo de uma vez — apaga e
+  reinsere `partner_rules`, como antes. "Mesmo horário em vários dias" só preenche a grade no
+  cliente; nada é salvo sem o Parceiro ver o resultado, e por isso o aviso de "vai sobrescrever"
+  que a P2 previa deixou de ser necessário. Faixas sobrepostas no mesmo dia são recusadas (o motor
+  as uniria, mas quem digitou 9–12 e 11–13 errou um dos dois); encostadas passam. A validação é
+  `validarGrade`, em `lib/parceiro/grade.ts`, e roda nos dois lados: no cliente, enquanto a pessoa
+  digita, e no servidor.
+- **Folga é uma linha por dia em `partner_exceptions`, sem `reason`.** É o que o esquema guarda e o
+  motor lê; a tela agrupa dias seguidos iguais em um período e remove o grupo inteiro. O período vai
+  até 92 dias por vez. O motivo fica de fora porque a policy de leitura abre as exceções de Parceiro
+  ativo a **todo** autenticado — é a agenda pública dele —, e "cirurgia" escrito ali seria lido por
+  Profissional de qualquer empresa. Horário extra vale num dia só e precisa de faixa de pelo menos uma
+  sessão; folga vence extra no mesmo dia (ordem do motor desde a Etapa 5).
+- **Folga não desmarca sessão.** Fecha a agenda para pedido novo; a sessão que já existe continua,
+  e a tela diz quantas caem no período, na mensagem de sucesso e na linha da folga. Cancelar mexe na
+  ficha de outra pessoa e é gesto explícito, pela agenda (F7) — nunca efeito colateral de um
+  formulário de disponibilidade.
+- **Formulário com campo controlado envia por `onSubmit`, não por `action`.** Achado rodando na F3:
+  com `action`, o reset do React 19 depois da ação deixou o checkbox "Dia inteiro" marcado no DOM com
+  o estado dizendo o contrário, e a tela mostrava "dia inteiro" e as horas ao mesmo tempo — o
+  próximo envio mandaria o que a tela não mostrava. `useEnvioSemReset` resolve, como já resolvia a
+  edição.
+
 ## Descartado
 
 - Firebase / Firestore. - Chat livre fora da janela de 24h da sessão. - Ranking público.
@@ -996,10 +1023,14 @@ F16 formato grupo · F18 dashboards e exclusão de conta.
 
 ## Estado atual
 
-Fase: **F7 (cancelamento) na `main` e em produção desde 30/09/2026**, por fast-forward da `f7`.
-Sem migração: usa as colunas `cancelled_at`/`cancelled_by` que existem desde a Etapa 3. A `conta`
-entrou na `main` e em produção em 29/09, com a migração `senha_provisoria` aplicada no `mentoria`
-antes do push. Próxima etapa: a definir.
+Fase: **F3 (grade semanal e folgas) na branch `f3`, aguardando aprovação rodando.** Sem migração:
+usa `partner_rules` e `partner_exceptions` como a Etapa 3 as criou, escrevendo pela RLS do Parceiro.
+O motor não mudou — já calculava regra, extra e bloqueio desde a Etapa 5.
+
+Antes dela: **F7 (cancelamento) na `main` e em produção desde 30/09/2026**, por fast-forward da
+`f7`. Sem migração: usa as colunas `cancelled_at`/`cancelled_by` que existem desde a Etapa 3. A
+`conta` entrou na `main` e em produção em 29/09, com a migração `senha_provisoria` aplicada no
+`mentoria` antes do push.
 
 Antes dela: **P5 na `main` e em produção desde 27/09/2026.** Protótipo aprovado em 28/09 (com o presente
 chegando por consulta de 15 s e a correção de presença só do Profissional). O vídeo funcionou no
@@ -1047,7 +1078,7 @@ Toda casca tem o **menu da conta** no pé da sidebar, com "Redefinir senha" e "S
 com senha provisória recebe a janela de troca ao entrar (`components/conta/JanelaDeSenha.tsx`,
 `trocarSenha` em `lib/auth/actions.ts`, regras puras em `lib/auth/senha.ts`).
 
-568 testes em 35 arquivos. Invariante 19 em
+606 testes em 36 arquivos (com a F3, na branch `f3`). Invariante 19 em
 `src/lib/auth/hook.test.ts`; invariantes 3, 4, 7, 8, 9, 10 e 16 em `src/lib/db/invariantes.test.ts`;
 as transações em `ledger/transacoes.test.ts`, `bookings/reserva.test.ts`,
 `bookings/transicoes.test.ts` (com a presença), `bookings/presente.test.ts` e
@@ -1103,6 +1134,16 @@ A P5 está em produção desde 27/09. Para o vídeo chegar ao piloto de 10/11:
    `sa-east-1` no domínio). Depende do nome da plataforma. **Não bloqueia mais o piloto:** até lá a
    produção usa o `tostes` (decisão de 27/09). Na troca, é só substituir `DAILY_API_KEY` em
    Production e fazer o redeploy; salas antigas do `tostes` já terão expirado.
+
+### F3 — o que ficou de fora, de propósito
+
+- **Vigência da rotina.** `effective_from`/`effective_to` existem e o motor as lê, mas a tela não as
+  expõe: salvar a grade troca a semana a partir de agora. "A partir de novembro atendo à tarde" é,
+  por enquanto, salvar em novembro.
+- **Motivo da folga.** Ver a decisão: a coluna `reason` é legível por todo autenticado.
+- **Folga e grade pela operadora.** `/admin/parceiros/[id]` não edita a agenda; o Parceiro é quem
+  sabe dela.
+- **Folga recorrente** ("toda primeira segunda do mês"). Faltaria regra no motor, que está travado.
 
 ### F7 — o que ficou de fora, de propósito
 
