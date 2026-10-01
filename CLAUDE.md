@@ -508,9 +508,9 @@ esquema, constraints e RLS · auth, papéis e config · motor de agenda.
   presença — na `main` e em produção desde 27/09; o vídeo em produção depende do domínio Daily próprio
 - **Conta** ✅ Menu da conta na sidebar ("Redefinir senha" e "Sair") e aviso de senha provisória
   ao entrar — na `main` e em produção desde 29/09, com a migração `senha_provisoria` no `mentoria`
-- **F7 (cancelamento)** Profissional e Parceiro cancelam a própria sessão até a sala abrir, com
-  estorno e compensação pela regra do prazo — na branch `f7`, aguardando aprovação rodando. Trazida
-  para dentro do piloto em 29/09; a fila de espera continua fora
+- **F7 (cancelamento)** ✅ Profissional e Parceiro cancelam a própria sessão até a sala abrir, com
+  estorno e compensação pela regra do prazo — na `main` e em produção desde 30/09. Trazida para
+  dentro do piloto em 29/09; a fila de espera continua fora
 - **P5+** `send-reminders` 24h e 1h — espera Resend e o domínio remetente
 
 Fora do piloto: convite por token, candidatura espontânea, console do RH, personalização por
@@ -996,9 +996,10 @@ F16 formato grupo · F18 dashboards e exclusão de conta.
 
 ## Estado atual
 
-Fase: **F7 (cancelamento) na branch `f7`, aguardando aprovação rodando.** A `conta` entrou na
-`main` e em produção em 29/09, com a migração `senha_provisoria` aplicada no `mentoria` antes do
-push. A F7 não tem migração: usa as colunas `cancelled_at`/`cancelled_by` que existem desde a Etapa 3.
+Fase: **F7 (cancelamento) na `main` e em produção desde 30/09/2026**, por fast-forward da `f7`.
+Sem migração: usa as colunas `cancelled_at`/`cancelled_by` que existem desde a Etapa 3. A `conta`
+entrou na `main` e em produção em 29/09, com a migração `senha_provisoria` aplicada no `mentoria`
+antes do push. Próxima etapa: a definir.
 
 Antes dela: **P5 na `main` e em produção desde 27/09/2026.** Protótipo aprovado em 28/09 (com o presente
 chegando por consulta de 15 s e a correção de presença só do Profissional). O vídeo funcionou no
@@ -1046,7 +1047,7 @@ Toda casca tem o **menu da conta** no pé da sidebar, com "Redefinir senha" e "S
 com senha provisória recebe a janela de troca ao entrar (`components/conta/JanelaDeSenha.tsx`,
 `trocarSenha` em `lib/auth/actions.ts`, regras puras em `lib/auth/senha.ts`).
 
-568 testes em 35 arquivos (com a F7, na branch `f7`). Invariante 19 em
+568 testes em 35 arquivos. Invariante 19 em
 `src/lib/auth/hook.test.ts`; invariantes 3, 4, 7, 8, 9, 10 e 16 em `src/lib/db/invariantes.test.ts`;
 as transações em `ledger/transacoes.test.ts`, `bookings/reserva.test.ts`,
 `bookings/transicoes.test.ts` (com a presença), `bookings/presente.test.ts` e
