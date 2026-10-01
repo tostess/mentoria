@@ -511,9 +511,9 @@ esquema, constraints e RLS · auth, papéis e config · motor de agenda.
 - **F7 (cancelamento)** ✅ Profissional e Parceiro cancelam a própria sessão até a sala abrir, com
   estorno e compensação pela regra do prazo — na `main` e em produção desde 30/09. Trazida para
   dentro do piloto em 29/09; a fila de espera continua fora
-- **F3 (grade semanal e folgas)** O Parceiro monta a semana com várias faixas por dia e marca
-  folga (período, dia inteiro ou faixa) e horário extra numa data — na branch `f3`, aguardando
-  aprovação rodando. Trazida para dentro do piloto em 30/09
+- **F3 (grade semanal e folgas)** ✅ O Parceiro monta a semana com várias faixas por dia e marca
+  folga (período, dia inteiro ou faixa) e horário extra numa data — na `main` e em produção desde
+  30/09, aprovada no Preview da `f3`. Trazida para dentro do piloto em 30/09
 - **P5+** `send-reminders` 24h e 1h — espera Resend e o domínio remetente
 
 Fora do piloto: convite por token, candidatura espontânea, console do RH, personalização por
@@ -1023,7 +1023,8 @@ F16 formato grupo · F18 dashboards e exclusão de conta.
 
 ## Estado atual
 
-Fase: **F3 (grade semanal e folgas) na branch `f3`, aguardando aprovação rodando.** Sem migração:
+Fase: **F3 (grade semanal e folgas) na `main` e em produção desde 30/09/2026**, aprovada no
+Preview da `f3` e publicada por fast-forward. Próxima etapa: a definir. Sem migração:
 usa `partner_rules` e `partner_exceptions` como a Etapa 3 as criou, escrevendo pela RLS do Parceiro.
 O motor não mudou — já calculava regra, extra e bloqueio desde a Etapa 5.
 
@@ -1078,7 +1079,7 @@ Toda casca tem o **menu da conta** no pé da sidebar, com "Redefinir senha" e "S
 com senha provisória recebe a janela de troca ao entrar (`components/conta/JanelaDeSenha.tsx`,
 `trocarSenha` em `lib/auth/actions.ts`, regras puras em `lib/auth/senha.ts`).
 
-606 testes em 36 arquivos (com a F3, na branch `f3`). Invariante 19 em
+606 testes em 36 arquivos. Invariante 19 em
 `src/lib/auth/hook.test.ts`; invariantes 3, 4, 7, 8, 9, 10 e 16 em `src/lib/db/invariantes.test.ts`;
 as transações em `ledger/transacoes.test.ts`, `bookings/reserva.test.ts`,
 `bookings/transicoes.test.ts` (com a presença), `bookings/presente.test.ts` e
