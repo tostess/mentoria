@@ -23,15 +23,19 @@ import {
 } from "@/lib/forms";
 import {
   LancamentoRepetido,
+  PagamentoNaoCreditavel,
   SaldoInsuficiente,
   TetoDaCarteira,
+  TipoDeContaErrado,
   alocarFichas,
   registrarCompra,
+  registrarCompraPessoal,
 } from "@/lib/ledger";
 import { chaveAlocacaoManual } from "@/lib/ledger/keys";
 import {
   EmailJaUsado,
   ENGAJAMENTOS,
+  criarContaPessoal,
   criarEmpresa,
   criarParceiro,
   criarProfissional,
@@ -48,6 +52,7 @@ import {
   novaSenhaProvisoria,
 } from "@/lib/pessoas/editar";
 import { fuso as campoFuso, senioridade as campoSenioridade } from "@/lib/parceiro/validacao";
+import { dia } from "@/lib/formato";
 import { normalizeHex } from "@/lib/theme";
 import { rotuloDoCampo } from "./atividade";
 import { ehColaboradorDaEmpresa } from "./consultas";
@@ -94,7 +99,9 @@ async function executando(fn: () => Promise<FormState>): Promise<FormState> {
         erro instanceof EmailJaUsado ||
         erro instanceof PessoaInexistente ||
         erro instanceof TransicaoInvalida ||
-        erro instanceof TemSessaoFutura
+        erro instanceof TemSessaoFutura ||
+        erro instanceof TipoDeContaErrado ||
+        erro instanceof PagamentoNaoCreditavel
       ) {
         return falha(erro.message);
       }
@@ -187,6 +194,78 @@ export async function criarProfissionalAcao(
       email,
       senha,
     });
+  });
+}
+
+/**
+ * Conta pessoal criada pela operadora — o caminho até o cadastro self-service
+ * (A3). A pessoa recebe senha provisória, como o colaborador.
+ */
+export async function criarContaPessoalAcao(
+  _anterior: FormState,
+  form: FormData,
+): Promise<FormState> {
+  const ator = await exigeOperadora();
+
+  return executando(async () => {
+    const email = campoEmail(form, "email");
+
+    const { senha } = await criarContaPessoal({
+      nome: texto(form, "nome", "o nome", 160),
+      email,
+      telefone: textoOpcional(form, "telefone", 40),
+      cargo: textoOpcional(form, "cargo", 120),
+      area: textoOpcional(form, "area", 120),
+      ator,
+    });
+
+    refresh();
+    return sucesso("Conta criada. Repasse o acesso abaixo — ele aparece uma vez só.", {
+      email,
+      senha,
+    });
+  });
+}
+
+/**
+ * Pacote pago fora da plataforma, registrado pela operadora. O pacote vem da
+ * tabela de `app_config` pelo id — o formulário escolhe, mas preço e
+ * quantidade são do servidor.
+ */
+export async function registrarCompraPessoalAcao(
+  _anterior: FormState,
+  form: FormData,
+): Promise<FormState> {
+  const ator = await exigeOperadora();
+  const { pacotes, individualPolicy, terms } = await loadAppConfig();
+
+  return executando(async () => {
+    const userId = campoId(form, "userId", "A pessoa");
+    const ativos = pacotes.filter((p) => p.ativo);
+    const pacoteId = opcao(
+      form,
+      "pacote",
+      "o pacote",
+      ativos.map((p) => p.id),
+    );
+    const pacote = ativos.find((p) => p.id === pacoteId);
+    if (pacote === undefined) throw new CampoInvalido("Escolha um pacote.");
+
+    const { saldoCarteira, venceEm } = await registrarCompraPessoal({
+      userId,
+      pacote,
+      validadeMeses: individualPolicy.validadeMeses,
+      referencia: textoOpcional(form, "referencia", 160),
+      token: texto(form, "token", "o token do formulário", 64),
+      ator,
+    });
+
+    refresh();
+    return sucesso(
+      `${pacote.nome} registrado. A carteira ficou com ${saldoCarteira} ${
+        saldoCarteira === 1 ? terms.ficha : terms.fichas
+      }; estas valem até ${dia(venceEm)}.`,
+    );
   });
 }
 

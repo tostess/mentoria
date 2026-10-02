@@ -47,3 +47,23 @@ const VINCULOS: Record<string, string> = {
 export function rotuloDoVinculo(valor: string): string {
   return VINCULOS[valor] ?? humanizar(valor).toLowerCase();
 }
+
+/** `payments.status` — o que aconteceu com o dinheiro. */
+const PAGAMENTOS: Record<string, { rotulo: string; cor: PillVariant }> = {
+  pending: { rotulo: "Aguardando", cor: "wait" },
+  confirmed: { rotulo: "Pago", cor: "on" },
+  refunded: { rotulo: "Estornado", cor: "off" },
+  failed: { rotulo: "Falhou", cor: "off" },
+  expired: { rotulo: "Expirou", cor: "off" },
+};
+
+export function rotuloDoPagamento(status: string): { rotulo: string; cor: PillVariant } {
+  return PAGAMENTOS[status] ?? { rotulo: humanizar(status), cor: "neutral" };
+}
+
+/** `payments.provider` — por onde o dinheiro veio. */
+export function rotuloDoMeio(meio: string): string {
+  if (meio === "manual") return "Registrado pela operadora";
+  if (meio === "asaas") return "Checkout";
+  return humanizar(meio);
+}

@@ -97,7 +97,7 @@ export async function carregarExtrato(
   const supabase = await createClient();
   const { data: linhas, error } = await supabase
     .from("wallet_ledger")
-    .select("id, type, amount, balance_after, reason, created_at")
+    .select("id, type, amount, balance_after, reason, created_at, lot_id")
     .eq("user_id", userId)
     .order("created_at", { ascending: false })
     .limit(limite);
@@ -108,7 +108,12 @@ export async function carregarExtrato(
     .map((linha) => linha as Record<string, unknown>)
     .filter((l) => typeof l.id === "string" && typeof l.type === "string")
     .map((l) => {
-      const { rotulo, icone } = rotuloDoLancamento(l.type as string);
+      // Na conta pessoal a ficha chega por `allocate` com lote — é a compra do
+      // pacote vista da carteira, e é assim que a pessoa a chama.
+      const compra = l.type === "allocate" && typeof l.lot_id === "string";
+      const { rotulo, icone } = compra
+        ? { rotulo: "Compra", icone: "coins" as const }
+        : rotuloDoLancamento(l.type as string);
       return {
         id: l.id as string,
         tipo: l.type as string,
@@ -120,6 +125,50 @@ export async function carregarExtrato(
         quando: data(l.created_at) ?? new Date(0),
       };
     });
+}
+
+/** Fichas de um lote comprado que ainda estão na carteira, e quando vencem. */
+export type Validade = { restante: number; venceEm: Date };
+
+/**
+ * Quanto sobra de cada pacote comprado e quando vence — só conta pessoal tem.
+ *
+ * Pela sessão da pessoa, como a carteira: `ficha_lots` e `wallet_ledger` têm
+ * policy de `select` do próprio dono. O restante é a soma dos lançamentos que
+ * apontam para o lote (ver `ledger/lotes.ts`), feita aqui porque o PostgREST
+ * não soma; são poucas linhas por pessoa.
+ */
+export async function carregarValidades(userId: string): Promise<Validade[]> {
+  const supabase = await createClient();
+  const { data: lotes, error } = await supabase
+    .from("ficha_lots")
+    .select("id, expires_at")
+    .eq("user_id", userId);
+  if (error !== null) throw new Error(`lotes: ${error.message}`);
+  if ((lotes ?? []).length === 0) return [];
+
+  const { data: lancamentos, error: erroDosLancamentos } = await supabase
+    .from("wallet_ledger")
+    .select("lot_id, amount")
+    .eq("user_id", userId)
+    .not("lot_id", "is", null);
+  if (erroDosLancamentos !== null) throw new Error(`lotes: ${erroDosLancamentos.message}`);
+
+  const restante = new Map<string, number>();
+  for (const linha of lancamentos ?? []) {
+    const l = linha as Record<string, unknown>;
+    if (typeof l.lot_id !== "string") continue;
+    restante.set(l.lot_id, (restante.get(l.lot_id) ?? 0) + inteiro(l.amount, 0));
+  }
+
+  return (lotes ?? [])
+    .map((linha) => linha as Record<string, unknown>)
+    .flatMap((l) => {
+      const venceEm = data(l.expires_at);
+      const sobra = typeof l.id === "string" ? (restante.get(l.id) ?? 0) : 0;
+      return venceEm === null || sobra <= 0 ? [] : [{ restante: sobra, venceEm }];
+    })
+    .sort((a, b) => a.venceEm.getTime() - b.venceEm.getTime());
 }
 
 /** O que o extrato diz de uma sessão: a ficha voltou, veio compensação, veio presente. */

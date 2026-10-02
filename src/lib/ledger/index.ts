@@ -2,6 +2,7 @@ import "server-only";
 
 import { getSql } from "@/lib/db";
 import type { FichaPolicy } from "@/lib/config/app-config";
+import { compraManualNaTransacao, type CompraManual, type ResultadoDoCredito } from "./credito";
 import { comTraducao } from "./erros";
 import { acessoDaConexao, recargaNaConexao, type ResultadoDaRecarga } from "./mensal";
 import { alocacaoNaTransacao, compraNaTransacao, type Alocacao, type Compra } from "./operacoes";
@@ -18,8 +19,15 @@ import { alocacaoNaTransacao, compraNaTransacao, type Alocacao, type Compra } fr
  * ser exatamente a mesma escrita, ou os dois caminhos divergem.
  */
 
-export { SaldoInsuficiente, LancamentoRepetido, TetoDaCarteira } from "./erros";
+export {
+  SaldoInsuficiente,
+  LancamentoRepetido,
+  TetoDaCarteira,
+  TipoDeContaErrado,
+  PagamentoNaoCreditavel,
+} from "./erros";
 export type { Alocacao, Compra } from "./operacoes";
+export type { CompraManual, ResultadoDoCredito } from "./credito";
 export type { ResultadoDaRecarga, ResultadoPorEmpresa } from "./mensal";
 
 export async function registrarCompra(
@@ -39,6 +47,21 @@ export async function alocarFichas(
   return comTraducao(
     () => sql.begin((tx) => alocacaoNaTransacao(tx, alocacao)),
     "O contrato da empresa não tem fichas suficientes.",
+  );
+}
+
+/**
+ * Pacote pago fora da plataforma, registrado pela operadora na conta pessoal.
+ * Reenviar o mesmo formulário colide no `provider_payment_id` e vira
+ * `LancamentoRepetido`.
+ */
+export async function registrarCompraPessoal(
+  compra: CompraManual,
+): Promise<ResultadoDoCredito & { paymentId: string }> {
+  const sql = getSql();
+  return comTraducao(
+    () => sql.begin((tx) => compraManualNaTransacao(tx, compra)),
+    "Não foi possível registrar: o lançamento deixaria a carteira negativa.",
   );
 }
 

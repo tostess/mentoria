@@ -9,19 +9,33 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 import { authenticatedRole } from "drizzle-orm/supabase";
-import { ledgerType } from "./enums";
+import { ledgerType, orgKind } from "./enums";
 import { isAdmin, isStaff } from "./auth";
 
-/** A empresa contratante. Compra um bloco de fichas e distribui. */
+/**
+ * A conta que paga as fichas. `empresa` é a contratante, que compra um bloco e
+ * distribui; `individual` é a conta pessoal do avulso, que compra pacotes e é o
+ * único membro dela (o trigger `trg_profiles_individual_org` garante).
+ *
+ * Invariante 9 continua de pé sem caso especial: o avulso é uma empresa de uma
+ * pessoa, e a RLS por `auth_org_id()` o isola como isola qualquer empresa.
+ */
 export const orgs = pgTable(
   "orgs",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    kind: orgKind("kind").notNull().default("empresa"),
     name: text("name").notNull(),
     cnpj: text("cnpj"),
+    /**
+     * Só da conta pessoal, pedido na primeira compra (o gateway e a NFS-e
+     * exigem). Único entre contas pessoais: uma por pessoa.
+     */
+    cpf: text("cpf"),
     active: boolean("active").notNull().default(true),
     contractedFichas: integer("contracted_fichas").notNull().default(0),
     contractStart: date("contract_start"),
@@ -33,6 +47,11 @@ export const orgs = pgTable(
   },
   (t) => [
     check("orgs_contracted_fichas_nonneg", sql`${t.contractedFichas} >= 0`),
+    check("orgs_cnpj_so_empresa", sql`${t.kind} = 'empresa' or ${t.cnpj} is null`),
+    check("orgs_cpf_so_individual", sql`${t.kind} = 'individual' or ${t.cpf} is null`),
+    uniqueIndex("orgs_cpf_individual_uq")
+      .on(t.cpf)
+      .where(sql`${t.kind} = 'individual'`),
     // O RH vê a própria empresa; a operadora vê todas. Escrita é só do
     // `service_role`: contrato não se edita pelo cliente.
     pgPolicy("orgs_select", {

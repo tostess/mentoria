@@ -129,3 +129,33 @@ export function chaveCompensacao(bookingId: string): string {
 export function chaveAjuste(alvoId: string, token: string): string {
   return `adjust_${alvoId}_${exigeToken(token)}`;
 }
+
+/**
+ * O crédito de um pagamento confirmado da conta pessoal: o `purchase` no
+ * contrato dela e o `allocate` na carteira levam esta chave — a mesma nos dois
+ * livros, como na alocação, porque as `unique` são de tabelas diferentes.
+ *
+ * Uma por pagamento, venha a confirmação de onde vier (o webhook, a página de
+ * retorno, a conciliação, a operadora): quem chega depois colide.
+ */
+export function chavePagamento(paymentId: string): string {
+  return `pay_${exigeId(paymentId)}`;
+}
+
+/**
+ * A saída do contrato da conta pessoal para a carteira, no mesmo crédito. O
+ * `org_ledger` recebe dois lançamentos do mesmo pagamento — a compra e a
+ * alocação —, e por isso precisa de duas chaves.
+ */
+export function chavePagamentoAlocacao(paymentId: string): string {
+  return `payalloc_${exigeId(paymentId)}`;
+}
+
+/**
+ * O `provider_payment_id` de um pagamento recebido fora da plataforma e
+ * registrado pela operadora. A unicidade é o token do formulário, como na
+ * compra do contrato: reenviar colide, registrar outro pagamento não.
+ */
+export function idPagamentoManual(token: string): string {
+  return `manual_${exigeToken(token)}`;
+}

@@ -54,6 +54,28 @@ export type Legal = {
 /** O que muda por empresa no white-label. Definido junto do tema que o usa. */
 export type { Branding };
 
+/**
+ * Um pacote que a conta pessoal compra. O preço é em centavos, inteiro — real
+ * em ponto flutuante soma R$ 0,30 errado.
+ */
+export type Pacote = {
+  id: string;
+  nome: string;
+  fichas: number;
+  precoCentavos: number;
+  /** Parcelas sem juros no cartão. 1 é à vista. */
+  parcelasMax: number;
+  ativo: boolean;
+};
+
+/** A regra da conta pessoal que não vale para empresa. */
+export type IndividualPolicy = {
+  /** Validade da ficha comprada, em meses, contada do pagamento. */
+  validadeMeses: number;
+  /** Prazo do arrependimento (CDC art. 49), em dias. */
+  arrependimentoDias: number;
+};
+
 export type AppConfig = {
   fichaPolicy: FichaPolicy;
   limits: Limits;
@@ -61,6 +83,8 @@ export type AppConfig = {
   terms: Terms;
   legal: Legal;
   branding: Branding;
+  pacotes: Pacote[];
+  individualPolicy: IndividualPolicy;
 };
 
 export const DEFAULT_FICHA_POLICY: FichaPolicy = {
@@ -88,6 +112,25 @@ export const DEFAULT_LEGAL: Legal = { termsUrl: null, privacyUrl: null };
 
 export const DEFAULT_BRANDING: Branding = { accent: null, name: null, logoUrl: null };
 
+/** Os três pacotes de 01/10/2026 — os mesmos que a migração `conta_individual` semeia. */
+export const DEFAULT_PACOTES: Pacote[] = [
+  {
+    id: "primeira-conversa",
+    nome: "Primeira conversa",
+    fichas: 1,
+    precoCentavos: 12_900,
+    parcelasMax: 1,
+    ativo: true,
+  },
+  { id: "ritmo", nome: "Ritmo", fichas: 4, precoCentavos: 44_900, parcelasMax: 2, ativo: true },
+  { id: "jornada", nome: "Jornada", fichas: 8, precoCentavos: 79_900, parcelasMax: 3, ativo: true },
+];
+
+export const DEFAULT_INDIVIDUAL_POLICY: IndividualPolicy = {
+  validadeMeses: 12,
+  arrependimentoDias: 7,
+};
+
 /**
  * O que a aplicação usa quando o banco não respondeu. São os mesmos números
  * que a migração semeia — os defaults existem para a tela subir, não para
@@ -100,6 +143,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   terms: DEFAULT_TERMS,
   legal: DEFAULT_LEGAL,
   branding: DEFAULT_BRANDING,
+  pacotes: DEFAULT_PACOTES,
+  individualPolicy: DEFAULT_INDIVIDUAL_POLICY,
 };
 
 export type ConfigRow = { key: string; value: unknown };
@@ -162,6 +207,52 @@ function parseLegal(value: unknown): Legal {
   return { termsUrl: str(v.terms_url), privacyUrl: str(v.privacy_url) };
 }
 
+const ID_DE_PACOTE = /^[a-z0-9][a-z0-9-]{0,39}$/;
+
+/**
+ * Pacote mal formado sai da lista em vez de derrubar a vitrine; id repetido
+ * fica com o primeiro, porque o id é o que o pagamento grava. Lista vazia — ou
+ * a chave inteira ausente — volta aos pacotes default: uma vitrine sem nada à
+ * venda não é configuração, é defeito.
+ */
+function parsePacotes(value: unknown): Pacote[] {
+  const lista = asRecord(value).pacotes;
+  if (!Array.isArray(lista)) return DEFAULT_PACOTES;
+
+  const vistos = new Set<string>();
+  const pacotes: Pacote[] = [];
+  for (const item of lista) {
+    const v = asRecord(item);
+    const id = str(v.id);
+    const nome = str(v.nome);
+    const fichas = int(v.fichas, 0);
+    const preco = int(v.preco_centavos, -1);
+    if (id === null || !ID_DE_PACOTE.test(id) || vistos.has(id)) continue;
+    if (nome === null || fichas < 1 || preco < 0) continue;
+    vistos.add(id);
+    pacotes.push({
+      id,
+      nome,
+      fichas,
+      precoCentavos: preco,
+      parcelasMax: Math.max(1, int(v.parcelas_max, 1)),
+      ativo: bool(v.ativo, true),
+    });
+  }
+  return pacotes.length === 0 ? DEFAULT_PACOTES : pacotes;
+}
+
+function parseIndividualPolicy(value: unknown): IndividualPolicy {
+  const v = asRecord(value);
+  const d = DEFAULT_INDIVIDUAL_POLICY;
+  const validade = int(v.validade_meses, d.validadeMeses);
+  return {
+    // Zero meses seria ficha vencida na compra: cai no default.
+    validadeMeses: validade < 1 ? d.validadeMeses : validade,
+    arrependimentoDias: int(v.arrependimento_dias, d.arrependimentoDias),
+  };
+}
+
 /**
  * Accent inválido cai no default em vez de pintar a interface de nada: o
  * valor vai para `style` inline, e um hex quebrado apagaria o contraste do
@@ -187,6 +278,8 @@ export function parseAppConfig(rows: readonly ConfigRow[]): AppConfig {
     terms: resolveTerms(copy.terms),
     legal: parseLegal(copy.legal),
     branding: parseBranding(byKey.get("branding")),
+    pacotes: parsePacotes(byKey.get("individual_packages")),
+    individualPolicy: parseIndividualPolicy(byKey.get("individual_policy")),
   };
 }
 

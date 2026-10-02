@@ -2,6 +2,8 @@ import { afterAll, describe, expect, it } from "vitest";
 import postgres from "postgres";
 import { DEFAULT_FICHA_POLICY, type FichaPolicy } from "@/lib/config/app-config";
 import {
+  comprarPacote,
+  contaPessoal,
   darFichas,
   empresa,
   inRollback,
@@ -286,5 +288,29 @@ run("recarga mensal", () => {
     expect(registro.actor_role).toBeNull();
     expect(registro.after.periodo).toBe("202610");
     expect(registro.after.quantidade).toBe(2);
+  });
+});
+
+run("recarga mensal — conta pessoal fica de fora", () => {
+  /**
+   * A recarga sai do contrato da empresa. A conta pessoal compra pacote e não
+   * tem contrato: entrar na rodada seria tentar alocar de um saldo que é sempre
+   * zero, e a rodada registraria "contrato acabou" para quem nunca teve um.
+   */
+  it("não aparece na rodada nem recebe lançamento", async () => {
+    const lido = await emRollback(async (tx) => {
+      const ator = await operadora(tx);
+      const { userId, orgId } = await contaPessoal(tx, ator);
+      await comprarPacote(tx, { userId, ator, fichas: 1 });
+
+      const rodada = await rodar(tx);
+      const [recargas] = await tx<{ n: number }[]>`
+        select count(*)::int as n from wallet_ledger
+         where user_id = ${userId} and idempotency_key like 'alloc_%'`;
+      return { naRodada: rodada.empresas.some((e) => e.orgId === orgId), recargas: recargas.n };
+    });
+
+    expect(lido.naRodada).toBe(false);
+    expect(lido.recargas).toBe(0);
   });
 });

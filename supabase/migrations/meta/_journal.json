@@ -57,6 +57,13 @@
       "when": 1790647212930,
       "tag": "20260929020012_senha_provisoria",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790909288955,
+      "tag": "20261002024808_conta_individual",
+      "breakpoints": true
     }
   ]
 }

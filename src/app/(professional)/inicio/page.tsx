@@ -10,6 +10,7 @@ import { Icone } from "@/components/ui/Icone";
 import { Note } from "@/components/ui/Note";
 import { Pill } from "@/components/ui/Pill";
 import { requireRole } from "@/lib/auth/session";
+import { deOndeVemAFicha, quemVe } from "@/lib/profissional/conta";
 import { limiteDeResposta, separarAgenda } from "@/lib/bookings/agenda";
 import { loadAppConfig } from "@/lib/config/load";
 import { diaDaSemanaCurto, diaDaSemanaLongo, diaDoMes, diaEHora, hora } from "@/lib/formato";
@@ -92,7 +93,7 @@ export default async function Page() {
             description={
               saldo > 0
                 ? `Você tem ${saldo} ${saldo === 1 ? t.ficha : t.fichas}. Cada uma vale uma conversa de 30 minutos com um ${t.partner}.`
-                : `Quando o ${t.orgAdmin} da sua empresa distribuir ${t.fichas}, você marca por aqui.`
+                : `${deOndeVemAFicha(sessao.tipoDeConta, t)} Com ${t.ficha} na carteira, você marca por aqui.`
             }
             action={
               saldo > 0 ? <ButtonLink href="/parceiros">Ver {t.partners}</ButtonLink> : undefined
@@ -143,10 +144,7 @@ export default async function Page() {
                 {pedidos.length > 0 && ` · ${pedidos.length} em pedido`}
               </div>
             </div>
-            <Note icon={<Icone nome="shield" tamanho={16} />}>
-              O {t.orgAdmin} da sua empresa vê quantas {t.fichas} foram usadas no total, mas nunca
-              com quem você conversou nem sobre o quê.
-            </Note>
+            <Note icon={<Icone nome="shield" tamanho={16} />}>{quemVe(sessao.tipoDeConta, t)}</Note>
           </div>
         </div>
       </div>

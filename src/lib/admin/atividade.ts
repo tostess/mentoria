@@ -173,6 +173,33 @@ export const ACOES = {
       ...daEmpresa(ev),
     ],
   },
+  /**
+   * A conta pessoal do avulso. Sem "· empresa" no fim: a `org` dela leva o nome
+   * da própria pessoa, e repeti-lo como empresa insinuaria um vínculo.
+   */
+  criar_conta_pessoal: {
+    icone: () => "user-plus",
+    tom: () => "accent",
+    predicado: (ev, t) => [
+      fraco(`criou a ${t.individual.toLowerCase()} de `),
+      forte(nomeDoAlvo(ev)),
+    ],
+  },
+  registrar_compra_pessoal: {
+    icone: () => "coins",
+    tom: () => "gold",
+    predicado: (ev, t) => {
+      const fichas = numero(ev.depois, "fichas");
+      const pacote = textoDe(ev.depois, "pacote");
+      return [
+        fraco("registrou "),
+        ...(pacote === null ? [] : [forte(pacote), fraco(" · ")]),
+        forte(fichas === null ? t.fichas : countFichas(fichas, t)),
+        fraco(" para "),
+        forte(nomeDoAlvo(ev)),
+      ];
+    },
+  },
   criar_parceiro: {
     icone: () => "user-plus",
     tom: () => "accent",
@@ -293,6 +320,8 @@ export function rotuloDaAcao(acao: AcaoAuditada, t: Terms): string {
     alocar_fichas: `Alocar ${t.fichas}`,
     alocar_fichas_mensal: `Recarga mensal de ${t.fichas}`,
     criar_profissional: `Criar ${t.professional}`,
+    criar_conta_pessoal: `Criar ${t.individual.toLowerCase()}`,
+    registrar_compra_pessoal: "Registrar pacote",
     criar_parceiro: `Criar ${t.partner}`,
     editar_parceiro: `Editar ${t.partner}`,
     alterar_status_parceiro: `Status de ${t.partner}`,

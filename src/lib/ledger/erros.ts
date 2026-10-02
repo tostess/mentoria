@@ -28,6 +28,26 @@ export class TetoDaCarteira extends Error {
 }
 
 /**
+ * A operação é da conta pessoal e o alvo não é uma — ou o contrário. Registrar
+ * pacote para colaborador de empresa, ou contrato numa conta pessoal, moveria
+ * ficha por um caminho que a outra conta não tem.
+ */
+export class TipoDeContaErrado extends Error {
+  constructor(mensagem: string) {
+    super(mensagem);
+    this.name = "TipoDeContaErrado";
+  }
+}
+
+/** O pagamento não está esperando crédito: foi estornado, falhou ou expirou. */
+export class PagamentoNaoCreditavel extends Error {
+  constructor(mensagem: string) {
+    super(mensagem);
+    this.name = "PagamentoNaoCreditavel";
+  }
+}
+
+/**
  * O horário pedido não está entre os que o motor oferece.
  *
  * Invariante 14 aplicada na escrita: a reserva não confia no instante que chega

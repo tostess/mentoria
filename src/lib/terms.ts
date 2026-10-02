@@ -22,6 +22,9 @@ export type Terms = {
   fichas: string;
   org: string;
   orgs: string;
+  /** A conta do Profissional avulso — a que não é de empresa. */
+  individual: string;
+  individuals: string;
   orgAdmin: string;
   admin: string;
   moderator: string;
@@ -39,6 +42,8 @@ export const DEFAULT_TERMS: Terms = {
   fichas: "fichas",
   org: "Empresa",
   orgs: "Empresas",
+  individual: "Conta pessoal",
+  individuals: "Contas pessoais",
   orgAdmin: "RH",
   admin: "Operadora",
   moderator: "Moderação",

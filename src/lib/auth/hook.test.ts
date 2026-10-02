@@ -83,6 +83,36 @@ async function emitir(
 }
 
 run("invariante 19 — o hook escreve papel e empresa no token", () => {
+  it("conta pessoal leva org_kind individual; empresa leva empresa", async () => {
+    await inRollback(async (tx) => {
+      const empresa = await novaEmpresa(tx);
+      const [pessoal] = await tx<{ id: string }[]>`
+        insert into orgs (kind, name) values ('individual', 'Avulsa') returning id`;
+      const colaborador = await novoUsuario(tx);
+      const avulsa = await novoUsuario(tx);
+      await tx`
+        insert into profiles (id, org_id, role, name, email)
+        values (${colaborador}, ${empresa}, 'professional', 'Col', 'col@teste.local'),
+               (${avulsa}, ${pessoal.id}, 'professional', 'Avu', 'avu@teste.local')`;
+
+      expect((await emitir(tx, colaborador)).org_kind).toBe("empresa");
+      const claims = await emitir(tx, avulsa);
+      expect(claims.org_id).toBe(pessoal.id);
+      expect(claims.org_kind).toBe("individual");
+    });
+  });
+
+  it("papel de plataforma não leva org_kind, nem herdado do evento", async () => {
+    await inRollback(async (tx) => {
+      const userId = await novoUsuario(tx);
+      await tx`
+        insert into profiles (id, role, name, email)
+        values (${userId}, 'partner', 'Par', 'par@teste.local')`;
+      const claims = await emitir(tx, userId, { org_kind: "individual" });
+      expect("org_kind" in claims).toBe(false);
+    });
+  });
+
   it("Profissional recebe papel e empresa", async () => {
     await inRollback(async (tx) => {
       const orgId = await novaEmpresa(tx);

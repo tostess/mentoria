@@ -24,11 +24,23 @@ export type Role = (typeof ROLES)[number];
  */
 export const ORG_SCOPED_ROLES: readonly Role[] = ["professional", "org_admin"];
 
+/**
+ * A conta a que o `org_id` pertence. `pessoal` é a do Profissional avulso, que
+ * compra as próprias fichas; `empresa` é a de quem recebe do RH.
+ */
+export type TipoDeConta = "empresa" | "pessoal";
+
 export type Session = {
   userId: string;
   role: Role;
   /** Sempre null para papéis de plataforma. */
   orgId: string | null;
+  /**
+   * Null junto com `orgId`. Vem da claim `org_kind`, escrita pelo mesmo hook;
+   * token emitido antes da claim existir só pode ser de empresa, porque conta
+   * pessoal não existia — e por isso a ausência vale `empresa`.
+   */
+  tipoDeConta: TipoDeConta | null;
   email: string | null;
   /**
    * A senha em uso foi dada por outra pessoa — criação, senha nova pelo admin,
@@ -86,6 +98,7 @@ export function parseClaims(claims: unknown): Session | null {
     userId,
     role,
     orgId,
+    tipoDeConta: orgId === null ? null : record.org_kind === "individual" ? "pessoal" : "empresa",
     email: text(record.email),
     senhaProvisoria: senhaProvisoria(record.app_metadata),
   };

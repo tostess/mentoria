@@ -7,9 +7,10 @@ import { Note } from "@/components/ui/Note";
 import { requireRole } from "@/lib/auth/session";
 import { loadAppConfig } from "@/lib/config/load";
 import { DURACAO_DA_SESSAO_MIN } from "@/lib/config/limites";
-import { dataHora, quandoRelativo } from "@/lib/formato";
+import { dataHora, dia, quandoRelativo } from "@/lib/formato";
 import { fichasUsadas } from "@/lib/ledger/uso";
-import { carregarCarteira, carregarExtrato } from "@/lib/profissional/dados";
+import { deOndeVemAFicha, quemVe, regraDaFicha, validadeDaFicha } from "@/lib/profissional/conta";
+import { carregarCarteira, carregarExtrato, carregarValidades } from "@/lib/profissional/dados";
 import { cap, countFichas } from "@/lib/terms";
 
 export const metadata = { title: "Minhas fichas" };
@@ -36,7 +37,11 @@ export default async function Page() {
         <PageHeader eyebrow={t.professional} title={`Minhas ${t.fichas}`} />
         <EmptyState
           title="Você ainda não tem carteira"
-          description={`Fale com o ${t.orgAdmin} da sua empresa para receber ${t.fichas}.`}
+          description={
+            sessao.tipoDeConta === "pessoal"
+              ? "Fale com a operadora para ativar a sua carteira."
+              : `Fale com o ${t.orgAdmin} da sua empresa para receber ${t.fichas}.`
+          }
         />
       </>
     );
@@ -44,6 +49,11 @@ export default async function Page() {
 
   const extrato = await carregarExtrato(sessao.userId);
   const usadas = fichasUsadas(extrato);
+
+  // Só a conta pessoal tem ficha com validade. Na de empresa nem se pergunta.
+  const pessoal = sessao.tipoDeConta === "pessoal";
+  const validades = pessoal ? await carregarValidades(sessao.userId) : [];
+  const meses = config.individualPolicy.validadeMeses;
 
   return (
     <>
@@ -58,7 +68,7 @@ export default async function Page() {
           <Card>
             <div className="flex items-center gap-4">
               {carteira.saldo > 0 ? (
-                <FichaStack count={carteira.saldo} max={config.fichaPolicy.maxBalance} />
+                <FichaStack count={carteira.saldo} max={pessoal ? 6 : config.fichaPolicy.maxBalance} />
               ) : (
                 <span className="grid h-[38px] w-[38px] place-items-center rounded-full border border-dashed border-[#EAD6E1] text-[#BFAFB8]">
                   <Icone nome="coins" tamanho={18} />
@@ -76,9 +86,29 @@ export default async function Page() {
 
             {carteira.saldo === 0 && (
               <p className="mt-4 border-t border-[#F3E4EC] pt-4 text-[13px] leading-[1.5] text-[#8E7C86]">
-                Sua carteira está vazia. O {t.orgAdmin} da sua empresa distribui as {t.fichas}, e
-                elas também são recarregadas no começo de cada mês.
+                {pessoal
+                  ? `Sua carteira está vazia. ${deOndeVemAFicha(sessao.tipoDeConta, t)}`
+                  : `Sua carteira está vazia. O ${t.orgAdmin} da sua empresa distribui as ${t.fichas}, e elas também são recarregadas no começo de cada mês.`}
               </p>
+            )}
+
+            {validades.length > 0 && (
+              <ul className="mt-4 flex flex-col gap-1.5 border-t border-[#F3E4EC] pt-4">
+                {validades.map((validade) => (
+                  <li
+                    key={validade.venceEm.toISOString()}
+                    className="flex items-center justify-between gap-3 text-[13px]"
+                  >
+                    <span>{countFichas(validade.restante, t)}</span>
+                    <span className="flex items-center gap-1.5 font-mono text-[11px] text-[#8E7C86]">
+                      <Icone nome="calendar-clock" tamanho={12} />
+                      {validade.venceEm <= new Date()
+                        ? `vencem em ${dia(validade.venceEm)}`
+                        : `valem até ${dia(validade.venceEm)}`}
+                    </span>
+                  </li>
+                ))}
+              </ul>
             )}
           </Card>
 
@@ -88,16 +118,20 @@ export default async function Page() {
                 rotulo={`Custo de uma ${t.session}`}
                 valor={countFichas(config.fichaPolicy.price30, t)}
               />
-              <Linha rotulo="Teto da carteira" valor={countFichas(config.fichaPolicy.maxBalance, t)} />
+              {!pessoal && (
+                <Linha
+                  rotulo="Teto da carteira"
+                  valor={countFichas(config.fichaPolicy.maxBalance, t)}
+                />
+              )}
               <Linha
                 rotulo="Validade"
-                valor={config.fichaPolicy.expires ? "expiram" : "não expiram"}
+                valor={validadeDaFicha(sessao.tipoDeConta, meses, config.fichaPolicy.expires)}
               />
               <Linha rotulo={`Já usadas`} valor={countFichas(usadas, t)} />
             </dl>
             <p className="mt-3 text-[12px] leading-[1.45] text-[#8E7C86]">
-              {cap(t.fichas)} acumulam de um mês para o outro e não podem ser compradas nem passadas
-              para outra pessoa.
+              {regraDaFicha(sessao.tipoDeConta, meses, t)}
             </p>
           </Card>
         </div>
@@ -116,7 +150,11 @@ export default async function Page() {
             {extrato.length === 0 ? (
               <EmptyState
                 title="Nada movimentou ainda"
-                description={`Quando o ${t.orgAdmin} alocar ${t.fichas} para você, o lançamento aparece aqui.`}
+                description={
+                  pessoal
+                    ? `Quando um pacote for pago, o lançamento aparece aqui.`
+                    : `Quando o ${t.orgAdmin} alocar ${t.fichas} para você, o lançamento aparece aqui.`
+                }
               />
             ) : (
               <ul className="flex flex-col">
@@ -156,10 +194,7 @@ export default async function Page() {
           </Card>
 
           <Note>
-            <div>
-              O {t.orgAdmin} da sua empresa vê quantas {t.fichas} foram usadas no total, mas nunca
-              com quem você conversou nem sobre o quê.
-            </div>
+            <div>{quemVe(sessao.tipoDeConta, t)}</div>
           </Note>
         </div>
       </div>

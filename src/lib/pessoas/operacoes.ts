@@ -98,6 +98,60 @@ export async function profissionalNaTransacao(
   });
 }
 
+export type NovaContaPessoal = {
+  nome: string;
+  email: string;
+  telefone: string | null;
+  cargo: string | null;
+  area: string | null;
+  ator: Ator;
+};
+
+/**
+ * A conta pessoal do Profissional avulso: uma `org` individual com a carteira
+ * do contrato, o perfil e a carteira dele — tudo numa transação, pelo mesmo
+ * motivo da empresa e do colaborador: o trigger de saldo só sabe somar.
+ *
+ * A `org` leva o nome da pessoa porque `name` é obrigatório e é o que a lista
+ * da operadora mostra; ninguém de fora a vê como empresa (`partner_professionals`
+ * e o feed de atividade escondem o nome quando o tipo é individual). Sem CNPJ e
+ * sem marca: a conta pessoal usa a da plataforma. O CPF chega na primeira compra
+ * pelo checkout (A4).
+ *
+ * O trigger `trg_profiles_individual_org` garante que esta `org` nunca terá um
+ * segundo perfil.
+ */
+export async function contaPessoalNaTransacao(
+  tx: postgres.TransactionSql,
+  userId: string,
+  nova: NovaContaPessoal,
+): Promise<{ orgId: string }> {
+  const [org] = await tx<{ id: string }[]>`
+    insert into orgs (kind, name, created_by)
+    values ('individual', ${nova.nome}, ${nova.ator.id})
+    returning id`;
+
+  await tx`insert into org_wallets (org_id) values (${org.id})`;
+
+  await tx`
+    insert into profiles (id, org_id, role, name, email, phone, job_title, area)
+    values (${userId}, ${org.id}, 'professional', ${nova.nome}, ${nova.email}, ${nova.telefone},
+            ${nova.cargo}, ${nova.area})`;
+
+  await tx`insert into wallets (user_id, org_id) values (${userId}, ${org.id})`;
+
+  await registrarAuditoria(tx, {
+    ator: nova.ator,
+    orgId: org.id,
+    acao: "criar_conta_pessoal",
+    entidade: "profiles",
+    entidadeId: userId,
+    depois: { nome: nova.nome, email: nova.email, cargo: nova.cargo },
+  });
+
+  return { orgId: org.id };
+}
+
 export type NovoParceiro = {
   nome: string;
   email: string;

@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, it } from "vitest";
 import postgres from "postgres";
+import { comprarPacote, contaPessoal, operadora } from "./cenario-de-teste";
 
 /**
  * As invariantes de banco, testadas contra o Postgres de verdade.
@@ -572,5 +573,110 @@ run("perfil do Profissional visto pelo Parceiro — view partner_professionals",
     });
 
     expect(n).toBe(0);
+  });
+});
+
+/**
+ * A conta pessoal (A1) sob RLS. O avulso é uma empresa de uma pessoa: as
+ * policies que já existiam o isolam sem caso especial, e as tabelas novas
+ * seguem a mesma regra — cada um vê o próprio pagamento e o próprio lote, a
+ * fila de cadastro é só da equipe da operadora, e ninguém autenticado escreve.
+ */
+run("conta pessoal — comportamento, com RLS ativa", () => {
+  async function duasContas(tx: postgres.TransactionSql) {
+    const ator = await operadora(tx);
+    const a = await contaPessoal(tx, ator, "Avulsa A");
+    const b = await contaPessoal(tx, ator, "Avulsa B");
+    await comprarPacote(tx, { userId: a.userId, ator, fichas: 4 });
+    await comprarPacote(tx, { userId: b.userId, ator, fichas: 1 });
+    return { ator, a, b };
+  }
+
+  it("o avulso vê o próprio pagamento e o próprio lote, e nada do outro", async () => {
+    const visto = await inRollback(async (tx) => {
+      const { a, b } = await duasContas(tx);
+      await comoUsuario(tx, { sub: a.userId, user_role: "professional", org_id: a.orgId });
+      const pagamentos = await tx<{ user_id: string }[]>`select user_id from payments`;
+      const lotes = await tx<{ user_id: string }[]>`select user_id from ficha_lots`;
+      const perfis = await tx<{ id: string }[]>`
+        select id from profiles where id in (${a.userId}, ${b.userId})`;
+      await voltarAoServidor(tx);
+      return { pagamentos, lotes, perfis };
+    });
+
+    expect(visto.pagamentos.map((p) => p.user_id)).toHaveLength(1);
+    expect(visto.lotes).toHaveLength(1);
+    expect(visto.perfis).toHaveLength(1);
+  });
+
+  it("ninguém autenticado escreve em pagamento, lote ou pedido de cadastro", async () => {
+    const falhas = await inRollback(async (tx) => {
+      const { a } = await duasContas(tx);
+      await comoUsuario(tx, { sub: a.userId, user_role: "professional", org_id: a.orgId });
+      const tentar = (comando: string) =>
+        tx
+          .savepoint((sp) => sp.unsafe(comando))
+          .then(() => "passou")
+          .catch((e: { code?: string }) => e.code ?? "erro");
+      const resultado = {
+        pagamento: await tentar(`update payments set amount_cents = 1`),
+        lote: await tentar(`delete from ficha_lots`),
+        cadastro: await tentar(
+          `insert into individual_signups (name, email) values ('X', 'x@teste.local')`,
+        ),
+      };
+      await voltarAoServidor(tx);
+      return resultado;
+    });
+
+    // 42501 é falta de privilégio: a porta está fechada antes da policy.
+    expect(falhas).toEqual({ pagamento: "42501", lote: "42501", cadastro: "42501" });
+  });
+
+  it("a fila de cadastro é só da equipe da operadora", async () => {
+    const visto = await inRollback(async (tx) => {
+      const { ator, a } = await duasContas(tx);
+      await tx`
+        insert into individual_signups (name, email, goal)
+        values ('Pedido', ${`pedido-${Date.now()}@teste.local`}, 'Liderança')`;
+
+      await comoUsuario(tx, { sub: a.userId, user_role: "professional", org_id: a.orgId });
+      const peloAvulso = await tx`select id from individual_signups`;
+      await voltarAoServidor(tx);
+
+      await comoUsuario(tx, { sub: ator.id, user_role: "admin" });
+      const pelaOperadora = await tx`select id from individual_signups`;
+      await voltarAoServidor(tx);
+      return { peloAvulso: peloAvulso.length, pelaOperadora: pelaOperadora.length };
+    });
+
+    expect(visto.peloAvulso).toBe(0);
+    expect(visto.pelaOperadora).toBeGreaterThanOrEqual(1);
+  });
+
+  it("a taxa de utilização não conta conta pessoal", async () => {
+    const linhas = await inRollback(async (tx) => {
+      const { a } = await duasContas(tx);
+      return tx<{ org_id: string }[]>`select org_id from org_usage where org_id = ${a.orgId}`;
+    });
+    expect(linhas).toHaveLength(0);
+  });
+
+  it("o Parceiro não lê empresa de quem é avulso", async () => {
+    const linhas = await inRollback(async (tx) => {
+      const { a } = await duasContas(tx);
+      const { partnerId } = await seed(tx);
+      await tx`
+        insert into bookings (org_id, partner_id, professional_id, start_at, end_at, status)
+        values (${a.orgId}, ${partnerId}, ${a.userId},
+                '2027-04-01T13:00:00Z'::timestamptz,
+                '2027-04-01T13:30:00Z'::timestamptz, 'pending')`;
+      await comoUsuario(tx, { sub: partnerId, user_role: "partner" });
+      const rows = await tx<{ name: string; org_name: string | null }[]>`
+        select name, org_name from partner_professionals`;
+      await voltarAoServidor(tx);
+      return rows;
+    });
+    expect(linhas).toEqual([{ name: "Avulsa A", org_name: null }]);
   });
 });

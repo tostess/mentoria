@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  parcelamento,
+  reais,
   chaveDoDia,
   cnpj,
   diaDaSemanaCurto,
@@ -129,5 +131,19 @@ describe("agenda no fuso de quem olha", () => {
     expect(prazoRestante(new Date("2026-09-29T05:30:00Z"), agora)).toBe("expira em 41 h");
     expect(prazoRestante(new Date("2026-09-27T12:25:00Z"), agora)).toBe("expira em 25 min");
     expect(prazoRestante(new Date("2026-09-27T11:00:00Z"), agora)).toBe("expira em 0 min");
+  });
+});
+
+describe("dinheiro", () => {
+  it("centavos viram reais com vírgula e milhar", () => {
+    expect(reais(12_900)).toBe("R$ 129,00");
+    expect(reais(79_900)).toBe("R$ 799,00");
+    expect(reais(123_456)).toBe("R$ 1.234,56");
+    expect(reais(0)).toBe("R$ 0,00");
+  });
+
+  it("parcelamento diz à vista ou o teto sem juros", () => {
+    expect(parcelamento(1)).toBe("à vista");
+    expect(parcelamento(3)).toBe("até 3× sem juros");
   });
 });

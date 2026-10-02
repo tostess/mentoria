@@ -2,6 +2,7 @@ import type postgres from "postgres";
 import { paraInstante } from "@/lib/db/instantes";
 import { HorarioIndisponivel, LimiteDePendentes } from "@/lib/ledger/erros";
 import { chaveGasto } from "@/lib/ledger/keys";
+import { loteParaGasto } from "@/lib/ledger/lotes";
 import {
   avaliarSlots,
   type Avaliacao as AvaliacaoDeSlot,
@@ -102,7 +103,7 @@ export async function reservaNaTransacao(
     select balance, org_id from wallets where user_id = ${pedido.professionalId} for update`;
 
   if (!carteira) {
-    throw new ProfissionalInvalido("Você ainda não tem carteira. Fale com o RH da sua empresa.");
+    throw new ProfissionalInvalido("Você ainda não tem carteira. Fale com a operadora.");
   }
   if (carteira.org_id !== pedido.orgId) {
     // A empresa vem do JWT, mas a carteira é quem diz a verdade (invariante 13).
@@ -155,11 +156,17 @@ export async function reservaNaTransacao(
 
   const slot = candidato.slot;
 
+  // Na conta pessoal a ficha sai do lote que vence primeiro; na de empresa não
+  // há lote e isto é null. A carteira já está travada, então duas reservas não
+  // disputam a última ficha do mesmo lote.
+  const lote = await loteParaGasto(tx, pedido.professionalId, pedido.precoFichas);
+
   // Invariante 6, na ordem do fluxo da ficha: `spend` primeiro, booking depois.
   const [gasto] = await tx<{ balance_after: number }[]>`
-    insert into wallet_ledger (user_id, org_id, type, amount, balance_after, booking_id, by_user_id, idempotency_key)
+    insert into wallet_ledger (user_id, org_id, type, amount, balance_after, booking_id, lot_id,
+                               by_user_id, idempotency_key)
     values (${pedido.professionalId}, ${pedido.orgId}, 'spend', ${-pedido.precoFichas}, 0,
-            ${pedido.bookingId}, ${pedido.professionalId}, ${chaveGasto(pedido.bookingId)})
+            ${pedido.bookingId}, ${lote}, ${pedido.professionalId}, ${chaveGasto(pedido.bookingId)})
     returning balance_after`;
 
   const status = parceiro.auto_confirm ? "confirmed" : "pending";

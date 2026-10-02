@@ -82,6 +82,24 @@ export function cnpj(digitos: string | null): string {
   return `${digitos.slice(0, 2)}.${digitos.slice(2, 5)}.${digitos.slice(5, 8)}/${digitos.slice(8, 12)}-${digitos.slice(12)}`;
 }
 
+/**
+ * Centavos → `R$ 449,00`. Dinheiro mora em centavos inteiros (`payments.amount_cents`
+ * e `app_config.individual_packages`); só a borda o transforma em texto.
+ *
+ * O `Intl` separa o símbolo com espaço inseparável; aqui ele vira espaço comum,
+ * para o texto da tela ser o mesmo que se copia e se testa.
+ */
+const REAIS = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+
+export function reais(centavos: number): string {
+  return REAIS.format(centavos / 100).replace(/\u00a0/g, " ");
+}
+
+/** Parcelamento como a vitrine diz: "à vista" ou "até 3× sem juros". */
+export function parcelamento(parcelas: number): string {
+  return parcelas <= 1 ? "à vista" : `até ${parcelas}× sem juros`;
+}
+
 export { humanizar } from "./humanizar";
 
 // ---------------------------------------------------------------- agenda

@@ -9,6 +9,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { Card } from "@/components/ui/Card";
 import { Tag } from "@/components/ui/Tag";
 import { requireRole } from "@/lib/auth/session";
+import { deOndeVemAFicha } from "@/lib/profissional/conta";
 import { ParceiroIndisponivel, horariosLivres } from "@/lib/bookings";
 import { loadAppConfig } from "@/lib/config/load";
 import { DURACAO_DA_SESSAO_MIN } from "@/lib/config/limites";
@@ -109,7 +110,8 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
           confirmaSozinho={parceiro.confirmaSozinho}
           horasParaResponder={config.limits.pendingExpiresHours}
           duracaoMin={DURACAO_DA_SESSAO_MIN}
-          termos={{ ficha: t.ficha, fichas: t.fichas, orgAdmin: t.orgAdmin, sessao: t.session }}
+          termos={{ ficha: t.ficha, fichas: t.fichas, sessao: t.session }}
+          deOndeVemAFicha={deOndeVemAFicha(sessao.tipoDeConta, t)}
         />
 
         {(parceiro.bio || parceiro.areas.length > 0 || parceiro.habilidades.length > 0) && (

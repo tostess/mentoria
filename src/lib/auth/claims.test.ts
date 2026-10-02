@@ -19,6 +19,7 @@ describe("parseClaims", () => {
       userId: USER,
       role: "professional",
       orgId: ORG,
+      tipoDeConta: "empresa",
       email: "pessoa@empresa.com.br",
       senhaProvisoria: false,
     });
@@ -106,5 +107,30 @@ describe("parseClaims", () => {
         parseClaims(claims({ user_role: "partner", senha_provisoria: true }))?.senhaProvisoria,
       ).toBe(false);
     });
+  });
+});
+
+describe("tipo de conta — a claim `org_kind`, escrita pelo mesmo hook", () => {
+  it("conta pessoal vira `pessoal`", () => {
+    const session = parseClaims(
+      claims({ user_role: "professional", org_id: ORG, org_kind: "individual" }),
+    );
+    expect(session?.tipoDeConta).toBe("pessoal");
+  });
+
+  it("empresa vira `empresa`", () => {
+    const session = parseClaims(claims({ user_role: "org_admin", org_id: ORG, org_kind: "empresa" }));
+    expect(session?.tipoDeConta).toBe("empresa");
+  });
+
+  /** Token emitido antes da claim existir só pode ser de empresa: conta pessoal não existia. */
+  it("sem a claim, quem tem empresa é de empresa", () => {
+    const session = parseClaims(claims({ user_role: "professional", org_id: ORG }));
+    expect(session?.tipoDeConta).toBe("empresa");
+  });
+
+  it("papel de plataforma não tem tipo de conta, mesmo com a claim forjada", () => {
+    const session = parseClaims(claims({ user_role: "partner", org_kind: "individual" }));
+    expect(session?.tipoDeConta).toBeNull();
   });
 });

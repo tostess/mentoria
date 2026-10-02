@@ -164,6 +164,11 @@ export default async function Page() {
                   valor={resumo.profissionais}
                   nota="Contas ativas em todas as empresas."
                 />
+                <Linha
+                  rotulo={t.individuals}
+                  valor={resumo.contasPessoais}
+                  nota={`Compram os próprios pacotes; fora dos números de contrato acima.`}
+                />
               </dl>
             </Card>
 

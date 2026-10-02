@@ -2,6 +2,8 @@ import { sql } from "drizzle-orm";
 import {
   boolean,
   check,
+  foreignKey,
+  index,
   integer,
   jsonb,
   pgPolicy,
@@ -14,6 +16,7 @@ import { authUsers, authenticatedRole } from "drizzle-orm/supabase";
 import { orgs } from "./orgs";
 import { ledgerType, userRole } from "./enums";
 import { isAdmin } from "./auth";
+import { fichaLots } from "./avulso";
 
 /**
  * Toda pessoa da plataforma, em qualquer papel. A identidade fica em
@@ -128,6 +131,12 @@ export const walletLedger = pgTable(
     amount: integer("amount").notNull(),
     balanceAfter: integer("balance_after").notNull(),
     bookingId: uuid("booking_id"),
+    /**
+     * O lote comprado de onde a ficha saiu ou para onde voltou — só na conta
+     * pessoal. Nulo para ficha de empresa, presente e compensação, que não
+     * vencem. O restante de um lote é a soma dos lançamentos que apontam para ele.
+     */
+    lotId: uuid("lot_id"),
     byUserId: uuid("by_user_id"),
     reason: text("reason"),
     idempotencyKey: text("idempotency_key").notNull().unique(),
@@ -135,6 +144,13 @@ export const walletLedger = pgTable(
   },
   (t) => [
     check("wallet_ledger_amount_nonzero", sql`${t.amount} <> 0`),
+    // FK composta: o lançamento só aponta para lote do próprio dono da carteira.
+    foreignKey({
+      name: "wallet_ledger_lot_fk",
+      columns: [t.lotId, t.userId],
+      foreignColumns: [fichaLots.id, fichaLots.userId],
+    }).onDelete("restrict"),
+    index("wallet_ledger_lot_idx").on(t.lotId),
     pgPolicy("wallet_ledger_select_self", {
       for: "select",
       to: authenticatedRole,

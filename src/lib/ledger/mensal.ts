@@ -109,6 +109,9 @@ async function candidatos(sql: Conexao): Promise<Candidato[]> {
        and p.active
        and p.deleted_at is null
        and o.active
+       -- A recarga sai do contrato da empresa. Conta pessoal não tem contrato:
+       -- compra pacote.
+       and o.kind = 'empresa'
      order by o.name, p.name`;
 
   return linhas.map((l) => ({

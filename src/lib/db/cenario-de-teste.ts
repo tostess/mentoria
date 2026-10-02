@@ -1,7 +1,10 @@
 import type postgres from "postgres";
+import type { Pacote } from "@/lib/config/app-config";
+import { compraManualNaTransacao } from "@/lib/ledger/credito";
 import { chaveAlocacaoManual } from "@/lib/ledger/keys";
 import { alocacaoNaTransacao, compraNaTransacao, type Ator } from "@/lib/ledger/operacoes";
 import {
+  contaPessoalNaTransacao,
   empresaNaTransacao,
   parceiroNaTransacao,
   profissionalNaTransacao,
@@ -206,4 +209,58 @@ export async function darFichas(
       ator,
     });
   }
+}
+
+/** Conta pessoal do avulso, pelo caminho da aplicação: `org` individual, perfil e carteira. */
+export async function contaPessoal(
+  tx: postgres.TransactionSql,
+  ator: Ator,
+  nome = "Avulso Teste",
+): Promise<{ userId: string; orgId: string }> {
+  const userId = await identidade(tx, "avu");
+  const { orgId } = await contaPessoalNaTransacao(tx, userId, {
+    nome,
+    email: `avu-${userId}@teste.local`,
+    telefone: null,
+    cargo: "Enfermeira",
+    area: null,
+    ator,
+  });
+  return { userId, orgId };
+}
+
+/** Um pacote de teste com a quantidade pedida. */
+export function pacote(fichas: number, precoCentavos = 10_000): Pacote {
+  return {
+    id: `teste-${fichas}`,
+    nome: `Teste ${fichas}`,
+    fichas,
+    precoCentavos,
+    parcelasMax: 1,
+    ativo: true,
+  };
+}
+
+/**
+ * Pacote pago e creditado — o registro manual da operadora, que é o mesmo
+ * crédito que o checkout vai usar. `validadeMeses` negativo produz lote já
+ * vencido, que é como o teste chega lá sem esperar um ano.
+ */
+export async function comprarPacote(
+  tx: postgres.TransactionSql,
+  {
+    userId,
+    ator,
+    fichas,
+    validadeMeses = 12,
+  }: { userId: string; ator: Ator; fichas: number; validadeMeses?: number },
+) {
+  return compraManualNaTransacao(tx, {
+    userId,
+    pacote: pacote(fichas),
+    validadeMeses,
+    referencia: "Pix de teste",
+    token: token(),
+    ator,
+  });
 }

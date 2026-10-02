@@ -21,6 +21,7 @@ export const LANCAMENTOS: Record<TipoDeLancamento, { rotulo: string; icone: Nome
   gift: { rotulo: "Presente", icone: "coins" },
   reclaim: { rotulo: "Devolução", icone: "refund" },
   adjust: { rotulo: "Ajuste", icone: "pencil" },
+  expire: { rotulo: "Vencimento", icone: "calendar-off" },
 };
 
 export function rotuloDoLancamento(tipo: string): { rotulo: string; icone: NomeIcone } {

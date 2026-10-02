@@ -25,6 +25,7 @@ export type { Colaborador, ParceiroNaLista } from "./tipos";
 
 export type ResumoDaPlataforma = {
   empresasAtivas: number;
+  contasPessoais: number;
   fichasContratadas: number;
   fichasEmContrato: number;
   fichasAlocadas: number;
@@ -38,6 +39,7 @@ export async function resumoDaPlataforma(): Promise<ResumoDaPlataforma> {
 
   const [linha] = await db.execute<{
     empresas_ativas: number;
+    contas_pessoais: number;
     fichas_contratadas: number;
     fichas_em_contrato: number;
     fichas_alocadas: number;
@@ -46,17 +48,24 @@ export async function resumoDaPlataforma(): Promise<ResumoDaPlataforma> {
     profissionais: number;
   }>(raw`
     select
-      (select count(*) from orgs where active)::int                       as empresas_ativas,
-      (select coalesce(sum(contracted_fichas), 0) from orgs)::int         as fichas_contratadas,
-      (select coalesce(sum(balance), 0) from org_wallets)::int            as fichas_em_contrato,
+      (select count(*) from orgs where active and kind = 'empresa')::int  as empresas_ativas,
+      (select count(*) from orgs where kind = 'individual')::int          as contas_pessoais,
+      -- Contrato é de empresa. O que a conta pessoal comprou fica de fora: somado
+      -- aqui, inflaria "fichas contratadas" com pacote de pessoa física.
+      (select coalesce(sum(contracted_fichas), 0) from orgs
+        where kind = 'empresa')::int                                      as fichas_contratadas,
+      (select coalesce(sum(w.balance), 0) from org_wallets w
+         join orgs o on o.id = w.org_id where o.kind = 'empresa')::int    as fichas_em_contrato,
       (select coalesce(sum(fichas_allocated), 0) from org_usage)::int     as fichas_alocadas,
       (select coalesce(sum(fichas_used), 0) from org_usage)::int          as fichas_usadas,
       (select count(*) from partners where status = 'active')::int        as parceiros_ativos,
-      (select count(*) from profiles
-        where role = 'professional' and deleted_at is null)::int          as profissionais`);
+      (select count(*) from profiles p join orgs o on o.id = p.org_id
+        where p.role = 'professional' and p.deleted_at is null
+          and o.kind = 'empresa')::int                                    as profissionais`);
 
   return {
     empresasAtivas: linha.empresas_ativas,
+    contasPessoais: linha.contas_pessoais,
     fichasContratadas: linha.fichas_contratadas,
     fichasEmContrato: linha.fichas_em_contrato,
     fichasAlocadas: linha.fichas_alocadas,
@@ -94,7 +103,7 @@ export async function utilizacaoPorEmpresa(): Promise<UtilizacaoDaEmpresa[]> {
            coalesce(sum(u.fichas_used), 0)::int                          as usadas
       from orgs o
       left join org_usage u on u.org_id = o.id
-     where o.active
+     where o.active and o.kind = 'empresa'
      group by o.id, o.name
      order by o.name`);
 
@@ -139,6 +148,7 @@ export async function listarEmpresas(): Promise<EmpresaNaLista[]> {
                and p.deleted_at is null)::int as colaboradores
       from orgs o
       left join org_wallets w on w.org_id = o.id
+     where o.kind = 'empresa'
      order by o.active desc, o.name`);
 
   return linhas.map((linha) => ({ ...linha }));
@@ -169,7 +179,9 @@ export async function buscarEmpresa(orgId: string): Promise<Empresa | null> {
     })
     .from(orgs)
     .leftJoin(orgWallets, eq(orgWallets.orgId, orgs.id))
-    .where(eq(orgs.id, orgId))
+    // A tela de empresa não abre conta pessoal: ela não tem contrato nem RH, e
+    // o formulário de contrato lá moveria ficha por um caminho que ela não tem.
+    .where(and(eq(orgs.id, orgId), eq(orgs.kind, "empresa")))
     .limit(1);
 
   if (!linha) return null;
@@ -313,7 +325,8 @@ export async function listarAtividade(
            a.after       as depois,
            quem.name     as autor,
            alvo.name     as alvo,
-           o.name        as empresa
+           -- Conta pessoal leva o nome da pessoa; mostrá-lo como empresa repetiria.
+           case when o.kind = 'empresa' then o.name end as empresa
       from audit_logs a
       left join profiles quem on quem.id = a.actor_id
       left join profiles alvo on alvo.id = a.entity_id
@@ -426,7 +439,7 @@ export async function nomeDaEmpresa(orgId: string): Promise<string | null> {
   const [linha] = await getDb()
     .select({ nome: orgs.name })
     .from(orgs)
-    .where(eq(orgs.id, orgId))
+    .where(and(eq(orgs.id, orgId), eq(orgs.kind, "empresa")))
     .limit(1);
   return linha?.nome ?? null;
 }
@@ -436,9 +449,141 @@ export async function ehColaboradorDaEmpresa(orgId: string, userId: string): Pro
   const [linha] = await getDb()
     .select({ id: profiles.id })
     .from(profiles)
+    .innerJoin(orgs, eq(orgs.id, profiles.orgId))
     .where(
-      and(eq(profiles.id, userId), eq(profiles.orgId, orgId), eq(profiles.role, "professional")),
+      and(
+        eq(profiles.id, userId),
+        eq(profiles.orgId, orgId),
+        eq(profiles.role, "professional"),
+        eq(orgs.kind, "empresa"),
+      ),
     )
     .limit(1);
   return linha !== undefined;
+}
+
+export type ContaPessoalNaLista = {
+  id: string;
+  orgId: string;
+  nome: string;
+  email: string;
+  ativo: boolean;
+  saldo: number;
+  /** Total comprado desde sempre — `contracted_fichas` da `org` individual. */
+  compradas: number;
+  ultimaCompra: Date | null;
+  desde: Date;
+};
+
+/**
+ * As contas pessoais, separadas das empresas: são a mesma tabela, mas a
+ * operadora lê as duas de jeitos diferentes — empresa por contrato, conta
+ * pessoal por pessoa.
+ */
+export async function listarContasPessoais(): Promise<ContaPessoalNaLista[]> {
+  const linhas = await getDb().execute<{
+    id: string;
+    org_id: string;
+    nome: string;
+    email: string;
+    ativo: boolean;
+    saldo: number;
+    compradas: number;
+    ultima_compra: string | null;
+    desde: string;
+  }>(raw`
+    select p.id,
+           o.id                   as org_id,
+           p.name                 as nome,
+           p.email,
+           p.active               as ativo,
+           coalesce(w.balance, 0) as saldo,
+           o.contracted_fichas    as compradas,
+           (select max(pg.paid_at) from payments pg
+             where pg.user_id = p.id and pg.status = 'confirmed') as ultima_compra,
+           p.created_at           as desde
+      from orgs o
+      join profiles p on p.org_id = o.id
+      left join wallets w on w.user_id = p.id
+     where o.kind = 'individual'
+       and p.deleted_at is null
+     order by p.active desc, p.name`);
+
+  return linhas.map((l) => ({
+    id: l.id,
+    orgId: l.org_id,
+    nome: l.nome,
+    email: l.email,
+    ativo: l.ativo,
+    saldo: l.saldo,
+    compradas: l.compradas,
+    ultimaCompra: l.ultima_compra === null ? null : new Date(l.ultima_compra),
+    desde: new Date(l.desde),
+  }));
+}
+
+/**
+ * A conta pessoal de uma pessoa: o `orgId` sai do perfil, não da URL — a rota é
+ * pela pessoa. Null quando ela não existe ou é colaboradora de empresa.
+ */
+export async function contaPessoalDe(
+  userId: string,
+): Promise<{ orgId: string; telefone: string | null } | null> {
+  const [linha] = await getDb()
+    .select({ orgId: orgs.id, telefone: profiles.phone })
+    .from(profiles)
+    .innerJoin(orgs, eq(orgs.id, profiles.orgId))
+    .where(
+      and(
+        eq(profiles.id, userId),
+        eq(profiles.role, "professional"),
+        eq(orgs.kind, "individual"),
+        isNull(profiles.deletedAt),
+      ),
+    )
+    .limit(1);
+  return linha ?? null;
+}
+
+export type PagamentoNaLista = {
+  id: string;
+  pacote: string;
+  fichas: number;
+  valorCentavos: number;
+  meio: string;
+  status: string;
+  referencia: string | null;
+  pagoEm: Date | null;
+  criadoEm: Date;
+};
+
+export async function listarPagamentos(userId: string): Promise<PagamentoNaLista[]> {
+  const linhas = await getDb().execute<{
+    id: string;
+    pacote: string;
+    fichas: number;
+    valor: number;
+    meio: string;
+    status: string;
+    referencia: string | null;
+    pago_em: string | null;
+    criado_em: string;
+  }>(raw`
+    select id, package_id as pacote, fichas, amount_cents as valor, provider as meio, status,
+           reference as referencia, paid_at as pago_em, created_at as criado_em
+      from payments
+     where user_id = ${userId}
+     order by created_at desc`);
+
+  return linhas.map((l) => ({
+    id: l.id,
+    pacote: l.pacote,
+    fichas: l.fichas,
+    valorCentavos: l.valor,
+    meio: l.meio,
+    status: l.status,
+    referencia: l.referencia,
+    pagoEm: l.pago_em === null ? null : new Date(l.pago_em),
+    criadoEm: new Date(l.criado_em),
+  }));
 }

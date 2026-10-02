@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_APP_CONFIG,
+  DEFAULT_INDIVIDUAL_POLICY,
+  DEFAULT_PACOTES,
   mergeBranding,
   parseAppConfig,
   parseBranding,
@@ -122,5 +124,72 @@ describe("branding", () => {
   it("empresa com accent próprio ganha da plataforma", () => {
     const merged = mergeBranding(parseBranding({ accent: "#C2317A" }), parseBranding({ accent: "#1B7F6B" }));
     expect(resolveTheme(merged).accent).toBe("#1B7F6B");
+  });
+});
+
+describe("pacotes da conta pessoal", () => {
+  const comPacotes = (pacotes: unknown): ConfigRow[] => [
+    { key: "individual_packages", value: { pacotes } },
+  ];
+
+  it("lê os pacotes como a migração os semeia", () => {
+    const config = parseAppConfig(
+      comPacotes([
+        {
+          id: "ritmo",
+          nome: "Ritmo",
+          fichas: 4,
+          preco_centavos: 44900,
+          parcelas_max: 2,
+          ativo: true,
+        },
+      ]),
+    );
+    expect(config.pacotes).toEqual([
+      { id: "ritmo", nome: "Ritmo", fichas: 4, precoCentavos: 44900, parcelasMax: 2, ativo: true },
+    ]);
+  });
+
+  it("sem a chave, os três pacotes default", () => {
+    expect(parseAppConfig([]).pacotes).toEqual(DEFAULT_PACOTES);
+    expect(DEFAULT_PACOTES.map((p) => [p.fichas, p.precoCentavos])).toEqual([
+      [1, 12900],
+      [4, 44900],
+      [8, 79900],
+    ]);
+  });
+
+  it("pacote estragado sai da lista; id repetido fica com o primeiro", () => {
+    const config = parseAppConfig(
+      comPacotes([
+        { id: "a", nome: "A", fichas: 1, preco_centavos: 100 },
+        { id: "a", nome: "A de novo", fichas: 2, preco_centavos: 200 },
+        { id: "sem-fichas", nome: "Zero", fichas: 0, preco_centavos: 100 },
+        { id: "preco-texto", nome: "Texto", fichas: 1, preco_centavos: "100" },
+        { id: "Id Com Espaço", nome: "Ruim", fichas: 1, preco_centavos: 100 },
+        { nome: "Sem id", fichas: 1, preco_centavos: 100 },
+      ]),
+    );
+    expect(config.pacotes).toEqual([
+      { id: "a", nome: "A", fichas: 1, precoCentavos: 100, parcelasMax: 1, ativo: true },
+    ]);
+  });
+
+  it("lista sem nada aproveitável volta aos defaults — vitrine vazia é defeito", () => {
+    expect(parseAppConfig(comPacotes([])).pacotes).toEqual(DEFAULT_PACOTES);
+    expect(parseAppConfig(comPacotes([{ id: "x" }])).pacotes).toEqual(DEFAULT_PACOTES);
+  });
+
+  it("política: validade em meses e prazo de arrependimento", () => {
+    expect(parseAppConfig([]).individualPolicy).toEqual(DEFAULT_INDIVIDUAL_POLICY);
+    const lida = parseAppConfig([
+      { key: "individual_policy", value: { validade_meses: 6, arrependimento_dias: 7 } },
+    ]).individualPolicy;
+    expect(lida).toEqual({ validadeMeses: 6, arrependimentoDias: 7 });
+  });
+
+  it("validade zero seria ficha vencida na compra: cai no default", () => {
+    const lida = parseAppConfig([{ key: "individual_policy", value: { validade_meses: 0 } }]);
+    expect(lida.individualPolicy.validadeMeses).toBe(12);
   });
 });

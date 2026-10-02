@@ -1,7 +1,7 @@
 import type postgres from "postgres";
 import { registrarAuditoria } from "@/lib/audit";
 import type { Role } from "@/lib/auth/claims";
-import { TetoDaCarteira } from "./erros";
+import { TetoDaCarteira, TipoDeContaErrado } from "./erros";
 import { chaveCompensacao, chaveCompra, chaveEstorno, chaveGasto, chavePresente } from "./keys";
 
 /**
@@ -43,6 +43,11 @@ export async function compraNaTransacao(
   tx: postgres.TransactionSql,
   compra: Compra,
 ): Promise<{ saldo: number; contratadas: number }> {
+  // Contrato é de empresa. A conta pessoal recebe ficha por pagamento
+  // (`credito.ts`), que cria o lote com a validade — por aqui a ficha nasceria
+  // sem lote e não venceria.
+  await exigeEmpresa(tx, compra.orgId);
+
   const [lancamento] = await tx<{ balance_after: number }[]>`
     insert into org_ledger (org_id, type, amount, balance_after, by_user_id, reason, idempotency_key)
     values (${compra.orgId}, 'purchase', ${compra.fichas}, 0,
@@ -189,11 +194,15 @@ export async function estornoNaTransacao(
   const gasto = await gastoDaSessao(tx, estorno.bookingId);
   const quantidade = -gasto.amount;
 
+  // A ficha volta ao lote de onde saiu — ou sem lote, se ele já venceu: quem
+  // teve a sessão recusada ou cancelada não perde a ficha por um prazo que
+  // correu enquanto ela estava presa no pedido.
   const [lancamento] = await tx<{ balance_after: number }[]>`
-    insert into wallet_ledger (user_id, org_id, type, amount, balance_after, booking_id,
+    insert into wallet_ledger (user_id, org_id, type, amount, balance_after, booking_id, lot_id,
                                by_user_id, reason, idempotency_key)
     values (${gasto.user_id}, ${gasto.org_id}, 'refund', ${quantidade}, 0, ${estorno.bookingId},
-            ${estorno.ator?.id ?? null}, ${estorno.motivo}, ${chaveEstorno(estorno.bookingId)})
+            ${gasto.lote_vigente}, ${estorno.ator?.id ?? null}, ${estorno.motivo},
+            ${chaveEstorno(estorno.bookingId)})
     returning balance_after`;
 
   return { quantidade, saldoCarteira: lancamento.balance_after };
@@ -209,10 +218,15 @@ export async function estornoNaTransacao(
 async function gastoDaSessao(
   tx: postgres.TransactionSql,
   bookingId: string,
-): Promise<{ user_id: string; org_id: string; amount: number }> {
-  const [gasto] = await tx<{ user_id: string; org_id: string; amount: number }[]>`
-    select user_id, org_id, amount from wallet_ledger
-     where idempotency_key = ${chaveGasto(bookingId)}`;
+): Promise<{ user_id: string; org_id: string; amount: number; lote_vigente: string | null }> {
+  const [gasto] = await tx<
+    { user_id: string; org_id: string; amount: number; lote_vigente: string | null }[]
+  >`
+    select w.user_id, w.org_id, w.amount,
+           case when l.expires_at > now() then w.lot_id end as lote_vigente
+      from wallet_ledger w
+      left join ficha_lots l on l.id = w.lot_id
+     where w.idempotency_key = ${chaveGasto(bookingId)}`;
   if (!gasto) throw new Error(`sessão sem gasto: ${bookingId}`);
   return gasto;
 }
@@ -285,8 +299,12 @@ async function travarCarteira(
   tx: postgres.TransactionSql,
   alocacao: Alocacao,
 ): Promise<void> {
-  const [carteira] = await tx<{ balance: number; org_id: string }[]>`
-    select balance, org_id from wallets where user_id = ${alocacao.userId} for update`;
+  const [carteira] = await tx<{ balance: number; org_id: string; tipo: string }[]>`
+    select w.balance, w.org_id, o.kind::text as tipo
+      from wallets w
+      join orgs o on o.id = w.org_id
+     where w.user_id = ${alocacao.userId}
+       for update of w`;
 
   // Quem cria o Profissional cria a carteira na mesma transação, então
   // carteira ausente é dado corrompido, não caso de uso.
@@ -300,6 +318,12 @@ async function travarCarteira(
     throw new Error(`carteira de outra empresa: ${alocacao.userId}`);
   }
 
+  // Alocação é do contrato de empresa para o colaborador. Na conta pessoal a
+  // ficha chega pelo crédito do pagamento, com lote e validade.
+  if (carteira.tipo !== "empresa") {
+    throw new TipoDeContaErrado("Conta pessoal não recebe alocação: a ficha chega por pacote.");
+  }
+
   if (carteira.balance + alocacao.quantidade > alocacao.tetoCarteira) {
     const cabe = alocacao.tetoCarteira - carteira.balance;
     throw new TetoDaCarteira(
@@ -307,5 +331,14 @@ async function travarCarteira(
         ? `A carteira já está no teto de ${alocacao.tetoCarteira}.`
         : `Cabem no máximo ${cabe} — o teto por carteira é ${alocacao.tetoCarteira}.`,
     );
+  }
+}
+
+/** Recusa a operação de contrato numa conta que não é de empresa. */
+async function exigeEmpresa(tx: postgres.TransactionSql, orgId: string): Promise<void> {
+  const [org] = await tx<{ tipo: string }[]>`select kind::text as tipo from orgs where id = ${orgId}`;
+  if (!org) throw new Error(`empresa inexistente: ${orgId}`);
+  if (org.tipo !== "empresa") {
+    throw new TipoDeContaErrado("Conta pessoal não tem contrato: a ficha chega por pacote.");
   }
 }

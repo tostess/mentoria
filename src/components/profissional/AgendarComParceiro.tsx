@@ -20,7 +20,7 @@ export type DiaOferecido = {
   horarios: HorarioOferecido[];
 };
 
-type Termos = { ficha: string; fichas: string; orgAdmin: string; sessao: string };
+type Termos = { ficha: string; fichas: string; sessao: string };
 
 type Props = {
   partnerId: string;
@@ -36,6 +36,11 @@ type Props = {
   horasParaResponder: number;
   duracaoMin: number;
   termos: Termos;
+  /**
+   * De onde vem a ficha, numa frase: o RH da empresa ou o pacote da conta
+   * pessoal. Escrita no servidor, que sabe o tipo da conta pelo token.
+   */
+  deOndeVemAFicha: string;
 };
 
 type Estado =
@@ -84,7 +89,7 @@ export function AgendarComParceiro(props: Props) {
   // falha. Quem decide é a reserva, no servidor.
   const bloqueio =
     props.saldo < props.preco
-      ? `Você não tem ${t.ficha} para esta ${t.sessao}. O ${t.orgAdmin} da sua empresa distribui as ${t.fichas}.`
+      ? `Você não tem ${t.ficha} para esta ${t.sessao}. ${props.deOndeVemAFicha}`
       : props.pendentes >= props.maxPendentes
         ? `Você já tem ${props.pendentes} pedidos esperando resposta. O limite é ${props.maxPendentes}.`
         : null;

@@ -17,6 +17,7 @@
 export * from "./enums";
 export * from "./orgs";
 export * from "./people";
+export * from "./avulso";
 export * from "./partners";
 export * from "./sessions";
 export * from "./engagement";

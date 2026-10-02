@@ -2,12 +2,19 @@
 
 ## O que é
 
-Plataforma **B2B de mentoria corporativa**, vendida para RHs. A empresa contratante compra um bloco
-de **fichas** e o RH distribui entre colaboradores selecionados. Cada ficha vale uma sessão 1:1 de
-30 minutos, por vídeo, dentro da plataforma.
+Plataforma de mentoria com **dois canais de entrada** (diretriz de 01/10/2026):
+
+- **Empresa (B2B).** Vendida para RHs. A empresa contratante compra um bloco de **fichas** e o RH
+  distribui entre colaboradores selecionados.
+- **Profissional avulso (pessoa física).** Quem busca mentoria por conta própria, sem empresa por
+  trás, tem conta própria e obtém as próprias fichas.
+
+Cada ficha vale uma sessão 1:1 de 30 minutos, por vídeo, dentro da plataforma.
 
 Os **Parceiros de Desenvolvimento** são curados e convidados pela operadora da plataforma e atendem
-profissionais de todas as empresas contratantes. Os **Profissionais** pertencem a uma empresa só.
+profissionais de todas as empresas contratantes e os avulsos — todos eles, inclusive os
+voluntários. Uma **conta de Profissional** pertence a uma empresa ou é pessoal; uma mesma pessoa
+pode ter as duas, como dois logins com dois e-mails.
 
 Nicho provável: educação superior e saúde. Web responsiva, pt-BR. Não é app nativo de loja.
 
@@ -22,12 +29,52 @@ Nicho provável: educação superior e saúde. Web responsiva, pt-BR. Não é ap
 Tratamento **você**. Tom profissional e próximo. Todos os termos vivem em `app_config.copy.terms`,
 lidos por `src/lib/terms.ts`, e são sobrescrevíveis por empresa. Nenhum termo de domínio hardcoded.
 
+### Profissional avulso (diretriz de 01/10/2026, plano aprovado no mesmo dia)
+
+**Conta individual é "empresa de um só".** `orgs.kind` (`empresa` | `individual`); cada avulso
+aprovado ganha uma `org` própria, com `org_wallet`, ele como único membro (`role = 'professional'`)
+e nenhum `org_admin`. Assim `profiles_org_scope` e os `org_id not null` de `wallets`,
+`wallet_ledger` e `bookings` continuam valendo, o hook continua emitindo `org_id`, e a RLS por
+`auth_org_id()` isola o avulso sem caso especial. Reserva, cancelamento, presente, estorno e
+fechamento não mudam. Descartados na análise: `org_id` nulo (o isolamento passaria a depender de
+lembrar do caso nulo) e uma `org` "Avulsos" compartilhada (a policy de `profiles` abriria todo
+avulso a todos os outros).
+
+- **Cadastro self-service, aprovado pela operadora.** O avulso se cadastra em `/cadastro` com a
+  própria senha e confirma o e-mail; o pedido entra em `individual_signups` e só vira conta quando
+  o admin aprova em `/admin/cadastros` — lista com seleção e aprovação em lote, uma transação por
+  pessoa. Enquanto pendente não há perfil, logo não há `user_role` no token.
+- **Paga dentro da plataforma, pelo Asaas** (Pix e cartão, fatura hospedada, NFS-e automática).
+  Dado de cartão nunca passa por aqui. A ficha só nasce de pagamento **relido na API do Asaas** —
+  pelo webhook, pela página de retorno ou pelo cron de conciliação, as três chamando a mesma
+  função —, como `purchase` + `allocate` na conta individual, numa transação, chave `pay_{id}`.
+- **Pacotes próprios**, em `app_config.individual_packages`: *Primeira conversa* 1 ficha R$ 129 ·
+  *Ritmo* 4 fichas R$ 449 (até 2×) · *Jornada* 8 fichas R$ 799 (até 3×). O pagamento congela o preço.
+  A compra ignora `max_balance`.
+- **Ficha comprada vale 12 meses.** Cada compra é um lote (`ficha_lots`); o que resta dele é
+  derivado do livro-caixa (`wallet_ledger.lot_id`), não guardado. O gasto consome o lote que vence
+  primeiro; o estorno volta ao mesmo lote, ou sem validade se ele já venceu; `expire-fichas` dá baixa
+  com `expire_{lotId}` e avisa 30 dias antes. Presente e compensação não vencem. Ficha de empresa
+  não muda: continua sem validade.
+- **Arrependimento em 7 dias (CDC art. 49)**, lote sem ficha usada: reembolso no Asaas primeiro,
+  depois `reclaim` na carteira e `refund` no contrato, chave `payrefund_{id}`, auditado.
+- **Duas contas, uma por e-mail.** Corporativa e pessoal são logins separados; CPF único entre
+  contas pessoais. O RH nunca alcança a conta pessoal.
+- **Fora da média das empresas.** `allocate-monthly` pula conta individual; `org_usage`, a taxa de
+  utilização e as listas de empresas consideram só `kind = 'empresa'`; `partner_professionals`
+  não mostra empresa para o avulso. Vocabulário e marca são os defaults da plataforma.
+- **Relação de consumo.** Termos e política da operadora cobrem os dois canais: arrependimento,
+  validade de 12 meses, transferência internacional dos metadados do Daily.
+
+Plano completo, com a ordem das entregas: "Roadmap", abaixo.
+
 ## Stack
 
 Next.js 16.3.4 (App Router) · TypeScript strict · Tailwind · shadcn/ui ·
 **Supabase Postgres (São Paulo) com RLS** · **Drizzle** (schema + migrations + queries tipadas) ·
 Supabase Auth (`role` e `org_id` como claims no JWT) · Supabase Storage ·
 Vercel (`gru1`) · Vercel Cron · Luxon · Vitest · Daily.co · Claude API · Z-API · Resend ·
+**Asaas** (pagamento do avulso, REST por `fetch`, sem SDK) ·
 **lucide-react** (ícones, só por `components/ui/icones.ts`).
 Dev: `drizzle-kit` (gera migração), `dotenv` (só o `drizzle.config.ts` — o Next lê `.env.local` sozinho).
 
@@ -78,13 +125,16 @@ vira query, não cron de pré-agregação).
    `partner_applications` e só vira Parceiro por decisão do admin.
 9. **Escopo é assimétrico e isso é intencional:** `partners` pertencem à **plataforma** e são
    visíveis a todas as empresas; `profiles`, `wallets`, `bookings`, `briefings`, `reviews`, `goals`
-   são **da empresa**. O isolamento é garantido por RLS, não por lembrar de filtrar.
+   são **da conta** — empresa ou individual (que é uma `org` de um só). O isolamento é garantido
+   por RLS, não por lembrar de filtrar.
 10. **O RH nunca vê conteúdo de sessão.** `org_admin` não tem policy de leitura em `bookings`,
     `briefings`, `reviews` nem `session_events`. Vê apenas `org_usage`. Sem essa garantia ninguém
     usa a plataforma com sinceridade — é argumento de venda, não limitação.
 11. **Sala não abre sem briefing** (a partir da fase em que existir).
 12. **Toda ação de admin, moderador ou RH grava `audit_logs`.**
-13. **Ficha não é comprável pelo profissional nem transferível entre profissionais.**
+13. **Profissional de empresa não compra ficha; o avulso compra pacote.** A ficha comprada só nasce
+    de pagamento confirmado **relido na API do gateway** — nunca do corpo do webhook. Nenhuma ficha
+    é transferível entre pessoas, nem entre as duas contas da mesma pessoa.
 14. **O assistente recomenda pessoas, nunca horários.** Considera todos os Parceiros ativos, com ou
     sem vaga. Todo horário exibido vem do motor.
 15. **Sinal de demanda é agregado e anônimo.** Nunca quem, nunca de qual empresa.
@@ -98,6 +148,8 @@ vira query, não cron de pré-agregação).
     `end_at` + 5 min e o Daily encerra a chamada sozinho. Dentro da sala, e só nela, o Parceiro pode
     presentear **1 ficha por sessão**, dentro da cota mensal dele — sem passar pelo contrato da
     empresa e sem respeitar o teto da carteira.
+21. **Dado de cartão nunca passa pela plataforma.** O pagamento acontece na fatura hospedada do
+    gateway; aqui só chegam o identificador da cobrança e o status.
 
 ---
 
@@ -440,7 +492,16 @@ Profissional cancela ────▶ wallet_ledger refund (+1), se pedido ou > c
 Parceiro cancela ────────▶ wallet_ledger refund (+1) + adjust (+bônus) se < cancel_window_hours
 Parceiro presenteia ─────▶ wallet_ledger gift (+1) + gift_quotas (+1)              [1 transação, na sala]
 colaborador sai ─────────▶ wallet_ledger reclaim (−saldo) + org_ledger reclaim (+saldo)
+
+avulso paga (relido no Asaas) ▶ org_ledger purchase (+N) + allocate (−N)
+                                + wallet_ledger allocate (+N, lot_id) + ficha_lots    [1 transação]
+lote vence (12 meses) ───▶ wallet_ledger expire (−restante do lote)
+avulso se arrepende (7 d) ▶ reembolso no Asaas, depois wallet_ledger reclaim (−N)
+                                + org_ledger reclaim (+N) + org_ledger refund (−N)    [1 transação]
 ```
+
+Na conta individual o `spend` leva o `lot_id` do lote que vence primeiro, e o `refund` devolve ao
+mesmo lote — ou sem lote, se ele já venceu.
 
 ### Máquina de estados
 
@@ -468,7 +529,8 @@ cron de pré-agregação, só de materialização se ficar lenta.
 
 ### Trabalho agendado (Vercel Cron, idempotentes)
 
-`allocate-monthly` (dia 1º) · `expire-pending` (horário) · `close-sessions` (15 min) ·
+`allocate-monthly` (dia 1º, só empresas) · `expire-pending` (horário) · `close-sessions` (15 min) ·
+`reconcile-payments` (horário) · `expire-fichas` e aviso de 30 dias (diário) ·
 `send-reminders` 24h e 1h (15 min) · `nudge-idle` (semanal) · `aggregate-demand` (semanal) ·
 `checkin-7d` (diário) · `refund-unanswered` (diário)
 
@@ -485,7 +547,10 @@ Gravação desligada por padrão. Medições em `docs/spike-video.md`.
 ### LGPD
 
 Controladora é a empresa da operadora. Termos e política de privacidade são fornecidos por ela e
-apenas inseridos em `app_config.copy.legal`. Exclusão de conta marca `deleted_at` e anonimiza nome,
+apenas inseridos em `app_config.copy.legal`, e cobrem os dois canais — com o avulso a relação é de
+consumo (CDC): arrependimento em 7 dias e validade de 12 meses ditos antes da compra. O CPF do avulso
+é pedido só na primeira compra (o gateway e a NFS-e exigem). Pedido de cadastro recusado é
+anonimizado em 90 dias. Exclusão de conta marca `deleted_at` e anonimiza nome,
 foto, e-mail e telefone; livros-caixa, `bookings` e `audit_logs` permanecem — são imutáveis.
 
 ---
@@ -495,7 +560,8 @@ foto, e-mail e telefone; livros-caixa, `bookings` e `audit_logs` permanecem — 
 **Base (Etapas 0–5):** ✅ contrato e limpeza · design system e cascas · conexão Supabase/Drizzle ·
 esquema, constraints e RLS · auth, papéis e config · motor de agenda.
 
-**Piloto fechado — alvo 10/11/2026.** Tudo operado pelo admin, nada self-service.
+**Piloto — alvo 30/11/2026** (era 10/11; adiado em 01/10 para incluir o avulso). Operado pelo
+admin, com uma exceção self-service: o cadastro do avulso, que a operadora aprova.
 - **P1** ✅ Painel do admin: criar empresa, registrar contrato, criar Parceiro direto, criar
   Profissional, alocar fichas
 - **P2** ✅ Disponibilidade do Parceiro (só modo rápido "esta semana") e perfil básico
@@ -514,32 +580,69 @@ esquema, constraints e RLS · auth, papéis e config · motor de agenda.
 - **F3 (grade semanal e folgas)** ✅ O Parceiro monta a semana com várias faixas por dia e marca
   folga (período, dia inteiro ou faixa) e horário extra numa data — na `main` e em produção desde
   30/09, aprovada no Preview da `f3`. Trazida para dentro do piloto em 30/09
-- **P5+** `send-reminders` 24h e 1h — espera Resend e o domínio remetente
+- **A1 (01–09/10) Conta individual** — feita em 02/10 na branch `a1`, migração
+  `conta_individual` no `mentoria-dev`; falta aprovar e publicar. `orgs.kind` e `cpf`, `ledger_type`
+  `expire`, `wallet_ledger.lot_id`, `ficha_lots`, `payments`, `individual_signups`, com RLS; claim
+  `org_kind` no token. A operadora cria conta pessoal e registra pacote pago fora da plataforma
+  (`/admin/contas-pessoais`); o crédito cria o lote de 12 meses; o gasto consome o lote que vence
+  primeiro e o estorno devolve a ele. `allocate-monthly` pula; `org_usage`, painel e listas separam;
+  `partner_professionals` sem empresa; telas do Profissional com o texto da conta pessoal. **Da
+  operadora:** nome da plataforma até 10/10; conta Asaas (sandbox já; produção pede CNPJ, inscrição
+  municipal para NFS-e e análise).
+- **A2 (13–16/10) E-mail e domínio.** Domínio definitivo, Resend verificado, SMTP do Supabase Auth
+  nos dois projetos, `send-reminders` 24h e 1h (a antiga P5+), domínio Daily de produção.
+- **A3 (19–23/10) Cadastro e fila.** `/cadastro` com confirmação de e-mail; `/admin/cadastros`
+  com seleção e aprovação em lote.
+- **A4 (26/10–06/11) Pacotes e pagamento** no Asaas sandbox: compra, CPF, confirmação pelas três
+  portas, lotes, extrato, arrependimento, NFS-e configurada.
+- **A5 (09–13/11) Validade e vitrine.** `expire-fichas`, aviso de 30 dias, `/pacotes`, termos e
+  privacidade dos dois canais.
+- **Homologação (16–19/11)** em produção: Asaas de produção, compra real com pacote de teste
+  oculto, NFS-e real, ponta a ponta nos dois canais.
+- **Congelamento (23–27/11).** Só correção; carga de Parceiros e empresas; treino da operadora.
 
-Fora do piloto: convite por token, candidatura espontânea, console do RH, personalização por
+Sem folga no calendário. Se o nome não sair em 10/10, A2 escorrega e arrasta o resto. Se a conta
+Asaas de produção não estiver aprovada até 13/11, o piloto abre com o admin registrando a compra do
+avulso à mão (a compra pelo painel já existe) e o checkout entra depois.
+
+Fora do piloto: convite por token de Parceiro, candidatura espontânea, console do RH, personalização por
 empresa, briefing, avaliação, fila de espera, moderação.
 
 **Produto (nov/2026 – fev/2027):** F1.5 convite e moderação · F2 console do RH · F3 grade semanal
 completa · F4 personalização por empresa · F6 briefing · F7 cancelamento e fila de espera ·
-F8 avaliação · F9 horas do Parceiro · F10 resumo por IA e check-in · F11 assistente e
+F8 avaliação · F9 horas do Parceiro · F10 escuta por IA, resumo e check-in · F11 assistente e
 sinal de demanda · F12 pergunta assíncrona · F13 pílulas · F14 trilha · F15 indicação ·
 F16 formato grupo · F18 dashboards e exclusão de conta.
+
+**F10 — escuta da conversa por IA (pedida em 01/10, depois do piloto).** Transcrição da sessão (a do
+Daily ou equivalente) e Claude sobre o texto para resumo e próximos passos. Já fixado: opt-in dos
+dois lados a cada sessão (gravação continua desligada por padrão), nunca visível ao RH
+(invariante 10), retenção curta, base legal e aviso na política — o nicho de saúde pode trazer dado
+sensível —, rota com `maxDuration`, modelo escolhido na hora.
 
 ---
 
 ## Decisões tomadas
 
-- Modelo B2B: RH compra bloco de fichas e distribui. Multi-tenant é o produto.
+- Modelo B2B: RH compra bloco de fichas e distribui. Multi-tenant é o produto. **Ampliado em
+  01/10/2026:** a plataforma também atende Profissional avulso, pessoa física — ver "Profissional
+  avulso", no topo. O canal B2B continua de pé; o avulso se soma a ele.
 - **Supabase no lugar de Firebase**, decidido antes de qualquer código: RLS protege o isolamento
   entre empresas concorrentes, constraints garantem o livro-caixa, relatório vira query.
-- Parceiros pertencem à plataforma; Profissionais pertencem a uma empresa.
+- Parceiros pertencem à plataforma; Profissionais pertencem a uma conta — de empresa ou pessoal.
 - RH vê utilização agregada, nunca conteúdo nem par profissional↔Parceiro.
 - Sessão de 30 minutos apenas no lançamento.
-- Fichas acumulam e não expiram; subutilização é combatida por aviso e medida.
+- Fichas acumulam e não expiram; subutilização é combatida por aviso e medida. **Exceção de
+  01/10/2026:** ficha comprada pelo avulso vale 12 meses — pacote pré-pago com validade limita o
+  passivo de ficha vendida e não usada.
 - Sessão tem a duração marcada; o gesto do Parceiro dentro da sala é presentear 1 ficha.
 - Parceiro pode ser voluntário, parceria ou remunerado; a plataforma acompanha horas, mas **não
-  processa pagamento**.
-- Piloto fechado em 10/11 com operação manual; self-service depois.
+  paga o Parceiro**. Desde 01/10/2026 ela **cobra o avulso** (Asaas) — o dinheiro só entra.
+- **Todo Parceiro atende o avulso**, inclusive o voluntário (decisão de 01/10/2026).
+- **Asaas, não Stripe nem Mercado Pago (01/10/2026):** Pix e cartão com parcelamento, fatura
+  hospedada e NFS-e automática a cada venda — a nota fiscal sai da operação manual.
+- Piloto em 30/11 (era 10/11) com operação manual; o único self-service é o cadastro do avulso,
+  aprovado pela operadora.
 - Busca no cliente; sem serviço de busca externo.
 - **Duas conexões Postgres:** `DATABASE_URL` no pooler de transação (6543, `prepare: false`) para o
   runtime serverless; `DIRECT_URL` na 5432 para DDL — pooler de transação não aceita migração.
@@ -1003,10 +1106,51 @@ F16 formato grupo · F18 dashboards e exclusão de conta.
   próximo envio mandaria o que a tela não mostrava. `useEnvioSemReset` resolve, como já resolvia a
   edição.
 
+- **A ficha da conta pessoal passa pelo contrato dela (A1, 02/10/2026).** O crédito do pacote lança
+  `purchase (+n)` e `allocate (−n)` no `org_ledger` da `org` individual e `allocate (+n)` na
+  carteira, numa transação — o livro-caixa conta a mesma história nos dois canais, e
+  `contracted_fichas` vira o total comprado. Chave `pay_{paymentId}` nos dois livros e
+  `payalloc_{paymentId}` na segunda linha do contrato. `creditoNaTransacao` (`lib/ledger/credito.ts`)
+  é **a** porta: o registro manual da operadora a chama hoje, o checkout (A4) vai chamá-la de três
+  lugares. Trava o pagamento `for update`: já `confirmed` devolve o crédito sem lançar; outro status
+  que não `pending` recusa.
+- **Os dois canais não se cruzam, e quem recusa é a transação.** `compraNaTransacao` e
+  `alocacaoNaTransacao` recusam conta pessoal; `compraManualNaTransacao` recusa colaborador de
+  empresa (`TipoDeContaErrado`). A tela de empresa não abre `org` individual (`buscarEmpresa` filtra
+  o tipo), mas a cerca de verdade é a de dentro: um POST forjado bate nela.
+- **O restante do lote é derivado, e uma regra o mantém fechando.** Não há coluna de restante em
+  `ficha_lots` — é `sum(amount) where lot_id`. A regra que impede a conta de furar: **ficha sem lote
+  só sai quando nenhum lote tem ficha** (`loteParaGasto`, em `lib/ledger/lotes.ts`). Com ela o
+  saldo é sempre restantes dos lotes + um resto sem lote que nunca fica negativo, e a baixa do
+  vencimento nunca leva a carteira abaixo de zero. A FK composta `(lot_id, user_id)` impede
+  lançamento apontar para lote de outra pessoa; o lote é imutável por trigger.
+- **Lote vencido e não baixado ainda vale.** A validade é aplicada pela baixa diária (A5); até ela
+  rodar, o gasto usa o lote vencido primeiro, que é o que a pessoa escolheria. **O estorno volta ao
+  mesmo lote — ou sem lote, se ele venceu**: a ficha presa num pedido recusado não morre por um
+  prazo que correu enquanto ela estava presa.
+- **A conta pessoal tem um dono só, pelo banco.** `trg_profiles_individual_org` recusa segundo
+  perfil e `org_admin` numa `org` individual (travando a `org` antes de contar), e
+  `trg_orgs_kind_immutable` impede trocar o tipo depois. A `org` leva o nome da pessoa porque `name`
+  é obrigatório; o feed de atividade e `partner_professionals` escondem esse nome quando o tipo é
+  individual, para ele não aparecer como "empresa".
+- **O tipo da conta vem do token: claim `org_kind` (A1).** A tela do Profissional muda de texto —
+  "o RH da sua empresa distribui" vira o pacote, e a promessa de privacidade vira "nenhuma empresa
+  vê" — e a casca renderiza em paralelo com a página, onde consultar `orgs` entalaria a conexão. O
+  hook escreve `org_kind` junto de `org_id`; `Session.tipoDeConta` lê, e a ausência vale `empresa`
+  (token anterior à claim só pode ser de empresa). As frases moram em `lib/profissional/conta.ts`.
+- **Contrato, utilização e contagem de Profissionais são só de empresa.** `org_usage` junta `orgs`
+  com `kind = 'empresa'`; o painel conta "Contas pessoais" à parte e tira o que elas compraram de
+  "fichas contratadas".
+- **Formulário de pacote envia por `action`, com rádio não controlado.** O contrário da F3, e pelo
+  mesmo motivo de fundo — o DOM não pode discordar do que a tela mostra. Aqui o reset é desejado:
+  mantido preenchido depois do sucesso, um segundo clique registraria o mesmo pacote de novo com
+  outro token. A borda do pacote escolhido acompanha `:checked` por classe, sem estado.
+
 ## Descartado
 
 - Firebase / Firestore. - Chat livre fora da janela de 24h da sessão. - Ranking público.
-- Gravação por padrão. - Marketplace de cursos. - Pagamento dentro da plataforma.
+- Gravação por padrão. - Marketplace de cursos.
+- ~~Pagamento dentro da plataforma.~~ Reaberto em 01/10/2026 com o avulso: ele paga pelo Asaas.
 - Extensão de sessão dentro da sala (27/09/2026). O spike mostrou que o Daily fixa a hora de
   expulsão na entrada de cada pessoa: estender exigiria cron de minuto em minuto chamando `/eject`,
   ou derrubar as duas telas para reentrar com token novo. O presente ocupa o lugar do gesto.
@@ -1018,13 +1162,23 @@ F16 formato grupo · F18 dashboards e exclusão de conta.
 - Parceiro pode recusar atender determinada empresa?
 - Profissional que sai da empresa: `reclaim` automático ou manual?
 - Parceiro ganha ficha por hora doada? (`flags.partner_earns_fichas`, default false)
+- Nome da plataforma até 10/10/2026 — caminho crítico do piloto (domínio, e-mail, Asaas, Daily).
+- Textos legais dos dois canais (operadora), até a A5.
 
 ---
 
 ## Estado atual
 
-Fase: **F3 (grade semanal e folgas) na `main` e em produção desde 30/09/2026**, aprovada no
-Preview da `f3` e publicada por fast-forward. Próxima etapa: a definir. Sem migração:
+Fase: **A1 (conta individual) pronta na branch `a1`, esperando aprovação** — plano do avulso
+aprovado em 01/10/2026, ver "Profissional avulso" e "Roadmap". Migração `conta_individual` aplicada
+no `mentoria-dev`; **antes do merge, `db:migrate:prod`** (ela troca o hook e as views
+`org_usage` e `partner_professionals`, compatíveis com o código da `main`). Exercitada no
+`next dev --webpack` contra o `mentoria-dev`, por clique com Chrome sem tela, desktop e 390px, sem
+erro de console: a operadora criou a conta pessoal "Joana Ribeiro" e registrou o pacote Ritmo
+(fica no `mentoria-dev` como dado de demonstração — o livro-caixa não deixa apagar).
+
+Antes dela: **F3 (grade semanal e folgas) na `main` e em produção desde 30/09/2026**, aprovada no
+Preview da `f3` e publicada por fast-forward. Sem migração:
 usa `partner_rules` e `partner_exceptions` como a Etapa 3 as criou, escrevendo pela RLS do Parceiro.
 O motor não mudou — já calculava regra, extra e bloqueio desde a Etapa 5.
 
@@ -1079,7 +1233,9 @@ Toda casca tem o **menu da conta** no pé da sidebar, com "Redefinir senha" e "S
 com senha provisória recebe a janela de troca ao entrar (`components/conta/JanelaDeSenha.tsx`,
 `trocarSenha` em `lib/auth/actions.ts`, regras puras em `lib/auth/senha.ts`).
 
-606 testes em 36 arquivos. Invariante 19 em
+652 testes em 38 arquivos — a conta pessoal em `ledger/conta-pessoal.test.ts` (dono único, tipo
+imutável, CPF, crédito, idempotência, canais separados, lote no gasto e no estorno), RLS das tabelas
+novas em `db/invariantes.test.ts` e `org_kind` em `auth/hook.test.ts`. Invariante 19 em
 `src/lib/auth/hook.test.ts`; invariantes 3, 4, 7, 8, 9, 10 e 16 em `src/lib/db/invariantes.test.ts`;
 as transações em `ledger/transacoes.test.ts`, `bookings/reserva.test.ts`,
 `bookings/transicoes.test.ts` (com a presença), `bookings/presente.test.ts` e
@@ -1090,7 +1246,7 @@ as transações em `ledger/transacoes.test.ts`, `bookings/reserva.test.ts`,
 
 ### Produção
 
-No ar em `mentoria-bay.vercel.app` e completa desde 27/09/2026. O `mentoria` tem as oito
+No ar em `mentoria-bay.vercel.app` e completa desde 27/09/2026. O `mentoria` tem as oito (a nona, `conta_individual`, vai junto com o merge da `a1`)
 migrações até a `conta` (`senha_provisoria` em 29/09, conferida por consulta: as três contas
 marcadas; `sala_e_presente` em 27/09, conferida por consulta: `fichas_used` e
 `fichas_extra` na `org_usage`, colunas da extensão fora), as seis primeiras conferidas por consulta (27 tabelas com RLS, 37 policies, triggers dos
@@ -1135,6 +1291,17 @@ A P5 está em produção desde 27/09. Para o vídeo chegar ao piloto de 10/11:
    `sa-east-1` no domínio). Depende do nome da plataforma. **Não bloqueia mais o piloto:** até lá a
    produção usa o `tostes` (decisão de 27/09). Na troca, é só substituir `DAILY_API_KEY` em
    Production e fazer o redeploy; salas antigas do `tostes` já terão expirado.
+
+### A1 — o que ficou de fora, de propósito
+
+- **CPF.** A coluna e a unicidade existem; quem pede é o checkout, na primeira compra (A4).
+- **Estorno de pacote (arrependimento) e baixa do vencimento.** Os lançamentos `reclaim`/`refund`
+  do arrependimento e o `expire` da baixa diária chegam na A4 e na A5; o lote e a regra do gasto já
+  estão aqui.
+- **Pacote com valor diferente da tabela.** O registro manual grava o preço do pacote; desconto ou
+  cortesia não têm campo.
+- **Editar a tabela de pacotes pela tela.** Vive em `app_config.individual_packages`; muda-se no
+  banco, por migração ou à mão no `mentoria-dev`.
 
 ### F3 — o que ficou de fora, de propósito
 

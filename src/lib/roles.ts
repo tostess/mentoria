@@ -69,6 +69,7 @@ export function navFor(shell: Shell, t: Terms): NavItem[] {
       return [
         { href: "/admin/painel", label: "Painel", icone: "dashboard" },
         { href: "/admin/empresas", label: t.orgs, icone: "building" },
+        { href: "/admin/contas-pessoais", label: t.individuals, icone: "user" },
         { href: "/admin/parceiros", label: t.partners, icone: "handshake" },
         { href: "/admin/atividade", label: "Atividade", icone: "history" },
         { href: "/admin/fila", label: "Fila de decisões", icone: "inbox" },

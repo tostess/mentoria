@@ -6,9 +6,11 @@ import { getSql } from "@/lib/db";
 import { CHAVE_SENHA_PROVISORIA } from "@/lib/auth/senha";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
+  contaPessoalNaTransacao,
   empresaNaTransacao,
   parceiroNaTransacao,
   profissionalNaTransacao,
+  type NovaContaPessoal,
   type NovaEmpresa,
   type NovoParceiro,
   type NovoProfissional,
@@ -30,7 +32,13 @@ import {
  */
 
 export { ENGAJAMENTOS } from "./operacoes";
-export type { Engajamento, NovaEmpresa, NovoParceiro, NovoProfissional } from "./operacoes";
+export type {
+  Engajamento,
+  NovaContaPessoal,
+  NovaEmpresa,
+  NovoParceiro,
+  NovoProfissional,
+} from "./operacoes";
 
 export class EmailJaUsado extends Error {
   constructor() {
@@ -72,6 +80,17 @@ export async function criarEmpresa(nova: NovaEmpresa): Promise<{ id: string }> {
 
 export async function criarProfissional(novo: NovoProfissional): Promise<PessoaCriada> {
   return comIdentidade(novo.email, (userId, tx) => profissionalNaTransacao(tx, userId, novo));
+}
+
+/**
+ * Conta pessoal criada pela operadora, com senha provisória — o caminho até o
+ * cadastro self-service (A3), que cria a identidade com a senha da própria
+ * pessoa. A conta e a pessoa nascem juntas; uma não existe sem a outra.
+ */
+export async function criarContaPessoal(nova: NovaContaPessoal): Promise<PessoaCriada> {
+  return comIdentidade(nova.email, async (userId, tx) => {
+    await contaPessoalNaTransacao(tx, userId, nova);
+  });
 }
 
 export async function criarParceiro(novo: NovoParceiro): Promise<PessoaCriada> {
