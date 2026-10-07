@@ -580,8 +580,8 @@ admin, com uma exceção self-service: o cadastro do avulso, que a operadora apr
 - **F3 (grade semanal e folgas)** ✅ O Parceiro monta a semana com várias faixas por dia e marca
   folga (período, dia inteiro ou faixa) e horário extra numa data — na `main` e em produção desde
   30/09, aprovada no Preview da `f3`. Trazida para dentro do piloto em 30/09
-- **A1 (01–09/10) Conta individual** — feita em 02/10 na branch `a1`, migração
-  `conta_individual` no `mentoria-dev`; falta aprovar e publicar. `orgs.kind` e `cpf`, `ledger_type`
+- **A1 (01–09/10) Conta individual** ✅ — na `main` e em produção desde 06/10, com a migração
+  `conta_individual` no `mentoria` antes do push. `orgs.kind` e `cpf`, `ledger_type`
   `expire`, `wallet_ledger.lot_id`, `ficha_lots`, `payments`, `individual_signups`, com RLS; claim
   `org_kind` no token. A operadora cria conta pessoal e registra pacote pago fora da plataforma
   (`/admin/contas-pessoais`); o crédito cria o lote de 12 meses; o gasto consome o lote que vence
@@ -592,7 +592,7 @@ admin, com uma exceção self-service: o cadastro do avulso, que a operadora apr
 - **A2 (13–16/10) E-mail e domínio.** Domínio definitivo, Resend verificado, SMTP do Supabase Auth
   nos dois projetos, `send-reminders` 24h e 1h (a antiga P5+), domínio Daily de produção.
 - **A3 (19–23/10) Cadastro e fila.** `/cadastro` com confirmação de e-mail; `/admin/cadastros`
-  com seleção e aprovação em lote.
+  com seleção e aprovação em lote. Adiantada para antes da A2 em 06/10, porque a A2 espera o nome.
 - **A4 (26/10–06/11) Pacotes e pagamento** no Asaas sandbox: compra, CPF, confirmação pelas três
   portas, lotes, extrato, arrependimento, NFS-e configurada.
 - **A5 (09–13/11) Validade e vitrine.** `expire-fichas`, aviso de 30 dias, `/pacotes`, termos e
@@ -1169,10 +1169,14 @@ sensível —, rota com `maxDuration`, modelo escolhido na hora.
 
 ## Estado atual
 
-Fase: **A1 (conta individual) pronta na branch `a1`, esperando aprovação** — plano do avulso
-aprovado em 01/10/2026, ver "Profissional avulso" e "Roadmap". Migração `conta_individual` aplicada
-no `mentoria-dev`; **antes do merge, `db:migrate:prod`** (ela troca o hook e as views
-`org_usage` e `partner_professionals`, compatíveis com o código da `main`). Exercitada no
+Fase: **A3 (cadastro e fila) a começar, antes da A2** — decisão de 06/10/2026: a A2 espera o
+nome da plataforma, e a A3 não depende dele (no dev, o SMTP padrão do Supabase confirma o e-mail).
+
+Antes dela: **A1 (conta individual) na `main` e em produção desde 06/10/2026** — plano do avulso
+aprovado em 01/10/2026, ver "Profissional avulso" e "Roadmap". `db:migrate:prod` aplicou
+`conta_individual` no `mentoria` antes do push (conferida por consulta: 9 migrações, `orgs.kind` e
+`cpf`, as três tabelas novas com RLS, `expire` no enum, hook com `org_kind`, pacotes em
+`app_config`); fast-forward da `a1` na `main`. Exercitada no
 `next dev --webpack` contra o `mentoria-dev`, por clique com Chrome sem tela, desktop e 390px, sem
 erro de console: a operadora criou a conta pessoal "Joana Ribeiro" e registrou o pacote Ritmo
 (fica no `mentoria-dev` como dado de demonstração — o livro-caixa não deixa apagar).
@@ -1246,8 +1250,8 @@ as transações em `ledger/transacoes.test.ts`, `bookings/reserva.test.ts`,
 
 ### Produção
 
-No ar em `mentoria-bay.vercel.app` e completa desde 27/09/2026. O `mentoria` tem as oito (a nona, `conta_individual`, vai junto com o merge da `a1`)
-migrações até a `conta` (`senha_provisoria` em 29/09, conferida por consulta: as três contas
+No ar em `mentoria-bay.vercel.app` e completa desde 27/09/2026. O `mentoria` tem as nove
+migrações até a A1 (`conta_individual` em 06/10; `senha_provisoria` em 29/09, conferida por consulta: as três contas
 marcadas; `sala_e_presente` em 27/09, conferida por consulta: `fichas_used` e
 `fichas_extra` na `org_usage`, colunas da extensão fora), as seis primeiras conferidas por consulta (27 tabelas com RLS, 37 policies, triggers dos
 livros-caixa, `bookings_no_overlap`, `app_config`, hook, view `partner_professionals`); o hook está
