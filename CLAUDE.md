@@ -592,8 +592,9 @@ admin, com uma exceção self-service: o cadastro do avulso, que a operadora apr
   municipal para NFS-e e análise).
 - **A2 (13–16/10) E-mail e domínio.** Domínio definitivo, Resend verificado, SMTP do Supabase Auth
   nos dois projetos, `send-reminders` 24h e 1h (a antiga P5+), domínio Daily de produção.
-- **A3 (19–23/10) Cadastro e fila** — feita em 06/10 na branch `a3`, adiantada para antes da A2
-  (que espera o nome); migração `cadastro_anonimizado` no `mentoria-dev`; falta aprovar e publicar.
+- **A3 (19–23/10) Cadastro e fila** ✅ — na `main` e em produção desde 07/10, adiantada para antes
+  da A2 (que espera o nome), com a migração `cadastro_anonimizado` no `mentoria` antes do push e o
+  "Esqueceu a senha?" pedido na aprovação.
   `/cadastro` com confirmação de e-mail e `/cadastro/confirmado`; a entrada distingue "confirme o
   e-mail" e "em análise"; `/admin/cadastros` com seleção e aprovação em lote, uma transação por
   pessoa, e recusa que apaga o login; aviso no painel; `anonymize-signups` diário (90 dias).
@@ -1232,9 +1233,13 @@ sensível —, rota com `maxDuration`, modelo escolhido na hora.
 
 ## Estado atual
 
-Fase: **A3 (cadastro e fila) pronta na branch `a3`, esperando aprovação** — adiantada para antes
-da A2 em 06/10/2026, porque a A2 espera o nome da plataforma. Migração `cadastro_anonimizado`
-aplicada no `mentoria-dev`; **antes do merge, `db:migrate:prod`**. Exercitada no `next dev
+Fase: **A3 (cadastro e fila) na `main` e em produção desde 07/10/2026** — aprovada por você e
+publicada por fast-forward da `a3`, depois de `db:migrate:prod` aplicar `cadastro_anonimizado` no
+`mentoria` (conferida por consulta: 10 migrações, `anonymized_at` e o `check`). Deploy `Ready`,
+`/api/health` ok, as quatro rotas públicas 200, `/admin/cadastros` 307 sem sessão, cron 401.
+Adiantada para antes da A2 em 06/10/2026, porque a A2 espera o nome da plataforma. A próxima é a
+A2, quando o nome sair; sem ela, cadastro e recuperação não entregam e-mail a quem é de fora.
+Exercitada no `next dev
 --webpack` (porta 3000, a que o `mentoria-dev` aceita como destino da confirmação) contra o
 `mentoria-dev`, por clique com Chrome sem tela, desktop e 390px, sem erro de console: entrada com
 e-mail sem confirmar, link de confirmação (e o mesmo link de novo, vencido), entrada "em análise",
@@ -1326,8 +1331,8 @@ as transações em `ledger/transacoes.test.ts`, `bookings/reserva.test.ts`,
 
 ### Produção
 
-No ar em `mentoria-bay.vercel.app` e completa desde 27/09/2026. O `mentoria` tem as nove (a décima, `cadastro_anonimizado`, vai junto com o merge da `a3`)
-migrações até a A1 (`conta_individual` em 06/10; `senha_provisoria` em 29/09, conferida por consulta: as três contas
+No ar em `mentoria-bay.vercel.app` e completa desde 27/09/2026. O `mentoria` tem as dez
+migrações até a A3 (`cadastro_anonimizado` em 07/10; `conta_individual` em 06/10; `senha_provisoria` em 29/09, conferida por consulta: as três contas
 marcadas; `sala_e_presente` em 27/09, conferida por consulta: `fichas_used` e
 `fichas_extra` na `org_usage`, colunas da extensão fora), as seis primeiras conferidas por consulta (27 tabelas com RLS, 37 policies, triggers dos
 livros-caixa, `bookings_no_overlap`, `app_config`, hook, view `partner_professionals`); o hook está
