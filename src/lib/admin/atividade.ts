@@ -200,6 +200,45 @@ export const ACOES = {
       ];
     },
   },
+  /**
+   * O pedido do cadastro self-service (A3) virou conta. Mesma conta que a
+   * operadora cria à mão; a frase diz que foi a pessoa quem pediu.
+   */
+  aprovar_cadastro: {
+    icone: () => "user-check",
+    tom: () => "accent",
+    predicado: (ev, t) => [
+      fraco("aprovou o cadastro de "),
+      forte(nomeDoAlvo(ev)),
+      fraco(` como ${t.individual.toLowerCase()}`),
+    ],
+  },
+  /**
+   * Sem nome de propósito: o pedido recusado é anonimizado em 90 dias (LGPD) e
+   * `audit_logs` é imutável. Um nome aqui seria o único que a anonimização não
+   * alcança — a mesma regra do motivo no livro-caixa.
+   */
+  recusar_cadastro: {
+    icone: () => "user-x",
+    tom: () => "bad",
+    predicado: () => [fraco("recusou um pedido de cadastro")],
+  },
+  anonimizar_cadastros: {
+    icone: () => "shield",
+    tom: () => "neutral",
+    predicado: (ev) => {
+      const quantidade = numero(ev.depois, "quantidade");
+      return [
+        fraco("anonimizou "),
+        forte(
+          quantidade === 1
+            ? "1 pedido de cadastro recusado"
+            : `${quantidade ?? "os"} pedidos de cadastro recusados`,
+        ),
+        fraco(" há mais de 90 dias"),
+      ];
+    },
+  },
   criar_parceiro: {
     icone: () => "user-plus",
     tom: () => "accent",
@@ -322,6 +361,9 @@ export function rotuloDaAcao(acao: AcaoAuditada, t: Terms): string {
     criar_profissional: `Criar ${t.professional}`,
     criar_conta_pessoal: `Criar ${t.individual.toLowerCase()}`,
     registrar_compra_pessoal: "Registrar pacote",
+    aprovar_cadastro: "Aprovar cadastro",
+    recusar_cadastro: "Recusar cadastro",
+    anonimizar_cadastros: "Anonimizar cadastros",
     criar_parceiro: `Criar ${t.partner}`,
     editar_parceiro: `Editar ${t.partner}`,
     alterar_status_parceiro: `Status de ${t.partner}`,

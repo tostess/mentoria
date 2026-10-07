@@ -49,6 +49,12 @@ export type Flags = {
 export type Legal = {
   termsUrl: string | null;
   privacyUrl: string | null;
+  /**
+   * A versão dos textos em vigor (`copy.legal.version`), gravada no pedido de
+   * cadastro como a versão que a pessoa aceitou. Nula enquanto a operadora não
+   * publicar os textos (A5).
+   */
+  versao: string | null;
 };
 
 /** O que muda por empresa no white-label. Definido junto do tema que o usa. */
@@ -108,7 +114,7 @@ export const DEFAULT_LIMITS: Limits = {
 
 export const DEFAULT_FLAGS: Flags = { partnerEarnsFichas: false };
 
-export const DEFAULT_LEGAL: Legal = { termsUrl: null, privacyUrl: null };
+export const DEFAULT_LEGAL: Legal = { termsUrl: null, privacyUrl: null, versao: null };
 
 export const DEFAULT_BRANDING: Branding = { accent: null, name: null, logoUrl: null };
 
@@ -204,7 +210,7 @@ function parseFlags(value: unknown): Flags {
 
 function parseLegal(value: unknown): Legal {
   const v = asRecord(value);
-  return { termsUrl: str(v.terms_url), privacyUrl: str(v.privacy_url) };
+  return { termsUrl: str(v.terms_url), privacyUrl: str(v.privacy_url), versao: str(v.version) };
 }
 
 const ID_DE_PACOTE = /^[a-z0-9][a-z0-9-]{0,39}$/;

@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { ROLES, type Role } from "./claims";
-import { canAccess, HOME_BY_ROLE, isPublicPath, matchesPrefix, rolesFor, safeNext } from "./routes";
+import {
+  canAccess,
+  HOME_BY_ROLE,
+  isOpenPath,
+  isPublicPath,
+  matchesPrefix,
+  rolesFor,
+  safeNext,
+} from "./routes";
 import { DEFAULT_TERMS } from "@/lib/terms";
 import { navFor, SHELL_BY_ROLE, type Shell } from "@/lib/roles";
 
@@ -56,6 +64,27 @@ describe("acesso por papel", () => {
   it("rota sem dono é de todos — `/design` não é de papel nenhum", () => {
     expect(rolesFor("/design")).toBeNull();
     expect(canAccess("professional", "/design")).toBe(true);
+  });
+
+  it("o cadastro do avulso é público, com a página de confirmação", () => {
+    expect(isPublicPath("/cadastro")).toBe(true);
+    expect(isPublicPath("/cadastro/confirmado")).toBe(true);
+    expect(isPublicPath("/cadastros")).toBe(false);
+    expect(rolesFor("/cadastro")).toBeNull();
+  });
+
+  it("pedir o link de senha é público; a página do link abre com ou sem sessão", () => {
+    expect(isPublicPath("/recuperar-senha")).toBe(true);
+    expect(isOpenPath("/redefinir-senha")).toBe(true);
+    expect(isPublicPath("/redefinir-senha")).toBe(false);
+    expect(safeNext("/redefinir-senha", "professional")).toBeNull();
+    expect(safeNext("/recuperar-senha", "admin")).toBeNull();
+  });
+
+  it("/admin/cadastros é da equipe da operadora, não do avulso", () => {
+    expect(canAccess("admin", "/admin/cadastros")).toBe(true);
+    expect(canAccess("moderator", "/admin/cadastros")).toBe(true);
+    expect(canAccess("professional", "/admin/cadastros")).toBe(false);
   });
 
   it("/entrar é pública e nenhuma casca é", () => {

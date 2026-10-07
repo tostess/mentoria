@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 import { Button } from "@/components/ui/Button";
 import { entrar, type EntrarState } from "@/lib/auth/actions";
@@ -44,9 +45,17 @@ export function EntrarForm({ next, aviso }: { next: string | null; aviso: string
       </div>
 
       <div>
-        <label className={label} htmlFor="senha">
-          Senha
-        </label>
+        <div className="flex items-baseline justify-between gap-3">
+          <label className={label} htmlFor="senha">
+            Senha
+          </label>
+          <Link
+            href="/recuperar-senha"
+            className="mb-1.5 text-[12px] text-[#8E7C86] underline-offset-2 hover:text-[#2A1B26] hover:underline"
+          >
+            Esqueceu a senha?
+          </Link>
+        </div>
         <input
           id="senha"
           name="senha"

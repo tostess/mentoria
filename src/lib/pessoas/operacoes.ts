@@ -105,6 +105,12 @@ export type NovaContaPessoal = {
   cargo: string | null;
   area: string | null;
   ator: Ator;
+  /**
+   * Como a conta nasceu, para o histórico: a operadora criou à mão, ou aprovou
+   * o pedido que a pessoa fez em `/cadastro` (A3). Uma linha de auditoria só,
+   * com o verbo certo — duas para o mesmo gesto seriam ruído no feed.
+   */
+  acao?: "criar_conta_pessoal" | "aprovar_cadastro";
 };
 
 /**
@@ -143,7 +149,7 @@ export async function contaPessoalNaTransacao(
   await registrarAuditoria(tx, {
     ator: nova.ator,
     orgId: org.id,
-    acao: "criar_conta_pessoal",
+    acao: nova.acao ?? "criar_conta_pessoal",
     entidade: "profiles",
     entidadeId: userId,
     depois: { nome: nova.nome, email: nova.email, cargo: nova.cargo },

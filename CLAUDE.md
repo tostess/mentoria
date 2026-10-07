@@ -532,7 +532,8 @@ cron de pré-agregação, só de materialização se ficar lenta.
 `allocate-monthly` (dia 1º, só empresas) · `expire-pending` (horário) · `close-sessions` (15 min) ·
 `reconcile-payments` (horário) · `expire-fichas` e aviso de 30 dias (diário) ·
 `send-reminders` 24h e 1h (15 min) · `nudge-idle` (semanal) · `aggregate-demand` (semanal) ·
-`checkin-7d` (diário) · `refund-unanswered` (diário)
+`checkin-7d` (diário) · `refund-unanswered` (diário) · `anonymize-signups` (diário: login que a
+recusa não apagou e pedido recusado há mais de 90 dias)
 
 ### Vídeo
 
@@ -591,8 +592,12 @@ admin, com uma exceção self-service: o cadastro do avulso, que a operadora apr
   municipal para NFS-e e análise).
 - **A2 (13–16/10) E-mail e domínio.** Domínio definitivo, Resend verificado, SMTP do Supabase Auth
   nos dois projetos, `send-reminders` 24h e 1h (a antiga P5+), domínio Daily de produção.
-- **A3 (19–23/10) Cadastro e fila.** `/cadastro` com confirmação de e-mail; `/admin/cadastros`
-  com seleção e aprovação em lote. Adiantada para antes da A2 em 06/10, porque a A2 espera o nome.
+- **A3 (19–23/10) Cadastro e fila** — feita em 06/10 na branch `a3`, adiantada para antes da A2
+  (que espera o nome); migração `cadastro_anonimizado` no `mentoria-dev`; falta aprovar e publicar.
+  `/cadastro` com confirmação de e-mail e `/cadastro/confirmado`; a entrada distingue "confirme o
+  e-mail" e "em análise"; `/admin/cadastros` com seleção e aprovação em lote, uma transação por
+  pessoa, e recusa que apaga o login; aviso no painel; `anonymize-signups` diário (90 dias).
+  **Só abre ao público depois da A2**: o SMTP padrão do Supabase limita e não entrega para fora.
 - **A4 (26/10–06/11) Pacotes e pagamento** no Asaas sandbox: compra, CPF, confirmação pelas três
   portas, lotes, extrato, arrependimento, NFS-e configurada.
 - **A5 (09–13/11) Validade e vitrine.** `expire-fichas`, aviso de 30 dias, `/pacotes`, termos e
@@ -1146,6 +1151,64 @@ sensível —, rota com `maxDuration`, modelo escolhido na hora.
   mantido preenchido depois do sucesso, um segundo clique registraria o mesmo pacote de novo com
   outro token. A borda do pacote escolhido acompanha `:checked` por classe, sem estado.
 
+- **O login do avulso nasce no `signUp`, com a senha dele (A3, 06/10/2026).** Por um cliente sem
+  cookie (`clienteAvulso` em `lib/cadastro/index.ts`): o cadastro não deixa ninguém logado, e com
+  confirmação de e-mail o `signUp` nem devolve sessão. O pedido vai para `individual_signups` pela
+  conexão de servidor logo depois. Login e pedido não cabem numa transação; se o SQL falhar, o
+  login recém-criado é apagado, como em `pessoas/criar.ts`. Enquanto pendente não há perfil, então
+  o hook não põe `user_role` e toda policy nega — a fila não precisou de policy nova.
+- **E-mail que já tem conta não é erro, e a tela é a mesma.** Medido no `mentoria-dev`: o `signUp`
+  de um e-mail existente responde sem erro, com usuário sem identidade, e não envia nada — o
+  servidor de auth não deixa o cadastro virar consulta de quem tem conta. O pedido não é gravado e a
+  tela de "confira seu e-mail" avisa que a conta pessoal pede um endereço diferente do corporativo.
+  Enviar de novo antes da decisão atualiza o pedido aberto (índice de um pendente por e-mail), sem
+  segunda linha na fila.
+- **A página de chegada não abre sessão.** O link passa pelo servidor de auth, que confirma o e-mail
+  antes de redirecionar; chegar a `/cadastro/confirmado` sem erro já é a confirmação feita. O
+  fragmento traz tokens de uma sessão sem papel: o cliente lê só o `error_code` e apaga o resto da
+  barra. O destino do link é a origem do POST (cabeçalho `Origin`, conferido pelo Next) e tem de
+  estar na lista de redirecionamento do Supabase Auth; fora dela, cai no Site URL.
+- **Aprovar exige e-mail confirmado, e a conta é a mesma da operadora.** `aprovacaoNaTransacao`
+  trava o pedido, recusa o que não está pendente, o que perdeu o login e o que não confirmou o
+  e-mail, e chama `contaPessoalNaTransacao` com `acao: "aprovar_cadastro"` — uma linha de auditoria,
+  não duas. O e-mail do perfil é o do login. Sem senha provisória: a senha é da pessoa.
+- **Recusar: decisão no banco primeiro, login apagado depois.** Apagar antes e falhar no SQL deixaria
+  pedido sem login; pior, entre a leitura e o `delete` outra pessoa da operadora poderia aprovar, e
+  apagar o login levaria em cascata o perfil recém-criado. Com a trava, a aprovação concorrente
+  espera e desiste. O login que a chamada HTTP não conseguir apagar é apagado pela rodada diária.
+  A auditoria da recusa não leva nome, e-mail nem motivo: `audit_logs` é imutável e o pedido é
+  anonimizado em 90 dias — o motivo fica só no pedido, que a anonimização alcança.
+- **Anonimização por coluna, não por convenção.** `individual_signups.anonymized_at` (migração
+  `cadastro_anonimizado`), com `check` que só a permite em pedido recusado. A rodada troca nome,
+  contato, objetivo e motivo e põe um e-mail inexistente com o id do pedido; a linha fica, para a
+  fila contar que houve um pedido e uma decisão.
+- **A entrada distingue dois estados novos sem vazar quem tem conta.** `email_not_confirmed` só
+  chega depois de a senha conferir, então quem lê a frase é o dono. Login sem papel com pedido
+  pendente lê "seu cadastro está em análise"; sem pedido, continua "acesso inativo".
+- **A fila aprova em lote, uma transação por pessoa.** Como a recarga mensal: um e-mail ainda sem
+  confirmar não impede os outros, e o que não passou volta na mesma tela, com o nome. Só pedido
+  confirmado tem caixa ligada. As respostas e o estado vazio moram no componente da fila, não na
+  linha nem na página: decidir o último pedido trocava a lista pelo vazio e levava a frase junto
+  (achado rodando). Aprovar e recusar são só da `admin`; a moderação lê.
+- **O formulário de cadastro envia por `onSubmit`.** Com `action`, um erro de validação apagaria o
+  texto sobre o que a pessoa busca — o mesmo motivo da edição. Campo-armadilha invisível para robô:
+  quem o preenche recebe a tela de sucesso e nenhum pedido é gravado.
+- **SMTP padrão do Supabase não serve a público.** Medido em 06/10: depois de um envio, o segundo
+  `signUp` da hora voltou `over_email_send_rate_limit`; e, pela documentação do Supabase, o
+  padrão só entrega a endereços da equipe do projeto. A tela diz "muitos cadastros, tente em alguns minutos" e nada fica para trás (nem
+  login, nem pedido). **O cadastro só abre ao público depois da A2** (SMTP próprio nos dois projetos).
+- **"Esqueceu a senha?" entrou junto, a pedido (07/10/2026), para todos os papéis.** Link na
+  entrada, `/recuperar-senha` pede o e-mail (`resetPasswordForEmail`, mesma frase exista ou não a
+  conta) e `/redefinir-senha` recebe o link. Os tokens vêm no fragmento: o cliente os lê uma vez
+  (ref, por causa do modo estrito), apaga a barra e os manda com a senha nova. O `type=recovery` do
+  fragmento não prova nada — qualquer um o escreve. O que prova é o token assinado: medido no
+  `mentoria-dev`, sessão aberta por link de e-mail tem `amr` `otp` com o instante da verificação, e
+  a entrada por senha tem `password`. `redefinirPorLink` exige `otp` de até 15 minutos; sem isso, um
+  cookie de sessão comum roubado trocaria a senha sem saber a atual (verificado: recusado). Depois da
+  troca, a marca de senha provisória sai e **todas** as sessões da pessoa são encerradas.
+  `/redefinir-senha` abre com ou sem sessão (`OPEN_PREFIXES`): mandar quem está logado para a casca
+  levaria o fragmento junto e perderia o link. Sem auditoria — é a pessoa mexendo em si.
+
 ## Descartado
 
 - Firebase / Firestore. - Chat livre fora da janela de 24h da sessão. - Ranking público.
@@ -1169,8 +1232,19 @@ sensível —, rota com `maxDuration`, modelo escolhido na hora.
 
 ## Estado atual
 
-Fase: **A3 (cadastro e fila) a começar, antes da A2** — decisão de 06/10/2026: a A2 espera o
-nome da plataforma, e a A3 não depende dele (no dev, o SMTP padrão do Supabase confirma o e-mail).
+Fase: **A3 (cadastro e fila) pronta na branch `a3`, esperando aprovação** — adiantada para antes
+da A2 em 06/10/2026, porque a A2 espera o nome da plataforma. Migração `cadastro_anonimizado`
+aplicada no `mentoria-dev`; **antes do merge, `db:migrate:prod`**. Exercitada no `next dev
+--webpack` (porta 3000, a que o `mentoria-dev` aceita como destino da confirmação) contra o
+`mentoria-dev`, por clique com Chrome sem tela, desktop e 390px, sem erro de console: entrada com
+e-mail sem confirmar, link de confirmação (e o mesmo link de novo, vencido), entrada "em análise",
+fila com caixa desligada para quem não confirmou, recusa com motivo apagando o login, aprovação em
+lote e a primeira entrada da conta aprovada com a própria senha. Mais o "Esqueceu a senha?", pedido
+na aprovação: link na entrada, pedido do link, link aberto, senha nova, link reaberto vencido, senha
+antiga recusada e sessão de senha forjada no fragmento recusada. "Lia Fontes" fica no `mentoria-dev`
+como conta pessoal aprovada pelo cadastro (senha redefinida na verificação). **Configuração pendente no painel do Supabase Auth**
+(URL Configuration → Redirect URLs): no `mentoria-dev`, `https://*-tostess-projects.vercel.app/**`
+para o Preview; no `mentoria`, `https://mentoria-bay.vercel.app/**` — e conferir o Site URL dos dois.
 
 Antes dela: **A1 (conta individual) na `main` e em produção desde 06/10/2026** — plano do avulso
 aprovado em 01/10/2026, ver "Profissional avulso" e "Roadmap". `db:migrate:prod` aplicou
@@ -1237,7 +1311,9 @@ Toda casca tem o **menu da conta** no pé da sidebar, com "Redefinir senha" e "S
 com senha provisória recebe a janela de troca ao entrar (`components/conta/JanelaDeSenha.tsx`,
 `trocarSenha` em `lib/auth/actions.ts`, regras puras em `lib/auth/senha.ts`).
 
-652 testes em 38 arquivos — a conta pessoal em `ledger/conta-pessoal.test.ts` (dono único, tipo
+700 testes em 41 arquivos — a recuperação de senha em `auth/recuperacao.test.ts`; o cadastro em `cadastro/fila.test.ts` (pedido e reenvio, aprovação
+virando conta e dando papel no token, e-mail sem confirmar, recusa sem nome na auditoria, a rede da
+rodada diária, anonimização de 90 dias) e `cadastro/regras.test.ts`; a conta pessoal em `ledger/conta-pessoal.test.ts` (dono único, tipo
 imutável, CPF, crédito, idempotência, canais separados, lote no gasto e no estorno), RLS das tabelas
 novas em `db/invariantes.test.ts` e `org_kind` em `auth/hook.test.ts`. Invariante 19 em
 `src/lib/auth/hook.test.ts`; invariantes 3, 4, 7, 8, 9, 10 e 16 em `src/lib/db/invariantes.test.ts`;
@@ -1250,7 +1326,7 @@ as transações em `ledger/transacoes.test.ts`, `bookings/reserva.test.ts`,
 
 ### Produção
 
-No ar em `mentoria-bay.vercel.app` e completa desde 27/09/2026. O `mentoria` tem as nove
+No ar em `mentoria-bay.vercel.app` e completa desde 27/09/2026. O `mentoria` tem as nove (a décima, `cadastro_anonimizado`, vai junto com o merge da `a3`)
 migrações até a A1 (`conta_individual` em 06/10; `senha_provisoria` em 29/09, conferida por consulta: as três contas
 marcadas; `sala_e_presente` em 27/09, conferida por consulta: `fichas_used` e
 `fichas_extra` na `org_usage`, colunas da extensão fora), as seis primeiras conferidas por consulta (27 tabelas com RLS, 37 policies, triggers dos
@@ -1295,6 +1371,18 @@ A P5 está em produção desde 27/09. Para o vídeo chegar ao piloto de 10/11:
    `sa-east-1` no domínio). Depende do nome da plataforma. **Não bloqueia mais o piloto:** até lá a
    produção usa o `tostes` (decisão de 27/09). Na troca, é só substituir `DAILY_API_KEY` em
    Production e fazer o redeploy; salas antigas do `tostes` já terão expirado.
+
+### A3 — o que ficou de fora, de propósito
+
+- **Aviso por e-mail da aprovação e da recusa.** Sem Resend (A2): quem foi aprovado descobre
+  entrando, e quem foi recusado descobre que o login não existe mais. A tela de confirmação não
+  promete aviso.
+- **Texto do e-mail de confirmação em português.** O modelo do Supabase Auth é configurado no
+  painel e vem em inglês; entra com o SMTP próprio, na A2.
+- **Captcha.** O campo-armadilha, a confirmação de e-mail e o limite do servidor de auth bastam
+  no piloto. O limite é por IP e o `signUp` sai do servidor: todos os cadastros dividem o IP da
+  Vercel — folgado para a escala do piloto, e o próprio SMTP limita antes.
+- **Editar o pedido pela operadora** ou devolvê-lo com pergunta. Ela aprova, recusa ou espera.
 
 ### A1 — o que ficou de fora, de propósito
 

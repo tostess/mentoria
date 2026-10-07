@@ -1,12 +1,19 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { falha, sucesso, type FormState } from "@/lib/forms";
+import { pedidoPendenteDoLogin } from "@/lib/cadastro";
+import { CampoInvalido, email as campoEmail, falha, sucesso, type FormState } from "@/lib/forms";
 import { createClient } from "@/lib/supabase/server";
 import { parseClaims } from "./claims";
-import { liberarDaSenhaProvisoria, senhaConfere } from "./conta";
+import {
+  enviarLinkDeRecuperacao,
+  liberarDaSenhaProvisoria,
+  redefinirPorLink,
+  senhaConfere,
+} from "./conta";
+import { origemDaRequisicao } from "./origem";
 import { HOME_BY_ROLE, safeNext } from "./routes";
-import { problemaNaTroca } from "./senha";
+import { problemaNaSenhaNova, problemaNaTroca } from "./senha";
 import { getSession } from "./session";
 
 /**
@@ -40,7 +47,15 @@ export async function entrar(_anterior: EntrarState, formData: FormData): Promis
 
   // Mensagem única para credencial errada e e-mail inexistente: distinguir as
   // duas entrega uma lista de quem trabalha na empresa a quem tentar.
+  //
+  // E-mail sem confirmar é a exceção, e não vaza nada: o servidor de auth só
+  // diz isso depois de conferir a senha, então quem lê a frase é o dono dela.
   if (error !== null) {
+    if (error.code === "email_not_confirmed") {
+      return {
+        erro: "Confirme seu e-mail antes de entrar: o link está na mensagem que enviamos no cadastro.",
+      };
+    }
     return { erro: "E-mail ou senha incorretos." };
   }
 
@@ -48,10 +63,17 @@ export async function entrar(_anterior: EntrarState, formData: FormData): Promis
   const session = parseClaims(data?.claims);
 
   // Token emitido, mas sem `user_role`: é assim que o hook trata quem está
-  // inativo ou excluído. Deixar a sessão de pé só produziria telas vazias,
-  // porque toda policy nega — melhor não entrar e dizer o porquê.
+  // inativo ou excluído — e quem se cadastrou e ainda espera a operadora (A3).
+  // Deixar a sessão de pé só produziria telas vazias, porque toda policy nega —
+  // melhor não entrar e dizer o porquê.
   if (session === null) {
+    const userId = typeof data?.claims?.sub === "string" ? data.claims.sub : null;
     await supabase.auth.signOut();
+    if (userId !== null && (await pedidoPendenteDoLogin(userId))) {
+      return {
+        erro: "Seu cadastro está em análise. Assim que for aprovado, você entra com este e-mail e esta senha.",
+      };
+    }
     return { erro: "Seu acesso está inativo. Fale com quem administra sua conta." };
   }
 
@@ -120,4 +142,54 @@ export async function trocarSenha(_anterior: FormState, formData: FormData): Pro
   }
 
   return sucesso("Senha alterada. Use a nova a partir do próximo acesso.");
+}
+
+/**
+ * "Esqueceu a senha?" — manda o link de recuperação. A frase de sucesso é a
+ * mesma exista ou não a conta: o formulário não pode virar consulta de quem
+ * usa a plataforma.
+ */
+export async function pedirRecuperacao(_anterior: FormState, formData: FormData): Promise<FormState> {
+  let endereco: string;
+  try {
+    endereco = campoEmail(formData, "email");
+  } catch (erro) {
+    if (erro instanceof CampoInvalido) return falha(erro.message);
+    throw erro;
+  }
+
+  const resultado = await enviarLinkDeRecuperacao(endereco, `${await origemDaRequisicao()}/redefinir-senha`);
+  if (resultado === "limite") {
+    return falha("Muitos envios em pouco tempo. Espere alguns minutos e peça de novo.");
+  }
+  return sucesso(
+    `Se ${endereco} tiver conta, o link para criar uma senha nova chega em alguns minutos. Ele vale por pouco tempo e uma vez só.`,
+  );
+}
+
+/**
+ * A senha nova, escolhida na página do link. Os tokens vêm do fragmento do
+ * endereço, lidos pelo cliente; quem decide se ainda valem é `redefinirPorLink`.
+ */
+export async function redefinirSenha(_anterior: FormState, formData: FormData): Promise<FormState> {
+  const nova = campo(formData, "nova");
+  const problema = problemaNaSenhaNova(nova, campo(formData, "confirmacao"));
+  if (problema !== null) return falha(problema);
+
+  const accessToken = campo(formData, "access_token");
+  const refreshToken = campo(formData, "refresh_token");
+  if (accessToken === "" || refreshToken === "") {
+    return falha("Este link não vale mais. Peça outro em “Esqueceu a senha?”.");
+  }
+
+  switch (await redefinirPorLink(accessToken, refreshToken, nova)) {
+    case "ok":
+      return sucesso("Senha nova salva. Entre com ela.");
+    case "link-vencido":
+      return falha("Este link não vale mais. Peça outro em “Esqueceu a senha?”.");
+    case "fraca":
+      return falha("Essa senha é fraca demais. Use uma mais longa, misturando letras, números e símbolos.");
+    case "igual":
+      return falha("A senha nova precisa ser diferente da que você usava.");
+  }
 }

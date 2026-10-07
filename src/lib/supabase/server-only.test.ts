@@ -31,7 +31,8 @@ const SECRET_ALLOWED = ["lib/env.server.ts", "lib/supabase/server-only.test.ts"]
  *
  * `lib/admin/acoes.ts` fica de fora de propósito: é `"use server"`, e componente
  * cliente **tem** de poder importá-lo — o que cruza a fronteira é uma
- * referência de ação, não o código. O mesmo vale para `lib/auth/actions.ts`.
+ * referência de ação, não o código. O mesmo vale para `lib/auth/actions.ts` e
+ * `lib/cadastro/acoes.ts`.
  */
 const SERVER_ONLY_MODULES = [
   "@/lib/env.server",
@@ -40,11 +41,14 @@ const SERVER_ONLY_MODULES = [
   "@/lib/db",
   "@/lib/auth/session",
   "@/lib/auth/conta",
+  "@/lib/auth/origem",
   "@/lib/config/load",
   "@/lib/ledger",
   "@/lib/pessoas/criar",
   "@/lib/pessoas/editar",
   "@/lib/admin/consultas",
+  "@/lib/cadastro",
+  "@/lib/cadastro/consultas",
   "@/lib/video",
   "@/lib/video/entrada",
   "@/lib/video/dados",
@@ -106,11 +110,14 @@ describe("invariante 5 — service_role só no servidor", () => {
       "lib/db/index.ts",
       "lib/auth/session.ts",
       "lib/auth/conta.ts",
+      "lib/auth/origem.ts",
       "lib/config/load.ts",
       "lib/ledger/index.ts",
       "lib/pessoas/criar.ts",
       "lib/pessoas/editar.ts",
       "lib/admin/consultas.ts",
+      "lib/cadastro/index.ts",
+      "lib/cadastro/consultas.ts",
       "lib/video/index.ts",
       "lib/video/entrada.ts",
       "lib/video/dados.ts",

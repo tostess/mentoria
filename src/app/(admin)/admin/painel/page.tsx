@@ -15,6 +15,7 @@ import {
   utilizacaoPorEmpresa,
 } from "@/lib/admin/consultas";
 import { requireRole } from "@/lib/auth/session";
+import { contarPendentes } from "@/lib/cadastro/consultas";
 import { loadTerms } from "@/lib/config/load";
 import { cap } from "@/lib/terms";
 
@@ -39,6 +40,7 @@ export default async function Page() {
   const resumo = await resumoDaPlataforma();
   const utilizacao = await utilizacaoPorEmpresa();
   const recentes = await listarAcoesRecentes();
+  const cadastrosEsperando = await contarPendentes();
 
   const ehOperadora = sessao.role === "admin";
 
@@ -65,6 +67,27 @@ export default async function Page() {
       />
 
       <div className="flex flex-col gap-[18px]">
+        {cadastrosEsperando > 0 && (
+          <Link
+            href="/admin/cadastros"
+            className="group flex items-center gap-3 rounded-[14px] border border-[#F3E4EC] bg-white px-5 py-3.5 transition-colors hover:bg-[#FDF8FB]"
+          >
+            <Icone nome="user-check" tamanho={18} className="text-[#8E7C86]" />
+            <span className="text-[13.5px] text-[#2A1B26]">
+              <span className="font-semibold">
+                {cadastrosEsperando === 1
+                  ? "1 pedido de cadastro"
+                  : `${cadastrosEsperando} pedidos de cadastro`}
+              </span>{" "}
+              {cadastrosEsperando === 1 ? "espera" : "esperam"} decisão.
+            </span>
+            <Icone
+              nome="chevron-right"
+              className="ml-auto text-[#D9C3CF] transition-colors group-hover:text-[#C2317A]"
+            />
+          </Link>
+        )}
+
         <div className="grid grid-cols-2 gap-3.5 lg:grid-cols-4">
           <Stat value={resumo.empresasAtivas} label={`${t.orgs} ativas`} icone="building" />
           <Stat

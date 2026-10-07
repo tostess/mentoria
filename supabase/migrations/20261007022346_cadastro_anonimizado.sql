@@ -1,0 +1,2 @@
+ALTER TABLE "individual_signups" ADD COLUMN "anonymized_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "individual_signups" ADD CONSTRAINT "individual_signups_anon_rejected" CHECK ("individual_signups"."anonymized_at" is null or "individual_signups"."status" = 'rejected');

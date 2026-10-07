@@ -3,11 +3,13 @@
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth/session";
+import { PedidoInexistente, PedidoJaDecidido, aprovarPedidos, recusarPedido } from "@/lib/cadastro";
 import { loadAppConfig } from "@/lib/config/load";
 import {
   CampoInvalido,
   cnpjOpcional,
   dataOpcional,
+  ehId,
   email as campoEmail,
   falha,
   id as campoId,
@@ -101,7 +103,9 @@ async function executando(fn: () => Promise<FormState>): Promise<FormState> {
         erro instanceof TransicaoInvalida ||
         erro instanceof TemSessaoFutura ||
         erro instanceof TipoDeContaErrado ||
-        erro instanceof PagamentoNaoCreditavel
+        erro instanceof PagamentoNaoCreditavel ||
+        erro instanceof PedidoJaDecidido ||
+        erro instanceof PedidoInexistente
       ) {
         return falha(erro.message);
       }
@@ -471,5 +475,58 @@ export async function novaSenhaAcao(
       "Senha nova gerada. A anterior deixou de valer — repasse esta, que aparece uma vez só.",
       credencial,
     );
+  });
+}
+
+/** Quantos pedidos uma aprovação em lote aceita — uma transação por pessoa, em sequência. */
+const LOTE_MAX = 50;
+
+/**
+ * Aprova os pedidos de cadastro selecionados (A3), um por transação. O que não
+ * passou — e-mail sem confirmar, pedido que outra pessoa decidiu — volta na
+ * mesma tela, sem impedir os outros.
+ */
+export async function aprovarCadastrosAcao(
+  _anterior: FormState,
+  form: FormData,
+): Promise<FormState> {
+  const ator = await exigeOperadora();
+
+  return executando(async () => {
+    const brutos = form.getAll("pedido").filter((v): v is string => typeof v === "string");
+    const ids = [...new Set(brutos.map((v) => v.trim().toLowerCase()))];
+    if (ids.length === 0) throw new CampoInvalido("Selecione ao menos um pedido.");
+    if (ids.length > LOTE_MAX) throw new CampoInvalido(`No máximo ${LOTE_MAX} pedidos por vez.`);
+    if (ids.some((id) => !ehId(id))) throw new CampoInvalido("Um dos pedidos não foi informado corretamente.");
+
+    const { aprovados, falhas } = await aprovarPedidos(ids, ator);
+    if (aprovados.length > 0) refresh();
+
+    const ok =
+      aprovados.length === 0
+        ? null
+        : aprovados.length === 1
+          ? `Cadastro de ${aprovados[0]} aprovado. A conta já entra com o e-mail e a senha do pedido.`
+          : `${aprovados.length} cadastros aprovados. As contas já entram com o e-mail e a senha de cada pedido.`;
+    return { erro: falhas.length === 0 ? null : falhas.join(" "), ok, credencial: null };
+  });
+}
+
+/**
+ * Recusa um pedido. O motivo é interno — fica no pedido para a operadora, até a
+ * anonimização de 90 dias, e não vai para a auditoria nem para a pessoa.
+ */
+export async function recusarCadastroAcao(
+  _anterior: FormState,
+  form: FormData,
+): Promise<FormState> {
+  const ator = await exigeOperadora();
+
+  return executando(async () => {
+    const id = campoId(form, "pedido", "O pedido");
+    const motivo = textoOpcional(form, "motivo", 500);
+    const nome = await recusarPedido(id, ator, motivo);
+    refresh();
+    return sucesso(`Pedido de ${nome} recusado.`);
   });
 }

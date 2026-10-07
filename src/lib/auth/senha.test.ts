@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { problemaNaTroca, SENHA_MAX, SENHA_MIN } from "./senha";
+import { problemaNaSenhaNova, problemaNaTroca, SENHA_MAX, SENHA_MIN } from "./senha";
 
 const BOA = "Outra!Senha42";
 
@@ -42,5 +42,31 @@ describe("problemaNaTroca", () => {
 
   it("recusa repetir a atual — a provisória continuaria valendo", () => {
     expect(troca({ atual: BOA })).toMatch(/diferente da atual/);
+  });
+});
+
+describe("problemaNaSenhaNova — a senha do cadastro", () => {
+  it("aceita senha válida e confirmada", () => {
+    expect(problemaNaSenhaNova(BOA, BOA)).toBeNull();
+  });
+
+  it("exige a senha", () => {
+    expect(problemaNaSenhaNova("", "")).toMatch(/Crie uma senha/);
+  });
+
+  it("usa os mesmos limites da troca", () => {
+    const curta = "a".repeat(SENHA_MIN - 1);
+    const longa = "a".repeat(SENHA_MAX + 1);
+    expect(problemaNaSenhaNova(curta, curta)).toMatch(/pelo menos/);
+    expect(problemaNaSenhaNova("a".repeat(SENHA_MIN), "a".repeat(SENHA_MIN))).toBeNull();
+    expect(problemaNaSenhaNova(longa, longa)).toMatch(/no máximo/);
+  });
+
+  it("recusa espaço nas pontas em vez de apagá-lo", () => {
+    expect(problemaNaSenhaNova(` ${BOA}`, ` ${BOA}`)).toMatch(/espaço/);
+  });
+
+  it("exige a confirmação igual", () => {
+    expect(problemaNaSenhaNova(BOA, `${BOA}x`)).toMatch(/confirmação/);
   });
 });

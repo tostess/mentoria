@@ -19,6 +19,19 @@ export const SENHA_MAX = 72;
  */
 export const CHAVE_SENHA_PROVISORIA = "senha_provisoria";
 
+/**
+ * Senha escolhida no cadastro (A3) — os mesmos limites da troca, sem a senha
+ * atual, que ainda não existe.
+ */
+export function problemaNaSenhaNova(senha: string, confirmacao: string): string | null {
+  if (senha === "") return "Crie uma senha.";
+  if (senha.length < SENHA_MIN) return `A senha precisa de pelo menos ${SENHA_MIN} caracteres.`;
+  if (senha.length > SENHA_MAX) return `A senha pode ter no máximo ${SENHA_MAX} caracteres.`;
+  if (senha.trim() !== senha) return "A senha não pode começar nem terminar com espaço.";
+  if (senha !== confirmacao) return "A confirmação não é igual à senha.";
+  return null;
+}
+
 export type TrocaDeSenha = { atual: string; nova: string; confirmacao: string };
 
 /** Devolve a mensagem para a tela, ou null quando está tudo certo. */

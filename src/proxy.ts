@@ -1,7 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { parseClaims } from "@/lib/auth/claims";
-import { canAccess, HOME_BY_ROLE, isPublicPath, matchesPrefix, safeNext } from "@/lib/auth/routes";
+import {
+  canAccess,
+  HOME_BY_ROLE,
+  isOpenPath,
+  isPublicPath,
+  matchesPrefix,
+  safeNext,
+} from "@/lib/auth/routes";
 import { hasSupabasePublicEnv, SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/lib/env";
 
 /**
@@ -31,7 +38,9 @@ export async function proxy(request: NextRequest) {
   // um deploy com variável faltando não pode virar uma aplicação sem porta.
   // A tela de entrada continua de pé e diz o que está faltando.
   if (!hasSupabasePublicEnv) {
-    return isPublicPath(pathname) ? NextResponse.next() : redirectTo(request, "/entrar");
+    return isPublicPath(pathname) || isOpenPath(pathname)
+      ? NextResponse.next()
+      : redirectTo(request, "/entrar");
   }
 
   let response = NextResponse.next({ request });
@@ -56,6 +65,9 @@ export async function proxy(request: NextRequest) {
 
   const { data } = await supabase.auth.getClaims();
   const session = parseClaims(data?.claims);
+
+  // Com ou sem sessão, a página fica: ver `OPEN_PREFIXES`.
+  if (isOpenPath(pathname)) return response;
 
   if (session === null) {
     if (isPublicPath(pathname)) return response;

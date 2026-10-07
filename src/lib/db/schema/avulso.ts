@@ -56,10 +56,21 @@ export const individualSignups = pgTable(
     rejectReason: text("reject_reason"),
     decidedBy: uuid("decided_by"),
     decidedAt: timestamp("decided_at", { withTimezone: true }),
+    /**
+     * Quando o pedido recusado perdeu os dados pessoais (LGPD: 90 dias depois
+     * da recusa). A linha fica — a fila e a auditoria contam que houve um
+     * pedido e uma decisão —, mas sem nome, contato nem o que a pessoa escreveu.
+     */
+    anonymizedAt: timestamp("anonymized_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     check("individual_signups_status", sql`${t.status} in ('pending','approved','rejected')`),
+    // Só pedido recusado é anonimizado; o aprovado virou conta e segue as regras dela.
+    check(
+      "individual_signups_anon_rejected",
+      sql`${t.anonymizedAt} is null or ${t.status} = 'rejected'`,
+    ),
     // Um pedido aberto por e-mail: o segundo envio do formulário não vira
     // segunda linha na fila.
     uniqueIndex("individual_signups_email_pending_uq")

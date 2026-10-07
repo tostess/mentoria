@@ -108,6 +108,24 @@ describe("catálogo de ações auditadas", () => {
     ).toContain("Rafael Souza");
   });
 
+  it("recusa de cadastro não leva nome — o pedido é anonimizado e a auditoria não", () => {
+    const texto = frase(evento("recusar_cadastro", { alvo: null }));
+    expect(texto).toBe("João Paulo Ferreira recusou um pedido de cadastro");
+  });
+
+  it("aprovação de cadastro diz quem virou conta pessoal", () => {
+    expect(frase(evento("aprovar_cadastro", { empresa: null }))).toBe(
+      "João Paulo Ferreira aprovou o cadastro de Helena Braga como conta pessoal",
+    );
+  });
+
+  it("anonimização diz quantos, no singular e no plural", () => {
+    const um = frase(evento("anonimizar_cadastros", { autor: null, depois: { quantidade: 1 } }));
+    const tres = frase(evento("anonimizar_cadastros", { autor: null, depois: { quantidade: 3 } }));
+    expect(um).toMatch(/anonimizou 1 pedido de cadastro recusado há mais de 90 dias$/);
+    expect(tres).toMatch(/anonimizou 3 pedidos de cadastro recusados/);
+  });
+
   it("sem autor é o trabalho agendado", () => {
     expect(frase(evento("alocar_fichas", { autor: null, depois: { quantidade: 2 } }))).toMatch(
       /^Trabalho agendado alocou/,

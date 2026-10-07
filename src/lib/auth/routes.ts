@@ -40,8 +40,15 @@ export const ROUTE_RULES: readonly RouteRule[] = [
   { prefix: "/admin", roles: ["admin", "moderator"] },
 ];
 
-/** Rotas de quem ainda não entrou. */
-export const PUBLIC_PREFIXES: readonly string[] = ["/entrar"];
+/** Rotas de quem ainda não entrou — a entrada e o cadastro do avulso (A3). */
+export const PUBLIC_PREFIXES: readonly string[] = ["/entrar", "/cadastro", "/recuperar-senha"];
+
+/**
+ * Rotas abertas com ou sem sessão. A página do link de recuperação não pode
+ * mandar quem já está logado para a casca: o redirecionamento levaria junto o
+ * fragmento com os tokens, e a pessoa perderia o link sem trocar a senha.
+ */
+export const OPEN_PREFIXES: readonly string[] = ["/redefinir-senha"];
 
 /**
  * Prefixo por **segmento**, nunca por string.
@@ -52,6 +59,10 @@ export const PUBLIC_PREFIXES: readonly string[] = ["/entrar"];
  */
 export function matchesPrefix(pathname: string, prefix: string): boolean {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);
+}
+
+export function isOpenPath(pathname: string): boolean {
+  return OPEN_PREFIXES.some((prefix) => matchesPrefix(pathname, prefix));
 }
 
 export function isPublicPath(pathname: string): boolean {
@@ -80,6 +91,6 @@ export function canAccess(role: Role, pathname: string): boolean {
 export function safeNext(next: string | null | undefined, role: Role): string | null {
   if (!next || !next.startsWith("/") || next.startsWith("//")) return null;
   const pathname = next.split(/[?#]/)[0];
-  if (isPublicPath(pathname)) return null;
+  if (isPublicPath(pathname) || isOpenPath(pathname)) return null;
   return canAccess(role, pathname) ? next : null;
 }

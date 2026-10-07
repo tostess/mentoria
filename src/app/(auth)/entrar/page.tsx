@@ -1,12 +1,15 @@
+import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { Note } from "@/components/ui/Note";
+import { loadTheme } from "@/lib/config/load";
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL, hasSupabasePublicEnv } from "@/lib/env";
 import { EntrarForm } from "./EntrarForm";
 
 /**
- * Entrada por e-mail e senha. No piloto a conta é criada pelo admin — não há
- * cadastro, nem recuperação self-service, nem login social: o Parceiro entra
- * por convite (invariante 8) e o Profissional é selecionado pelo RH.
+ * Entrada por e-mail e senha. A conta de empresa é criada pela operadora e o
+ * Parceiro entra por convite (invariante 8); só o avulso se cadastra sozinho,
+ * em `/cadastro` (A3), e espera a aprovação. Sem recuperação self-service nem
+ * login social.
  */
 const AVISOS: Record<string, string> = {
   "sem-acesso": "Seu acesso está inativo. Fale com quem administra sua conta.",
@@ -27,7 +30,7 @@ export default async function EntrarPage({ searchParams }: PageProps<"/entrar">)
    */
   if (!hasSupabasePublicEnv) {
     return (
-      <Card>
+      <Card className="w-full max-w-[400px]">
         <h1 className="text-[33px]">Ambiente incompleto</h1>
         <p className="mb-5 mt-1 text-[13px] text-[#8E7C86]">
           A entrada não pode funcionar sem a configuração do Supabase.
@@ -50,11 +53,23 @@ export default async function EntrarPage({ searchParams }: PageProps<"/entrar">)
     );
   }
 
+  const { accent } = await loadTheme(null);
+
   return (
-    <Card>
-      <h1 className="text-[33px]">Entrar</h1>
-      <p className="mb-5 mt-1 text-[13px] text-[#8E7C86]">Use o e-mail cadastrado pela sua empresa.</p>
-      <EntrarForm next={next} aviso={AVISOS[chave] ?? null} />
-    </Card>
+    <div className="flex w-full max-w-[400px] flex-col gap-4">
+      <Card>
+        <h1 className="text-[33px]">Entrar</h1>
+        <p className="mb-5 mt-1 text-[13px] text-[#8E7C86]">
+          Use o e-mail da sua conta — o da empresa ou o pessoal.
+        </p>
+        <EntrarForm next={next} aviso={AVISOS[chave] ?? null} />
+      </Card>
+      <p className="text-center text-[13px] text-[#8E7C86]">
+        Busca mentoria por conta própria?{" "}
+        <Link href="/cadastro" className="font-semibold hover:underline" style={{ color: accent }}>
+          Crie sua conta pessoal
+        </Link>
+      </p>
+    </div>
   );
 }
