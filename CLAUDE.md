@@ -620,7 +620,7 @@ Sem folga no calendário. Se o nome não sair em 10/10, A2 escorrega e arrasta o
 Asaas de produção não estiver aprovada até 13/11, o piloto abre com o admin registrando a compra do
 avulso à mão (a compra pelo painel já existe) e o checkout entra depois.
 
-- **F4 (07/10, fora do calendário) Marca por empresa** ✅ na branch `f4`, esperando aprovação.
+- **F4 (07/10, fora do calendário) Marca por empresa** ✅ — na `main` e em produção desde 07/10.
   Trazida para dentro do piloto a pedido, enquanto a A2 espera o nome. F4a: cor virou token. F4b:
   a operadora escolhe cor principal, nome, logotipo e ajuste fino em `/admin/empresas/[id]`, com
   prévia; `/admin/personalizacao` mostra a marca de cada empresa.
@@ -1288,8 +1288,11 @@ sensível —, rota com `maxDuration`, modelo escolhido na hora.
 
 ## Estado atual
 
-Fase: **F4 (marca por empresa) pronta na branch `f4`, esperando sua aprovação** — trazida para
-dentro do piloto em 07/10/2026, a pedido, enquanto a A2 espera o nome. Sem migração: `orgs.branding`
+Fase: **F4 (marca por empresa) na `main` e em produção desde 07/10/2026** — aprovada por você
+("pode implementar") depois do Preview da `f4` e publicada por fast-forward (`git push origin
+f4:main`, porque a `main` local estava presa numa worktree de outra sessão). Deploy `Ready`,
+`/api/health` ok, `/entrar` e `/cadastro` 200, `/admin/personalizacao` 307 sem sessão, cron 401.
+Trazida para dentro do piloto em 07/10/2026, a pedido, enquanto a A2 espera o nome. Sem migração: `orgs.branding`
 já era `jsonb` e só ganhou a chave `cores`. **F4a**: cor virou token (`--cor-*` em `<html style>`,
 tema padrão igual pixel a pixel). **F4b**: cartão "Marca" em `/admin/empresas/[id]` — cor
 principal, nome na marca, logotipo por endereço `https`, ajuste fino das 13 outras cores e prévia
