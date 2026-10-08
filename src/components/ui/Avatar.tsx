@@ -1,6 +1,5 @@
 "use client";
 
-import { useTheme } from "@/components/theme/ThemeProvider";
 import { onAccent } from "@/lib/theme";
 
 export type AvatarSize = "sm" | "md" | "lg" | "xl";
@@ -30,15 +29,17 @@ export function initials(name: string): string {
 }
 
 export function Avatar({ name, color, photoUrl, size = "md", className = "" }: Props) {
-  const theme = useTheme();
-  const bg = color ?? theme.accent;
   const base = `grid shrink-0 place-items-center overflow-hidden font-mono font-semibold ${SIZE[size]} ${className}`;
   if (photoUrl) {
     // eslint-disable-next-line @next/next/no-img-element -- foto externa, sem domínio conhecido ainda
     return <img src={photoUrl} alt={name} className={`${base} object-cover`} />;
   }
   return (
-    <div className={base} style={{ backgroundColor: bg, color: onAccent(bg) }} aria-label={name}>
+    <div
+      className={`${base} ${color === undefined ? "bg-accent text-on-accent" : ""}`}
+      style={color === undefined ? undefined : { backgroundColor: color, color: onAccent(color) }}
+      aria-label={name}
+    >
       {initials(name)}
     </div>
   );

@@ -8,8 +8,6 @@ import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Ficha, FichaStack } from "@/components/ui/Ficha";
 import { Icone } from "@/components/ui/Icone";
-import { useTheme } from "@/components/theme/ThemeProvider";
-import { onAccent } from "@/lib/theme";
 import { cap } from "@/lib/terms";
 
 export type HorarioOferecido = { inicio: string; hora: string; fim: string };
@@ -67,7 +65,6 @@ function fichas(n: number, t: Termos): string {
 export function AgendarComParceiro(props: Props) {
   const { dias, termos: t } = props;
   const router = useRouter();
-  const theme = useTheme();
   const [escolhido, setEscolhido] = useState<Escolha | null>(null);
   const [estado, setEstado] = useState<Estado>({ fase: "escolhendo" });
   const cartaoRef = useRef<HTMLDivElement>(null);
@@ -133,7 +130,7 @@ export function AgendarComParceiro(props: Props) {
       title="Horários livres"
       icone="calendar"
       action={
-        <span className="inline-flex items-center gap-1.5 font-mono text-[10.5px] text-[#8E7C86]">
+        <span className="inline-flex items-center gap-1.5 font-mono text-[10.5px] text-stone">
           <Icone nome="fuso" tamanho={13} />
           {props.rotuloDoFuso}
         </span>
@@ -150,11 +147,11 @@ export function AgendarComParceiro(props: Props) {
           {dias.map((dia) => (
             <div
               key={dia.chave}
-              className="grid grid-cols-1 gap-2 border-t border-[#F3E4EC] py-3 first:border-t-0 first:pt-0 sm:grid-cols-[118px_1fr] sm:gap-3.5"
+              className="grid grid-cols-1 gap-2 border-t border-line py-3 first:border-t-0 first:pt-0 sm:grid-cols-[118px_1fr] sm:gap-3.5"
             >
               <div>
                 <div className="text-[13.5px] font-semibold capitalize">{dia.semana}</div>
-                <div className="font-mono text-[10.5px] text-[#8E7C86]">{dia.data}</div>
+                <div className="font-mono text-[10.5px] text-stone">{dia.data}</div>
               </div>
               <div className="flex flex-wrap gap-[7px]">
                 {dia.horarios.map((h) => {
@@ -168,14 +165,9 @@ export function AgendarComParceiro(props: Props) {
                       onClick={() => escolher({ dia, horario: h })}
                       className={`rounded-[8px] border px-[11px] py-[7px] font-mono text-[12.5px] transition-colors disabled:cursor-not-allowed ${
                         ativo
-                          ? "border-transparent"
-                          : "border-[#EAD6E1] bg-white hover:border-[#C2317A] hover:text-[#C2317A]"
+                          ? "border-transparent bg-accent text-on-accent"
+                          : "border-line2 bg-surface hover:border-accent hover:text-accent"
                       }`}
-                      style={
-                        ativo
-                          ? { backgroundColor: theme.accent, color: onAccent(theme.accent) }
-                          : undefined
-                      }
                     >
                       {h.hora}
                     </button>
@@ -193,7 +185,7 @@ export function AgendarComParceiro(props: Props) {
   if (estado.fase === "feito") {
     cartao = (
       <Card>
-        <div className="flex gap-2.5 rounded-[12px] border border-[#CDE6DA] bg-[#EAF6F0] px-3.5 py-3 text-[13.5px] text-[#2E6B52]">
+        <div className="flex gap-2.5 rounded-[12px] border border-success-line bg-success-soft px-3.5 py-3 text-[13.5px] text-success">
           <Icone nome="check" tamanho={16} className="mt-0.5 shrink-0" />
           <div>
             <b>{estado.confirmada ? `${cap(t.sessao)} confirmada` : "Pedido enviado"}</b>
@@ -219,7 +211,7 @@ export function AgendarComParceiro(props: Props) {
         )}
         <Link
           href="/agenda"
-          className="mt-3 flex w-full items-center justify-center rounded-[10px] border border-[#EAD6E1] bg-white px-[17px] py-[10px] text-[13.5px] font-semibold hover:border-[#FCEDF4] hover:bg-[#FCEDF4]"
+          className="mt-3 flex w-full items-center justify-center rounded-[10px] border border-line2 bg-surface px-[17px] py-[10px] text-[13.5px] font-semibold hover:border-blush hover:bg-blush"
         >
           Ver minha agenda
         </Link>
@@ -228,9 +220,9 @@ export function AgendarComParceiro(props: Props) {
   } else if (escolhido === null) {
     cartao = (
       <Card title="Agendar">
-        <p className="text-[12.5px] leading-[1.5] text-[#8E7C86]">
+        <p className="text-[12.5px] leading-[1.5] text-stone">
           Escolha um horário. A {t.sessao} dura {props.duracaoMin} minutos e custa{" "}
-          <b className="text-[#2A1B26]">{fichas(props.preco, t)}</b>.
+          <b className="text-ink">{fichas(props.preco, t)}</b>.
         </p>
         {estado.fase === "recusado" && <Erro texto={estado.erro} />}
         <dl className="mt-3 flex flex-col text-[13.5px]">
@@ -248,20 +240,20 @@ export function AgendarComParceiro(props: Props) {
             valor={<span className="font-mono">{`${props.pendentes} de ${props.maxPendentes}`}</span>}
           />
         </dl>
-        {bloqueio && <p className="mt-3 text-[12.5px] leading-[1.5] text-[#A63A2E]">{bloqueio}</p>}
+        {bloqueio && <p className="mt-3 text-[12.5px] leading-[1.5] text-danger">{bloqueio}</p>}
       </Card>
     );
   } else {
     const escolha = escolhido;
     cartao = (
       <Card>
-        <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#8E7C86]">
+        <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-stone">
           Você escolheu
         </div>
         <div className="mt-1.5 font-display text-[30px] font-bold capitalize leading-none">
           {escolha.dia.semana}, {escolha.dia.data}
         </div>
-        <div className="mt-1 font-mono text-[12px] text-[#8E7C86]">
+        <div className="mt-1 font-mono text-[12px] text-stone">
           {escolha.horario.hora}–{escolha.horario.fim} · {props.rotuloDoFuso}
         </div>
         <dl className="my-3.5 flex flex-col text-[13.5px]">
@@ -286,7 +278,7 @@ export function AgendarComParceiro(props: Props) {
         </dl>
         {estado.fase === "recusado" && <Erro texto={estado.erro} />}
         {bloqueio ? (
-          <p className="text-[12.5px] leading-[1.5] text-[#A63A2E]">{bloqueio}</p>
+          <p className="text-[12.5px] leading-[1.5] text-danger">{bloqueio}</p>
         ) : (
           <Button
             className="w-full"
@@ -296,7 +288,7 @@ export function AgendarComParceiro(props: Props) {
             {estado.fase === "enviando" ? "Agendando…" : `Agendar e usar ${fichas(props.preco, t)}`}
           </Button>
         )}
-        <p className="mt-2.5 text-[12.5px] leading-[1.5] text-[#8E7C86]">
+        <p className="mt-2.5 text-[12.5px] leading-[1.5] text-stone">
           Se {props.primeiroNome} não puder atender ou não responder, a {t.ficha} volta para você.
         </p>
       </Card>
@@ -315,8 +307,8 @@ export function AgendarComParceiro(props: Props) {
 
 function Linha({ rotulo, valor }: { rotulo: string; valor: ReactNode }) {
   return (
-    <div className="flex items-baseline justify-between gap-3 border-t border-[#F3E4EC] py-[9px] first:border-t-0">
-      <dt className="text-[#8E7C86]">{rotulo}</dt>
+    <div className="flex items-baseline justify-between gap-3 border-t border-line py-[9px] first:border-t-0">
+      <dt className="text-stone">{rotulo}</dt>
       <dd className="text-right font-semibold">{valor}</dd>
     </div>
   );
@@ -326,7 +318,7 @@ function Erro({ texto }: { texto: string }) {
   return (
     <div
       role="alert"
-      className="my-3 flex gap-2.5 rounded-[12px] bg-[#FBEAE7] px-3.5 py-3 text-[13.5px] text-[#A63A2E]"
+      className="my-3 flex gap-2.5 rounded-[12px] bg-danger-soft px-3.5 py-3 text-[13.5px] text-danger"
     >
       <Icone nome="alerta" tamanho={16} className="mt-0.5 shrink-0" />
       <div>{texto}</div>

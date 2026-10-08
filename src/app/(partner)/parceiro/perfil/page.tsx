@@ -61,7 +61,7 @@ export default async function Page() {
                 <div className="font-display text-[24px] font-bold leading-[1.05]">
                   {perfil.nome || "Sem nome"}
                 </div>
-                <p className="mt-0.5 text-[13.5px] text-[#8E7C86]">
+                <p className="mt-0.5 text-[13.5px] text-stone">
                   {perfil.headline ?? "Sem chamada — escreva uma linha ao lado."}
                 </p>
                 {perfil.areas.length > 0 && (
@@ -75,7 +75,7 @@ export default async function Page() {
             </div>
 
             {perfil.bio !== null && (
-              <p className="mt-4 whitespace-pre-line border-t border-[#F3E4EC] pt-4 text-[13.5px] leading-[1.55] text-[#6E5F68]">
+              <p className="mt-4 whitespace-pre-line border-t border-line pt-4 text-[13.5px] leading-[1.55] text-stone-dark">
                 {perfil.bio}
               </p>
             )}
@@ -92,7 +92,7 @@ export default async function Page() {
               <Linha rotulo="Vínculo" valor={VINCULOS[perfil.engajamento] ?? perfil.engajamento} />
               <Linha rotulo="E-mail" valor={perfil.email} mono />
             </dl>
-            <p className="mt-3 text-[12px] leading-[1.45] text-[#8E7C86]">
+            <p className="mt-3 text-[12px] leading-[1.45] text-stone">
               Sua situação não é editável aqui — quem aprova {t.partner} é a operadora, e o banco
               recusa a mudança mesmo que o campo existisse.
             </p>
@@ -105,8 +105,8 @@ export default async function Page() {
 
 function Linha({ rotulo, valor, mono = false }: { rotulo: string; valor: string; mono?: boolean }) {
   return (
-    <div className="flex items-baseline justify-between gap-3 border-t border-[#F3E4EC] pt-2.5 first:border-t-0 first:pt-0">
-      <dt className="shrink-0 text-[#8E7C86]">{rotulo}</dt>
+    <div className="flex items-baseline justify-between gap-3 border-t border-line pt-2.5 first:border-t-0 first:pt-0">
+      <dt className="shrink-0 text-stone">{rotulo}</dt>
       <dd className={`truncate text-right ${mono ? "font-mono text-[12px]" : ""}`}>{valor}</dd>
     </div>
   );

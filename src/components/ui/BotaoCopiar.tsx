@@ -34,7 +34,7 @@ export function BotaoCopiar({ valor, rotulo }: { valor: string; rotulo: string }
       type="button"
       onClick={copiar}
       aria-label={`Copiar ${rotulo}`}
-      className="inline-flex shrink-0 items-center gap-1.5 rounded-[7px] border border-[#EFD9A8] bg-white px-2 py-1 text-[11.5px] font-semibold text-[#8A5D0C] transition-colors hover:bg-[#FFFAF0] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C98A2E]"
+      className="inline-flex shrink-0 items-center gap-1.5 rounded-[7px] border border-gold-line bg-surface px-2 py-1 text-[11.5px] font-semibold text-gold-text transition-colors hover:bg-gold-wash focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
     >
       <Icone nome={copiado ? "check" : "copy"} tamanho={13} />
       <span aria-live="polite">{copiado ? "Copiado" : falhou ? "Selecione" : "Copiar"}</span>

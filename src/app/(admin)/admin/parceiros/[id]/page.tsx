@@ -82,7 +82,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
               <Pill variant={corDoStatus(parceiro.status)}>{rotuloDoStatus(parceiro.status)}</Pill>
             }
           >
-            <p className="mb-3.5 text-[13px] leading-[1.5] text-[#8E7C86]">
+            <p className="mb-3.5 text-[13px] leading-[1.5] text-stone">
               {explicacaoDoStatus(parceiro.status)}
             </p>
             {ehOperadora && (
@@ -98,7 +98,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
           <Card title="Acesso" icone="shield">
             <dl className="mb-3.5 flex flex-col gap-2 text-[13.5px]">
               <div className="flex items-center justify-between gap-3">
-                <dt className="text-[#8E7C86]">Conta</dt>
+                <dt className="text-stone">Conta</dt>
                 <dd>
                   {parceiro.ativo ? (
                     <Pill variant="on">Ativa</Pill>
@@ -108,7 +108,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
                 </dd>
               </div>
               <div className="flex items-center justify-between gap-3">
-                <dt className="text-[#8E7C86]">Entra com</dt>
+                <dt className="text-stone">Entra com</dt>
                 <dd className="truncate font-mono text-[12px]">{parceiro.email}</dd>
               </div>
             </dl>
@@ -129,7 +129,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
               />
             )}
             {!parceiro.ativo && (
-              <p className="text-[12.5px] leading-[1.5] text-[#8E7C86]">
+              <p className="text-[12.5px] leading-[1.5] text-stone">
                 O acesso volta junto com a reativação, no card de status.
               </p>
             )}
@@ -137,7 +137,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
 
           <Card title="Histórico" icone="history">
             {historico.length === 0 ? (
-              <p className="text-[13px] text-[#8E7C86]">Nenhuma decisão registrada ainda.</p>
+              <p className="text-[13px] text-stone">Nenhuma decisão registrada ainda.</p>
             ) : (
               <FeedDeAtividade eventos={historico} t={t} />
             )}

@@ -105,7 +105,7 @@ export function ColaboradoresTabela({
             {visiveis.map((pessoa) => (
               <tr
                 key={pessoa.id}
-                className="group relative transition-colors hover:bg-[#FDF8FB] focus-within:bg-[#FDF8FB]"
+                className="group relative transition-colors hover:bg-mist focus-within:bg-mist"
               >
                 <Td>
                   <div className="flex items-center gap-2">
@@ -128,7 +128,7 @@ export function ColaboradoresTabela({
                 </Td>
                 <Td align="right">
                   {pessoa.saldo === 0 ? (
-                    <span className="text-[12px] text-[#8E7C86]">sem {t.ficha}</span>
+                    <span className="text-[12px] text-stone">sem {t.ficha}</span>
                   ) : (
                     <span className="inline-flex items-center gap-2">
                       <FichaStack count={pessoa.saldo} max={teto} />
@@ -137,12 +137,12 @@ export function ColaboradoresTabela({
                   )}
                 </Td>
                 <Td>
-                  <span className="font-mono text-[12px] text-[#8E7C86]">{pessoa.ultimoUso}</span>
+                  <span className="font-mono text-[12px] text-stone">{pessoa.ultimoUso}</span>
                 </Td>
                 <Td align="right" className="w-8">
                   <Icone
                     nome="chevron-right"
-                    className="text-[#D9C3CF] transition-colors group-hover:text-[#C2317A]"
+                    className="text-ghost transition-colors group-hover:text-accent"
                   />
                 </Td>
               </tr>

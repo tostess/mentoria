@@ -27,7 +27,7 @@ export function Th({
   return (
     <th
       scope="col"
-      className={`whitespace-nowrap px-3 pb-[9px] font-mono text-[9.5px] font-medium uppercase tracking-[0.12em] text-[#8E7C86] ${
+      className={`whitespace-nowrap px-3 pb-[9px] font-mono text-[9.5px] font-medium uppercase tracking-[0.12em] text-stone ${
         align === "right" ? "text-right" : "text-left"
       }`}
     >
@@ -47,7 +47,7 @@ export function Td({
 }) {
   return (
     <td
-      className={`border-t border-[#F3E4EC] px-3 py-3 align-middle ${
+      className={`border-t border-line px-3 py-3 align-middle ${
         align === "right" ? "text-right" : ""
       } ${className}`}
     >
@@ -61,7 +61,7 @@ export function CellStack({ title, sub }: { title: ReactNode; sub?: ReactNode })
   return (
     <div className="min-w-0">
       <div className="truncate font-semibold">{title}</div>
-      {sub && <div className="truncate text-[12px] text-[#8E7C86]">{sub}</div>}
+      {sub && <div className="truncate text-[12px] text-stone">{sub}</div>}
     </div>
   );
 }

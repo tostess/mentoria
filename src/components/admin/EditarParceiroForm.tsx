@@ -186,17 +186,17 @@ export function EditarParceiroForm({
         />
       </Field>
 
-      <label className="flex cursor-pointer items-start gap-2.5 rounded-[12px] bg-[#FDF8FB] px-[15px] py-[13px]">
+      <label className="flex cursor-pointer items-start gap-2.5 rounded-[12px] bg-mist px-[15px] py-[13px]">
         <input
           type="checkbox"
           name="confirmaSozinho"
           defaultChecked={dados.confirmaSozinho}
           disabled={bloqueado}
-          className="mt-[3px] h-4 w-4 shrink-0 accent-[#C2317A]"
+          className="mt-[3px] h-4 w-4 shrink-0 accent-accent"
         />
         <span className="text-[13px] leading-[1.5]">
           <strong className="font-semibold">Confirmar sozinho</strong>
-          <span className="block text-[#8E7C86]">
+          <span className="block text-stone">
             A sessão já nasce confirmada, sem esperar resposta.
           </span>
         </span>
@@ -204,7 +204,7 @@ export function EditarParceiroForm({
 
       {!somenteLeitura && (
         <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-          <span className="text-[12px] text-[#8E7C86]">Só o que mudar vai para o histórico.</span>
+          <span className="text-[12px] text-stone">Só o que mudar vai para o histórico.</span>
           <Button type="submit" disabled={enviando}>
             <Icone nome="check" tamanho={15} />
             {enviando ? "Salvando…" : "Salvar alterações"}

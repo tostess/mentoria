@@ -85,7 +85,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       <PageHeader
         eyebrow={
           <nav aria-label="Trilha">
-            <Link href="/parceiros" className="hover:text-[#C2317A]">
+            <Link href="/parceiros" className="hover:text-accent">
               {t.partners}
             </Link>{" "}
             › {parceiro.nome}

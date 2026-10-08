@@ -96,7 +96,7 @@ export default async function Page({
 
           <Card title="Histórico" icone="history">
             {historico.length === 0 ? (
-              <p className="text-[13px] text-[#8E7C86]">Nenhuma decisão registrada ainda.</p>
+              <p className="text-[13px] text-stone">Nenhuma decisão registrada ainda.</p>
             ) : (
               <FeedDeAtividade eventos={historico} t={t} />
             )}
@@ -110,11 +110,11 @@ export default async function Page({
               <span className="font-display text-[34px] font-bold leading-none">
                 {pessoa.saldo}
               </span>
-              <span className="text-[12.5px] text-[#8E7C86]">
+              <span className="text-[12.5px] text-stone">
                 {pessoa.saldo === 1 ? t.ficha : t.fichas} · teto {teto}
               </span>
             </div>
-            <p className="mt-2.5 flex items-center gap-1.5 font-mono text-[11px] text-[#8E7C86]">
+            <p className="mt-2.5 flex items-center gap-1.5 font-mono text-[11px] text-stone">
               <Icone nome="clock" tamanho={12} />
               {pessoa.ultimoUso === null ? "Nunca usou" : `Último uso em ${dia(pessoa.ultimoUso)}`}
             </p>
@@ -130,7 +130,7 @@ export default async function Page({
               </ButtonLink>
             )}
             {pessoa.saldo >= teto && (
-              <p className="mt-3 text-[12px] text-[#8E7C86]">
+              <p className="mt-3 text-[12px] text-stone">
                 No teto: {countFichas(teto, t)} por carteira.
               </p>
             )}
@@ -139,7 +139,7 @@ export default async function Page({
           <Card title="Acesso" icone="shield">
             <dl className="mb-3.5 flex flex-col gap-2 text-[13.5px]">
               <div className="flex items-center justify-between gap-3">
-                <dt className="text-[#8E7C86]">Conta</dt>
+                <dt className="text-stone">Conta</dt>
                 <dd>
                   {pessoa.ativo ? (
                     <Pill variant="on">Ativa</Pill>
@@ -149,7 +149,7 @@ export default async function Page({
                 </dd>
               </div>
               <div className="flex items-center justify-between gap-3">
-                <dt className="text-[#8E7C86]">Entra com</dt>
+                <dt className="text-stone">Entra com</dt>
                 <dd className="truncate font-mono text-[12px]">{pessoa.email}</dd>
               </div>
             </dl>

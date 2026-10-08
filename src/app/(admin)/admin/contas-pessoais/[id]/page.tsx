@@ -113,25 +113,25 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
               <span className="font-display text-[34px] font-bold leading-none">
                 {pessoa.saldo}
               </span>
-              <span className="text-[12.5px] text-[#8E7C86]">
+              <span className="text-[12.5px] text-stone">
                 {pessoa.saldo === 1 ? t.ficha : t.fichas} · compra não tem teto
               </span>
             </div>
 
             {comFicha.length > 0 && (
-              <ul className="mt-4 flex flex-col divide-y divide-[#F3E4EC] border-t border-[#F3E4EC]">
+              <ul className="mt-4 flex flex-col divide-y divide-line border-t border-line">
                 {comFicha.map((lote) => {
                   const vencido = lote.venceEm <= agora;
                   return (
                     <li key={lote.id} className="flex items-center justify-between gap-3 py-2.5">
                       <span className="text-[13px]">
                         <span className="font-mono tabular-nums">{lote.restante}</span>
-                        <span className="text-[#8E7C86]"> de {countFichas(lote.fichas, t)}</span>
+                        <span className="text-stone"> de {countFichas(lote.fichas, t)}</span>
                       </span>
                       {vencido ? (
                         <Pill variant="off">Venceu em {dia(lote.venceEm)}</Pill>
                       ) : (
-                        <span className="flex items-center gap-1.5 font-mono text-[11px] text-[#8E7C86]">
+                        <span className="flex items-center gap-1.5 font-mono text-[11px] text-stone">
                           <Icone nome="calendar-clock" tamanho={12} />
                           vale até {dia(lote.venceEm)}
                         </span>
@@ -143,15 +143,15 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
                   <li className="flex items-center justify-between gap-3 py-2.5">
                     <span className="text-[13px]">
                       <span className="font-mono tabular-nums">{semLote}</span>
-                      <span className="text-[#8E7C86]"> de presente ou estorno</span>
+                      <span className="text-stone"> de presente ou estorno</span>
                     </span>
-                    <span className="font-mono text-[11px] text-[#8E7C86]">não vence</span>
+                    <span className="font-mono text-[11px] text-stone">não vence</span>
                   </li>
                 )}
               </ul>
             )}
 
-            <p className="mt-2.5 flex items-center gap-1.5 font-mono text-[11px] text-[#8E7C86]">
+            <p className="mt-2.5 flex items-center gap-1.5 font-mono text-[11px] text-stone">
               <Icone nome="clock" tamanho={12} />
               {pessoa.ultimoUso === null ? "Nunca usou" : `Último uso em ${dia(pessoa.ultimoUso)}`}
             </p>
@@ -159,9 +159,9 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
 
           <Card title="Pacotes pagos" icone="coins">
             {pagamentos.length === 0 ? (
-              <p className="text-[13px] text-[#8E7C86]">Nenhum pacote ainda.</p>
+              <p className="text-[13px] text-stone">Nenhum pacote ainda.</p>
             ) : (
-              <ul className="flex flex-col divide-y divide-[#F3E4EC]">
+              <ul className="flex flex-col divide-y divide-line">
                 {pagamentos.map((pagamento) => {
                   const status = rotuloDoPagamento(pagamento.status);
                   return (
@@ -172,12 +172,12 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
                       <span className="min-w-0">
                         <span className="block text-[13.5px] font-semibold">
                           {nomeDoPacote.get(pagamento.pacote) ?? humanizar(pagamento.pacote)}
-                          <span className="font-normal text-[#8E7C86]">
+                          <span className="font-normal text-stone">
                             {" "}
                             · {countFichas(pagamento.fichas, t)}
                           </span>
                         </span>
-                        <span className="block font-mono text-[11px] text-[#8E7C86]">
+                        <span className="block font-mono text-[11px] text-stone">
                           {dia(pagamento.pagoEm ?? pagamento.criadoEm)} ·{" "}
                           {rotuloDoMeio(pagamento.meio)}
                           {pagamento.referencia === null ? "" : ` · ${pagamento.referencia}`}
@@ -209,13 +209,13 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
               somenteLeitura={!ehOperadora}
             />
             {conta.telefone !== null && (
-              <p className="mt-3 font-mono text-[12px] text-[#8E7C86]">Telefone {conta.telefone}</p>
+              <p className="mt-3 font-mono text-[12px] text-stone">Telefone {conta.telefone}</p>
             )}
           </Card>
 
           <Card title="Histórico" icone="history">
             {historico.length === 0 ? (
-              <p className="text-[13px] text-[#8E7C86]">Nenhuma decisão registrada ainda.</p>
+              <p className="text-[13px] text-stone">Nenhuma decisão registrada ainda.</p>
             ) : (
               <FeedDeAtividade eventos={historico} t={t} />
             )}
@@ -238,7 +238,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
           <Card title="Acesso" icone="shield">
             <dl className="mb-3.5 flex flex-col gap-2 text-[13.5px]">
               <div className="flex items-center justify-between gap-3">
-                <dt className="text-[#8E7C86]">Conta</dt>
+                <dt className="text-stone">Conta</dt>
                 <dd>
                   {pessoa.ativo ? (
                     <Pill variant="on">Ativa</Pill>
@@ -248,7 +248,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
                 </dd>
               </div>
               <div className="flex items-center justify-between gap-3">
-                <dt className="text-[#8E7C86]">Entra com</dt>
+                <dt className="text-stone">Entra com</dt>
                 <dd className="truncate font-mono text-[12px]">{pessoa.email}</dd>
               </div>
             </dl>

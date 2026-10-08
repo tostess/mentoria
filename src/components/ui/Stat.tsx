@@ -14,9 +14,9 @@ type Props = {
 
 export function Stat({ value, label, tone = "default", icone, className = "" }: Props) {
   const surface =
-    tone === "gold" ? "bg-[#FBF1DE] border-transparent" : "bg-white border-[#F3E4EC]";
-  const labelColor = tone === "gold" ? "text-[#8A5D0C]" : "text-[#8E7C86]";
-  const iconColor = tone === "gold" ? "text-[#E5C88F]" : "text-[#D9C3CF]";
+    tone === "gold" ? "bg-gold-soft border-transparent" : "bg-surface border-line";
+  const labelColor = tone === "gold" ? "text-gold-text" : "text-stone";
+  const iconColor = tone === "gold" ? "text-gold-pale" : "text-ghost";
   return (
     <div className={`relative rounded-[14px] border p-[18px] ${surface} ${className}`}>
       {icone && (

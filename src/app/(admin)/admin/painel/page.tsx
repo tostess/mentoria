@@ -70,10 +70,10 @@ export default async function Page() {
         {cadastrosEsperando > 0 && (
           <Link
             href="/admin/cadastros"
-            className="group flex items-center gap-3 rounded-[14px] border border-[#F3E4EC] bg-white px-5 py-3.5 transition-colors hover:bg-[#FDF8FB]"
+            className="group flex items-center gap-3 rounded-[14px] border border-line bg-surface px-5 py-3.5 transition-colors hover:bg-mist"
           >
-            <Icone nome="user-check" tamanho={18} className="text-[#8E7C86]" />
-            <span className="text-[13.5px] text-[#2A1B26]">
+            <Icone nome="user-check" tamanho={18} className="text-stone" />
+            <span className="text-[13.5px] text-ink">
               <span className="font-semibold">
                 {cadastrosEsperando === 1
                   ? "1 pedido de cadastro"
@@ -83,7 +83,7 @@ export default async function Page() {
             </span>
             <Icone
               nome="chevron-right"
-              className="ml-auto text-[#D9C3CF] transition-colors group-hover:text-[#C2317A]"
+              className="ml-auto text-ghost transition-colors group-hover:text-accent"
             />
           </Link>
         )}
@@ -107,7 +107,7 @@ export default async function Page() {
 
         <div className="grid grid-cols-1 items-start gap-[18px] lg:grid-cols-[1.55fr_1fr]">
           <Card title={`Utilização por ${t.org.toLowerCase()}`} icone="dashboard">
-            <p className="mb-4 text-[13px] leading-[1.5] text-[#8E7C86]">
+            <p className="mb-4 text-[13px] leading-[1.5] text-stone">
               {cap(t.fichas)} usadas ÷ recebidas, desde o início do contrato. Usada não conta
               pedido que voltou; recebida inclui presente de {t.partner}. É a conta que decide
               renovação.
@@ -120,7 +120,7 @@ export default async function Page() {
                 description={
                   <>
                     Crie a primeira em{" "}
-                    <Link href="/admin/empresas" className="text-[#C2317A] underline">
+                    <Link href="/admin/empresas" className="text-accent underline">
                       {t.orgs}
                     </Link>
                     .
@@ -139,11 +139,11 @@ export default async function Page() {
                 </thead>
                 <tbody>
                   {utilizacao.map((linha) => (
-                    <tr key={linha.orgId} className="transition-colors hover:bg-[#FDF8FB]">
+                    <tr key={linha.orgId} className="transition-colors hover:bg-mist">
                       <Td>
                         <Link
                           href={`/admin/empresas/${linha.orgId}`}
-                          className="font-semibold text-[#2A1B26] hover:text-[#C2317A]"
+                          className="font-semibold text-ink hover:text-accent"
                         >
                           {linha.nome}
                         </Link>
@@ -202,7 +202,7 @@ export default async function Page() {
                 recentes.length > 0 ? (
                   <Link
                     href="/admin/atividade"
-                    className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-[#C2317A] hover:underline"
+                    className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-accent hover:underline"
                   >
                     Ver tudo
                     <Icone nome="chevron-right" tamanho={13} />
@@ -211,7 +211,7 @@ export default async function Page() {
               }
             >
               {recentes.length === 0 ? (
-                <p className="text-[13px] text-[#8E7C86]">
+                <p className="text-[13px] text-stone">
                   Nada registrado ainda. Toda decisão da operadora aparece aqui, com quem tomou e
                   quando.
                 </p>
@@ -228,10 +228,10 @@ export default async function Page() {
 
 function Linha({ rotulo, valor, nota }: { rotulo: string; valor: number; nota: string }) {
   return (
-    <div className="flex items-baseline justify-between gap-3 border-t border-[#F3E4EC] pt-3 first:border-t-0 first:pt-0">
+    <div className="flex items-baseline justify-between gap-3 border-t border-line pt-3 first:border-t-0 first:pt-0">
       <div className="min-w-0">
         <dt className="text-[13.5px] font-semibold">{rotulo}</dt>
-        <dd className="text-[12px] leading-[1.45] text-[#8E7C86]">{nota}</dd>
+        <dd className="text-[12px] leading-[1.45] text-stone">{nota}</dd>
       </div>
       <dd className="shrink-0 font-mono text-[19px] font-semibold tabular-nums">{valor}</dd>
     </div>
@@ -245,7 +245,7 @@ function Linha({ rotulo, valor, nota }: { rotulo: string; valor: number; nota: s
  * a decisão muda de lugar.
  */
 function TaxaDeUso({ taxa }: { taxa: number | null }) {
-  if (taxa === null) return <span className="text-[12px] text-[#8E7C86]">sem alocação</span>;
+  if (taxa === null) return <span className="text-[12px] text-stone">sem alocação</span>;
   const variante = taxa >= 70 ? "on" : taxa >= 40 ? "wait" : "bad";
   return <Pill variant={variante}>{taxa}%</Pill>;
 }

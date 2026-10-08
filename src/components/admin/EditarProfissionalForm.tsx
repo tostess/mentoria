@@ -82,7 +82,7 @@ export function EditarProfissionalForm({
 
       {!somenteLeitura && (
         <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-          <span className="text-[12px] text-[#8E7C86]">Só o que mudar vai para o histórico.</span>
+          <span className="text-[12px] text-stone">Só o que mudar vai para o histórico.</span>
           <Button type="submit" disabled={enviando}>
             <Icone nome="check" tamanho={15} />
             {enviando ? "Salvando…" : "Salvar alterações"}

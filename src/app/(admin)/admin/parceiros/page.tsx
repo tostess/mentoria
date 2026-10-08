@@ -39,7 +39,7 @@ export default async function Page() {
           title={`${parceiros.length} ${parceiros.length === 1 ? t.partner : t.partners}`}
           icone="handshake"
           action={
-            <span className="hidden font-mono text-[10px] uppercase tracking-[0.12em] text-[#8E7C86] sm:inline">
+            <span className="hidden font-mono text-[10px] uppercase tracking-[0.12em] text-stone sm:inline">
               Atendem todas as {t.orgs.toLowerCase()}
             </span>
           }
@@ -65,7 +65,7 @@ export default async function Page() {
           </Card>
         ) : (
           <Card title="Só leitura">
-            <p className="text-[13px] leading-[1.5] text-[#8E7C86]">
+            <p className="text-[13px] leading-[1.5] text-stone">
               A moderação acompanha a lista e trata denúncias. Aprovar {t.partner} é da operadora.
             </p>
           </Card>

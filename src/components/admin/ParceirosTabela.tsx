@@ -96,7 +96,7 @@ export function ParceirosTabela({ parceiros }: { parceiros: ParceiroNaLista[] })
             {visiveis.map((parceiro) => (
               <tr
                 key={parceiro.id}
-                className="group relative transition-colors hover:bg-[#FDF8FB] focus-within:bg-[#FDF8FB]"
+                className="group relative transition-colors hover:bg-mist focus-within:bg-mist"
               >
                 <Td>
                   <div className="flex items-center gap-2.5">
@@ -116,7 +116,7 @@ export function ParceirosTabela({ parceiros }: { parceiros: ParceiroNaLista[] })
                 </Td>
                 <Td>
                   {parceiro.areas.length === 0 ? (
-                    <span className="text-[12px] text-[#8E7C86]">—</span>
+                    <span className="text-[12px] text-stone">—</span>
                   ) : (
                     <span className="flex flex-wrap gap-1.5">
                       {parceiro.areas.map((area) => (
@@ -126,7 +126,7 @@ export function ParceirosTabela({ parceiros }: { parceiros: ParceiroNaLista[] })
                   )}
                 </Td>
                 <Td>
-                  <span className="text-[12.5px] text-[#8E7C86]">
+                  <span className="text-[12.5px] text-stone">
                     {rotuloDoVinculo(parceiro.engajamento)}
                   </span>
                 </Td>
@@ -141,7 +141,7 @@ export function ParceirosTabela({ parceiros }: { parceiros: ParceiroNaLista[] })
                 <Td align="right" className="w-8">
                   <Icone
                     nome="chevron-right"
-                    className="text-[#D9C3CF] transition-colors group-hover:text-[#C2317A]"
+                    className="text-ghost transition-colors group-hover:text-accent"
                   />
                 </Td>
               </tr>

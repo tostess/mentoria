@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import type { Metadata } from "next";
 import { Darker_Grotesque, IBM_Plex_Mono, Instrument_Sans } from "next/font/google";
 import "./globals.css";
@@ -5,6 +6,7 @@ import { TermsProvider } from "@/components/config/TermsProvider";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { getSession } from "@/lib/auth/session";
 import { loadAppConfig, loadTheme } from "@/lib/config/load";
+import { variaveisDoTema } from "@/lib/theme";
 
 const darkerGrotesque = Darker_Grotesque({
   variable: "--font-darker-grotesque",
@@ -49,7 +51,8 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 /**
- * Tema e vocabulário são resolvidos uma vez, aqui, e descem por contexto.
+ * Tema e vocabulário são resolvidos uma vez, aqui. As cores descem como
+ * variáveis CSS em `<html>`; o resto do tema e o vocabulário, por contexto.
  * Nenhum componente lê `app_config` por conta própria — se lesse, cada tela
  * poderia discordar da outra sobre como a empresa chama uma ficha.
  */
@@ -64,6 +67,9 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang="pt-BR"
       className={`${darkerGrotesque.variable} ${instrumentSans.variable} ${ibmPlexMono.variable} h-full`}
+      // As cores da marca de quem está logado, já na primeira resposta do servidor:
+      // sem piscar o magenta padrão antes da marca da empresa.
+      style={variaveisDoTema(theme) as CSSProperties}
     >
       <body className="min-h-full">
         <ThemeProvider theme={theme}>

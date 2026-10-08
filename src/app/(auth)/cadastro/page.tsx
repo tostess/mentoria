@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
-import { loadAppConfig, loadTheme } from "@/lib/config/load";
+import { loadAppConfig } from "@/lib/config/load";
 import { hasSupabasePublicEnv } from "@/lib/env";
 import { reais } from "@/lib/formato";
 import { cap } from "@/lib/terms";
@@ -22,13 +22,11 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function Page() {
   const config = await loadAppConfig();
   const t = config.terms;
-  const { accent } = await loadTheme(null);
-
   if (!hasSupabasePublicEnv) {
     return (
       <Card className="w-full max-w-[400px]">
         <h1 className="text-[33px]">Cadastro indisponível</h1>
-        <p className="mt-1 text-[13px] text-[#8E7C86]">
+        <p className="mt-1 text-[13px] text-stone">
           Este ambiente está sem a configuração de acesso. A tela de entrada diz o que falta.
         </p>
       </Card>
@@ -49,16 +47,16 @@ export default async function Page() {
     <div className="flex w-full max-w-[520px] flex-col gap-4">
       <Card>
         <h1 className="text-[33px]">Criar {conta}</h1>
-        <p className="mt-1 text-[13px] leading-[1.5] text-[#8E7C86]">
+        <p className="mt-1 text-[13px] leading-[1.5] text-stone">
           Para quem busca mentoria por conta própria, sem empresa por trás. Cada {t.ficha} vale uma{" "}
           {t.session} de 30 minutos com um {t.partnerLong}
           {menorPreco === null ? "." : `, e os pacotes começam em ${reais(menorPreco)}.`}
         </p>
 
-        <ol className="mb-5 mt-4 flex flex-col gap-2 border-y border-[#F3E4EC] py-3.5">
+        <ol className="mb-5 mt-4 flex flex-col gap-2 border-y border-line py-3.5">
           {passos.map((passo, i) => (
-            <li key={passo} className="flex gap-2.5 text-[13px] leading-[1.45] text-[#2A1B26]">
-              <span className="w-4 shrink-0 font-mono text-[11px] leading-[19px] text-[#8E7C86]">
+            <li key={passo} className="flex gap-2.5 text-[13px] leading-[1.45] text-ink">
+              <span className="w-4 shrink-0 font-mono text-[11px] leading-[19px] text-stone">
                 {i + 1}
               </span>
               {passo}
@@ -73,9 +71,9 @@ export default async function Page() {
         />
       </Card>
 
-      <p className="text-center text-[13px] text-[#8E7C86]">
+      <p className="text-center text-[13px] text-stone">
         Já tem conta?{" "}
-        <Link href="/entrar" className="font-semibold hover:underline" style={{ color: accent }}>
+        <Link href="/entrar" className="font-semibold text-accent hover:underline">
           Entrar
         </Link>
       </p>

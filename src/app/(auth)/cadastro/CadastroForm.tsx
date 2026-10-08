@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/Button";
 import { CONTROLE, Field, FieldRow } from "@/components/ui/Field";
 import { Icone } from "@/components/ui/Icone";
 import { Note } from "@/components/ui/Note";
-import { useTheme } from "@/components/theme/ThemeProvider";
 import { cadastrar, type CadastroState } from "@/lib/cadastro/acoes";
 import { SENHA_MIN } from "@/lib/auth/senha";
 import { CAMPO_ARMADILHA, OBJETIVO_MAX } from "@/lib/cadastro/regras";
@@ -30,7 +29,6 @@ export function CadastroForm({
 }) {
   const [estado, despachar, enviando] = useActionState(cadastrar, INICIAL);
   const [, iniciar] = useTransition();
-  const { accent } = useTheme();
 
   function aoEnviar(evento: FormEvent<HTMLFormElement>) {
     evento.preventDefault();
@@ -46,7 +44,7 @@ export function CadastroForm({
     href === null ? (
       texto
     ) : (
-      <a href={href} target="_blank" rel="noreferrer" className="underline" style={{ color: accent }}>
+      <a href={href} target="_blank" rel="noreferrer" className="text-accent underline">
         {texto}
       </a>
     );
@@ -56,7 +54,7 @@ export function CadastroForm({
       {estado.erro !== null && (
         <p
           role="alert"
-          className="rounded-[10px] border border-[#F2CFC8] bg-[#FBEAE7] px-3 py-2.5 text-[13px] text-[#A63A2E]"
+          className="rounded-[10px] border border-danger-line bg-danger-soft px-3 py-2.5 text-[13px] text-danger"
         >
           {estado.erro}
         </p>
@@ -191,14 +189,13 @@ export function CadastroForm({
         <input id="cad-site" name={CAMPO_ARMADILHA} tabIndex={-1} autoComplete="off" />
       </div>
 
-      <label className="flex items-start gap-2.5 text-[13px] leading-[1.5] text-[#2A1B26]">
+      <label className="flex items-start gap-2.5 text-[13px] leading-[1.5] text-ink">
         <input
           type="checkbox"
           name="aceite"
           required
           disabled={enviando}
-          className="mt-[3px] h-4 w-4 shrink-0"
-          style={{ accentColor: accent }}
+          className="mt-[3px] h-4 w-4 shrink-0 accent-accent"
         />
         <span>
           Li e aceito os {link(termosUrl, "termos de uso")} e a{" "}
@@ -217,10 +214,10 @@ function Enviado({ email }: { email: string }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-start gap-3">
-        <Icone nome="mail" tamanho={20} className="mt-1 shrink-0 text-[#8E7C86]" />
+        <Icone nome="mail" tamanho={20} className="mt-1 shrink-0 text-stone" />
         <div>
           <h2 className="text-[22px]">Confira seu e-mail</h2>
-          <p className="mt-1 text-[13px] leading-[1.5] text-[#2A1B26]">
+          <p className="mt-1 text-[13px] leading-[1.5] text-ink">
             Enviamos um link para <span className="font-semibold">{email}</span>. Confirme o endereço
             para o pedido seguir para análise.
           </p>

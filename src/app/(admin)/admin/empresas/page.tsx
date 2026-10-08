@@ -46,7 +46,7 @@ export default async function Page() {
           title={cap(contagem(empresas.length, t.org, t.orgs))}
           icone="building"
           action={
-            <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-[#8E7C86]">
+            <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-stone">
               Saldo = não alocadas
             </span>
           }
@@ -76,7 +76,7 @@ export default async function Page() {
                 {empresas.map((empresa) => (
                   <tr
                     key={empresa.id}
-                    className="group relative transition-colors hover:bg-[#FDF8FB] focus-within:bg-[#FDF8FB]"
+                    className="group relative transition-colors hover:bg-mist focus-within:bg-mist"
                   >
                     <Td>
                       <div className="flex items-center gap-2.5">
@@ -95,7 +95,7 @@ export default async function Page() {
                       </div>
                     </Td>
                     <Td>
-                      <span className="font-mono text-[12px] text-[#8E7C86]">
+                      <span className="font-mono text-[12px] text-stone">
                         {empresa.cnpj === null ? "—" : cnpj(empresa.cnpj)}
                       </span>
                     </Td>
@@ -108,7 +108,7 @@ export default async function Page() {
                     <Td align="right" className="w-8">
                       <Icone
                         nome="chevron-right"
-                        className="text-[#D9C3CF] transition-colors group-hover:text-[#C2317A]"
+                        className="text-ghost transition-colors group-hover:text-accent"
                       />
                     </Td>
                   </tr>
@@ -121,14 +121,14 @@ export default async function Page() {
         {ehOperadora ? (
           <Card title={`Nova ${t.org.toLowerCase()}`} icone="building">
             <NovaEmpresaForm termoEmpresa={t.org} />
-            <p className="mt-3.5 text-[12px] leading-[1.45] text-[#8E7C86]">
+            <p className="mt-3.5 text-[12px] leading-[1.45] text-stone">
               {cap(t.org)} nasce com contrato zero. O bloco de {t.fichas} é registrado depois, na
               tela dela — é o lançamento que cria a moeda.
             </p>
           </Card>
         ) : (
           <Card title="Só leitura">
-            <p className="text-[13px] leading-[1.5] text-[#8E7C86]">
+            <p className="text-[13px] leading-[1.5] text-stone">
               A moderação acompanha as empresas mas não mexe em contrato nem em aparência.
             </p>
           </Card>

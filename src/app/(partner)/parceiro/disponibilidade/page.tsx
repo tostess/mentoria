@@ -122,7 +122,7 @@ export default async function Page() {
           <Card
             title={`Próximos ${config.limits.bookingHorizonDays} dias`}
             action={
-              <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-[#8E7C86]">
+              <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-stone">
                 {livres.length} {livres.length === 1 ? "horário" : "horários"}
               </span>
             }
@@ -140,14 +140,14 @@ export default async function Page() {
               <div className="flex flex-col gap-4">
                 {porDia.map((dia) => (
                   <div key={dia.chave}>
-                    <div className="mb-2 font-mono text-[10px] uppercase tracking-[0.12em] text-[#8E7C86]">
+                    <div className="mb-2 font-mono text-[10px] uppercase tracking-[0.12em] text-stone">
                       {dia.rotulo}
                     </div>
                     <div className="flex flex-wrap gap-1.5">
                       {dia.horas.map((hora) => (
                         <span
                           key={hora}
-                          className="rounded-[8px] border border-[#F3E4EC] bg-white px-2.5 py-1 font-mono text-[12.5px] tabular-nums"
+                          className="rounded-[8px] border border-line bg-surface px-2.5 py-1 font-mono text-[12.5px] tabular-nums"
                         >
                           {hora}
                         </span>
@@ -189,7 +189,7 @@ function ListaDeFolgas({
 }) {
   if (grupos.length === 0) {
     return (
-      <p className="text-[13px] leading-[1.5] text-[#8E7C86]">
+      <p className="text-[13px] leading-[1.5] text-stone">
         Nenhuma folga marcada. Use para férias, um dia de congresso ou uma manhã ocupada — e o
         horário extra para atender fora da sua semana.
       </p>
@@ -197,7 +197,7 @@ function ListaDeFolgas({
   }
 
   return (
-    <ul className="flex flex-col divide-y divide-[#F3E4EC] rounded-[12px] border border-[#F3E4EC]">
+    <ul className="flex flex-col divide-y divide-line rounded-[12px] border border-line">
       {grupos.map((grupo) => {
         const { periodo, faixa } = rotuloDaFolga(grupo);
         const marcadas = sessoesNoBloqueio(grupo, sessoes);
@@ -208,11 +208,11 @@ function ListaDeFolgas({
                 <Pill variant={grupo.tipo === "extra" ? "on" : "off"}>
                   {grupo.tipo === "extra" ? "Extra" : "Folga"}
                 </Pill>
-                <span className="font-mono text-[12.5px] tabular-nums text-[#2A1B26]">{periodo}</span>
+                <span className="font-mono text-[12.5px] tabular-nums text-ink">{periodo}</span>
               </div>
-              <span className="text-[12.5px] text-[#8E7C86]">{faixa}</span>
+              <span className="text-[12.5px] text-stone">{faixa}</span>
               {marcadas > 0 && (
-                <span className="text-[12.5px] leading-[1.45] text-[#8A5D0C]">
+                <span className="text-[12.5px] leading-[1.45] text-gold-text">
                   {marcadas === 1
                     ? "1 sessão marcada nesse período continua de pé — cancele pela agenda se não for atender."
                     : `${marcadas} sessões marcadas nesse período continuam de pé — cancele pela agenda se não for atender.`}
@@ -256,7 +256,7 @@ function Resumo({ avaliacoes }: { avaliacoes: readonly { recusa: string | null }
           .sort((a, b) => b[1] - a[1])
           .map(([motivo, quantos]) => (
             <li key={motivo} className="flex items-baseline justify-between gap-3">
-              <span className="text-[#8E7C86]">{FRASES[motivo] ?? motivo}</span>
+              <span className="text-stone">{FRASES[motivo] ?? motivo}</span>
               <span className="font-mono tabular-nums">{quantos}</span>
             </li>
           ))}

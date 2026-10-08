@@ -117,7 +117,7 @@ export default async function Page({
               title="Livro-caixa do contrato"
               icone="contract"
               action={
-                <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-[#8E7C86]">
+                <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-stone">
                   Não se apaga
                 </span>
               }
@@ -135,10 +135,10 @@ export default async function Page({
                     return (
                       <li
                         key={lancamento.id}
-                        className="grid grid-cols-[32px_1fr_auto] items-center gap-3 border-t border-[#F3E4EC] py-2.5 first:border-t-0 first:pt-0"
+                        className="grid grid-cols-[32px_1fr_auto] items-center gap-3 border-t border-line py-2.5 first:border-t-0 first:pt-0"
                       >
                         <span
-                          className="grid h-8 w-8 place-items-center rounded-full bg-[#FBF1DE] text-[#C98A2E]"
+                          className="grid h-8 w-8 place-items-center rounded-full bg-gold-soft text-gold"
                           title={tipo.rotulo}
                         >
                           <Icone nome={tipo.icone} tamanho={15} />
@@ -154,7 +154,7 @@ export default async function Page({
                         />
                         <span
                           className={`font-mono text-[13.5px] font-semibold tabular-nums ${
-                            lancamento.quantidade > 0 ? "text-[#2E6B52]" : "text-[#2A1B26]"
+                            lancamento.quantidade > 0 ? "text-success" : "text-ink"
                           }`}
                         >
                           {lancamento.quantidade > 0 ? "+" : "−"}
@@ -187,7 +187,7 @@ export default async function Page({
                   teto={teto}
                   termoFichas={t.fichas}
                 />
-                <p className="mt-3.5 text-[12px] leading-[1.45] text-[#8E7C86]">
+                <p className="mt-3.5 text-[12px] leading-[1.45] text-stone">
                   Alocar tira do contrato e põe na carteira numa transação só. Se um dos dois lados
                   falhar, nenhum dos dois acontece.
                 </p>
@@ -199,7 +199,7 @@ export default async function Page({
             </div>
           ) : (
             <Card title="Só leitura">
-              <p className="text-[13px] leading-[1.5] text-[#8E7C86]">
+              <p className="text-[13px] leading-[1.5] text-stone">
                 A moderação lê o livro-caixa mas não lança nele. Contrato e alocação são da
                 operadora.
               </p>

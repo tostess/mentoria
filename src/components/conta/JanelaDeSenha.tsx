@@ -55,7 +55,7 @@ export function JanelaDeSenha({
       ref={ref}
       aria-labelledby={titulo}
       onClose={aoFechar}
-      className="m-auto max-h-[calc(100%-32px)] w-[calc(100%-32px)] max-w-[440px] overflow-y-auto rounded-[14px] border border-[#F3E4EC] bg-white p-0 text-[#2A1B26] backdrop:bg-[#2A1B26]/45"
+      className="m-auto max-h-[calc(100%-32px)] w-[calc(100%-32px)] max-w-[440px] overflow-y-auto rounded-[14px] border border-line bg-surface p-0 text-ink backdrop:bg-ink/45"
     >
       {modo !== null && (
         <Conteudo key={modo} modo={modo} email={email} idTitulo={titulo} aoFechar={aoFechar} />
@@ -93,14 +93,14 @@ function Conteudo({
   return (
     <div className="flex flex-col gap-4 p-6">
       <div className="flex items-start gap-3">
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] bg-[#FBF1DE] text-[#8A5D0C]">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] bg-gold-soft text-gold-text">
           <Icone nome="key" tamanho={17} />
         </span>
         <div>
           <h2 id={idTitulo} className="font-display text-[24px] font-bold leading-[1.05]">
             {aviso ? "Crie sua senha" : "Redefinir senha"}
           </h2>
-          <p className="mt-1.5 text-[13.5px] leading-[1.5] text-[#8E7C86]">
+          <p className="mt-1.5 text-[13.5px] leading-[1.5] text-stone">
             {aviso
               ? "Você entrou com uma senha provisória, criada por outra pessoa e enviada a você por mensagem. Troque agora por uma que só você conhece."
               : "Para trocar, confirme a senha que você usa hoje."}
@@ -166,12 +166,12 @@ function Conteudo({
             />
           </Field>
 
-          <label className="flex items-center gap-2 text-[12.5px] text-[#8E7C86]">
+          <label className="flex items-center gap-2 text-[12.5px] text-stone">
             <input
               type="checkbox"
               checked={mostrar}
               onChange={(e) => setMostrar(e.target.checked)}
-              className="h-3.5 w-3.5 accent-[#C2317A]"
+              className="h-3.5 w-3.5 accent-accent"
             />
             Mostrar as senhas
           </label>
@@ -186,7 +186,7 @@ function Conteudo({
           </div>
 
           {aviso && (
-            <p className="text-[12px] leading-[1.45] text-[#8E7C86]">
+            <p className="text-[12px] leading-[1.45] text-stone">
               Enquanto a senha provisória valer, este aviso aparece sempre que você entrar.
             </p>
           )}

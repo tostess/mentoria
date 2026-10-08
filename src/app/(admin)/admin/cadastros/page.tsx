@@ -81,7 +81,7 @@ export default async function Page() {
                   <tr key={d.id}>
                     <Td>
                       <CellStack
-                        title={d.anonimizado ? <span className="text-[#8E7C86]">{d.nome}</span> : d.nome}
+                        title={d.anonimizado ? <span className="text-stone">{d.nome}</span> : d.nome}
                         sub={d.email ?? undefined}
                       />
                     </Td>
@@ -89,7 +89,7 @@ export default async function Page() {
                       <div className="flex flex-col items-start gap-1">
                         <Pill variant={d.aprovado ? "on" : "bad"}>{d.aprovado ? "Aprovado" : "Recusado"}</Pill>
                         {d.motivo !== null && (
-                          <span className="max-w-[280px] text-[12px] leading-[1.4] text-[#8E7C86]">
+                          <span className="max-w-[280px] text-[12px] leading-[1.4] text-stone">
                             {d.motivo}
                           </span>
                         )}
@@ -99,7 +99,7 @@ export default async function Page() {
                       <span className="text-[13px]">{d.decididoPor ?? "—"}</span>
                     </Td>
                     <Td>
-                      <span className="font-mono text-[12px] text-[#8E7C86]" title={dataHora(d.decididoEm)}>
+                      <span className="font-mono text-[12px] text-stone" title={dataHora(d.decididoEm)}>
                         {quandoRelativo(d.decididoEm, agora)}
                       </span>
                     </Td>

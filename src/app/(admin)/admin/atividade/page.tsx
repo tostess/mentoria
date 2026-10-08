@@ -43,7 +43,7 @@ export default async function Page({
         icone="history"
         action={
           eventos.length === LIMITE ? (
-            <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-[#8E7C86]">
+            <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-stone">
               Últimas {LIMITE}
             </span>
           ) : undefined
@@ -93,8 +93,8 @@ function ChipLink({
       aria-current={ativo ? "page" : undefined}
       className={`rounded-[8px] border px-[11px] py-[6px] text-[12.5px] transition-colors ${
         ativo
-          ? "border-transparent bg-[#FCEDF4] font-semibold text-[#8E1E58]"
-          : "border-[#EAD6E1] bg-white text-[#8E7C86] hover:text-[#2A1B26]"
+          ? "border-transparent bg-blush font-semibold text-deep"
+          : "border-line2 bg-surface text-stone hover:text-ink"
       }`}
     >
       {children}

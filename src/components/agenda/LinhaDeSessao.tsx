@@ -36,15 +36,15 @@ export function LinhaDeSessao({
   const sub = [sessao.outro.cargo, sessao.outro.empresa].filter(Boolean).join(" · ");
 
   return (
-    <li className="grid grid-cols-[52px_1fr] items-center gap-x-3.5 gap-y-2 border-t border-[#F3E4EC] py-[13px] first:border-t-0 first:pt-0 sm:grid-cols-[62px_1fr_auto]">
-      <div className="rounded-[10px] border border-[#F3E4EC] bg-white pb-[7px] pt-1.5 text-center">
+    <li className="grid grid-cols-[52px_1fr] items-center gap-x-3.5 gap-y-2 border-t border-line py-[13px] first:border-t-0 first:pt-0 sm:grid-cols-[62px_1fr_auto]">
+      <div className="rounded-[10px] border border-line bg-surface pb-[7px] pt-1.5 text-center">
         <div
-          className={`font-mono text-[9px] uppercase tracking-[0.12em] ${passada ? "text-[#8E7C86]" : "text-[#C2317A]"}`}
+          className={`font-mono text-[9px] uppercase tracking-[0.12em] ${passada ? "text-stone" : "text-accent"}`}
         >
           {diaDaSemanaCurto(sessao.inicio, fuso)}
         </div>
         <div
-          className={`font-display text-[24px] font-bold leading-none ${passada ? "text-[#8E7C86]" : ""}`}
+          className={`font-display text-[24px] font-bold leading-none ${passada ? "text-stone" : ""}`}
         >
           {diaDoMes(sessao.inicio, fuso)}
         </div>
@@ -54,11 +54,11 @@ export function LinhaDeSessao({
         <Avatar name={sessao.outro.nome} photoUrl={sessao.outro.foto} size="sm" />
         <div className="min-w-0">
           <div className="truncate font-semibold">{sessao.outro.nome}</div>
-          <div className="font-mono text-[11px] text-[#8E7C86]">
+          <div className="font-mono text-[11px] text-stone">
             {intervalo(sessao.inicio, sessao.fim, fuso)}
           </div>
-          {sub && <div className="text-[12.5px] leading-[1.4] text-[#8E7C86]">{sub}</div>}
-          {detalhe && <div className="mt-1 text-[12.5px] leading-[1.45] text-[#8E7C86]">{detalhe}</div>}
+          {sub && <div className="text-[12.5px] leading-[1.4] text-stone">{sub}</div>}
+          {detalhe && <div className="mt-1 text-[12.5px] leading-[1.45] text-stone">{detalhe}</div>}
         </div>
       </div>
 

@@ -17,10 +17,10 @@ import type { Terms } from "@/lib/terms";
  */
 
 const TONS: Record<Tom, string> = {
-  accent: "bg-[#FCEDF4] text-[#8E1E58]",
-  gold: "bg-[#FBF1DE] text-[#C98A2E]",
-  neutral: "bg-[#FDF8FB] text-[#8E7C86]",
-  bad: "bg-[#FBEAE7] text-[#A63A2E]",
+  accent: "bg-blush text-deep",
+  gold: "bg-gold-soft text-gold",
+  neutral: "bg-mist text-stone",
+  bad: "bg-danger-soft text-danger",
 };
 
 export function FeedDeAtividade({
@@ -39,13 +39,13 @@ export function FeedDeAtividade({
         return (
           <li
             key={evento.id}
-            className="grid grid-cols-[32px_1fr] gap-3 border-t border-[#F3E4EC] py-[11px] first:border-t-0 first:pt-0 last:pb-0"
+            className="grid grid-cols-[32px_1fr] gap-3 border-t border-line py-[11px] first:border-t-0 first:pt-0 last:pb-0"
           >
             <span className={`grid h-8 w-8 place-items-center rounded-full ${TONS[tom]}`}>
               <Icone nome={icone} tamanho={15} />
             </span>
             <div className="min-w-0">
-              <p className="text-[13.5px] leading-[1.45] text-[#2A1B26]">
+              <p className="text-[13.5px] leading-[1.45] text-ink">
                 {partes.map((parte, i) =>
                   parte.forte ? (
                     <strong key={i} className="font-semibold">
@@ -59,7 +59,7 @@ export function FeedDeAtividade({
               <time
                 dateTime={evento.quando.toISOString()}
                 title={dataHora(evento.quando)}
-                className="mt-0.5 block font-mono text-[10.5px] text-[#8E7C86]"
+                className="mt-0.5 block font-mono text-[10.5px] text-stone"
               >
                 {quandoRelativo(evento.quando, agora)}
               </time>

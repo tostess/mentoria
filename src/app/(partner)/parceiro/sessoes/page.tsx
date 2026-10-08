@@ -70,14 +70,14 @@ export default async function Page() {
             icone="inbox"
             action={
               pedidos.length > 0 ? (
-                <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-[#8E7C86]">
+                <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-stone">
                   {pedidos.length} {pedidos.length === 1 ? "pedido" : "pedidos"}
                 </span>
               ) : undefined
             }
           >
             {pedidos.length === 0 ? (
-              <p className="text-[13px] text-[#8E7C86]">Nenhum pedido esperando você.</p>
+              <p className="text-[13px] text-stone">Nenhum pedido esperando você.</p>
             ) : (
               <ul className="flex flex-col">
                 {pedidos.map((s) => {

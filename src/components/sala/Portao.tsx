@@ -12,7 +12,7 @@ export function Portao({
   voltar,
   titulo,
   icone,
-  tomDoIcone = "text-[#8E7C86]",
+  tomDoIcone = "text-stone",
   quem,
   children,
 }: {
@@ -25,18 +25,18 @@ export function Portao({
   children?: ReactNode;
 }) {
   return (
-    <div className="min-h-[100dvh] bg-[#FDF8FB]">
-      <header className="flex items-center gap-4 border-b border-[#F3E4EC] bg-white px-4 py-3 lg:px-5">
+    <div className="min-h-[100dvh] bg-mist">
+      <header className="flex items-center gap-4 border-b border-line bg-surface px-4 py-3 lg:px-5">
         {voltar && (
           <>
             <Link
               href={voltar}
-              className="inline-flex items-center gap-1.5 text-[13px] text-[#8E7C86] hover:text-[#C2317A]"
+              className="inline-flex items-center gap-1.5 text-[13px] text-stone hover:text-accent"
             >
               <Icone nome="chevron-left" tamanho={14} />
               Voltar
             </Link>
-            {quem && <span className="h-7 w-px bg-[#F3E4EC]" />}
+            {quem && <span className="h-7 w-px bg-line" />}
           </>
         )}
         {quem && (
@@ -44,7 +44,7 @@ export function Portao({
             <Avatar name={quem.nome} photoUrl={quem.foto} size="sm" />
             <div className="min-w-0">
               <div className="truncate font-semibold leading-tight">{quem.titulo}</div>
-              <div className="font-mono text-[11px] text-[#8E7C86]">{quem.quando}</div>
+              <div className="font-mono text-[11px] text-stone">{quem.quando}</div>
             </div>
           </div>
         )}

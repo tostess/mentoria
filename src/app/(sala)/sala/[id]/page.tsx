@@ -43,7 +43,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   if (sala === null) {
     return (
       <Portao voltar={voltar} icone="alerta" titulo={`Não encontramos essa ${t.session} na sua agenda`}>
-        <p className="text-[14px] text-[#8E7C86]">Confira o endereço, ou volte para a agenda e entre por lá.</p>
+        <p className="text-[14px] text-stone">Confira o endereço, ou volte para a agenda e entre por lá.</p>
       </Portao>
     );
   }
@@ -66,7 +66,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     if (agoraNaSala.motivo === "nao-confirmada") {
       return (
         <Portao voltar={voltar} quem={quem} icone="info" titulo={`Esta ${t.session} não está confirmada`}>
-          <p className="text-[14px] text-[#8E7C86]">
+          <p className="text-[14px] text-stone">
             A sala só abre para {t.sessions} confirmadas. A agenda mostra em que pé ela está.
           </p>
           <ButtonLink href={voltar} variant="ghost" className="mt-2">
@@ -85,7 +85,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         icone="clock"
         titulo={hoje ? `A sala abre às ${hora(abre, fuso)}` : `A sala abre ${diaEHora(abre, fuso)}`}
       >
-        <p className="text-[14px] text-[#8E7C86]">
+        <p className="text-[14px] text-stone">
           Dez minutos antes do horário, para você testar câmera e microfone sem pressa.
           {abre.getTime() - agora.getTime() < CONTAGEM_A_PARTIR_DE &&
             " Esta página entra sozinha quando abrir — pode deixá-la aberta."}

@@ -18,13 +18,13 @@ export function PageHeader({ eyebrow, title, description, actions, lead }: Props
         <div className="min-w-0">
           {/* `div` e não `span`: a trilha de migalhas é um `nav` com lista. */}
           {eyebrow && (
-            <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#8E7C86]">
+            <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-stone">
               {eyebrow}
             </div>
           )}
           <h1 className="text-[33px] lg:text-[40px]">{title}</h1>
           {description && (
-            <p className="mt-[7px] max-w-[60ch] text-[14px] text-[#8E7C86]">{description}</p>
+            <p className="mt-[7px] max-w-[60ch] text-[14px] text-stone">{description}</p>
           )}
         </div>
       </div>

@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/Button";
 import { entrar, type EntrarState } from "@/lib/auth/actions";
 
 const field =
-  "w-full rounded-[10px] border border-[#EAD6E1] bg-white px-3 py-2.5 text-[13.5px] text-[#2A1B26] outline-none focus:border-[#C2317A] disabled:bg-[#FDF8FB]";
-const label = "mb-1.5 block font-mono text-[9.5px] uppercase tracking-[0.12em] text-[#8E7C86]";
+  "w-full rounded-[10px] border border-line2 bg-surface px-3 py-2.5 text-[13.5px] text-ink outline-none focus:border-accent disabled:bg-mist";
+const label = "mb-1.5 block font-mono text-[9.5px] uppercase tracking-[0.12em] text-stone";
 
 const INICIAL: EntrarState = { erro: null };
 
@@ -22,7 +22,7 @@ export function EntrarForm({ next, aviso }: { next: string | null; aviso: string
       {erro !== null && (
         <p
           role="alert"
-          className="rounded-[10px] border border-[#F2CFC8] bg-[#FBEAE7] px-3 py-2.5 text-[13px] text-[#A63A2E]"
+          className="rounded-[10px] border border-danger-line bg-danger-soft px-3 py-2.5 text-[13px] text-danger"
         >
           {erro}
         </p>
@@ -51,7 +51,7 @@ export function EntrarForm({ next, aviso }: { next: string | null; aviso: string
           </label>
           <Link
             href="/recuperar-senha"
-            className="mb-1.5 text-[12px] text-[#8E7C86] underline-offset-2 hover:text-[#2A1B26] hover:underline"
+            className="mb-1.5 text-[12px] text-stone underline-offset-2 hover:text-ink hover:underline"
           >
             Esqueceu a senha?
           </Link>

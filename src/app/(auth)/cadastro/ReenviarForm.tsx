@@ -33,12 +33,12 @@ export function ReenviarForm({ email }: { email: string | null }) {
       )}
 
       {estado.erro !== null && (
-        <p role="alert" className="text-[13px] text-[#A63A2E]">
+        <p role="alert" className="text-[13px] text-danger">
           {estado.erro}
         </p>
       )}
       {estado.ok !== null && (
-        <p role="status" className="text-[13px] text-[#2E6B52]">
+        <p role="status" className="text-[13px] text-success">
           {estado.ok}
         </p>
       )}

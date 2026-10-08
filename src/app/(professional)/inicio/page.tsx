@@ -60,9 +60,9 @@ export default async function Page() {
 
       <div className="flex flex-col gap-[18px]">
         {proxima ? (
-          <div className="grid grid-cols-[auto_1fr] items-center gap-[18px] rounded-[14px] border border-[#F3E4EC] bg-white p-[22px] sm:grid-cols-[auto_1fr_auto]">
-            <div className="w-[72px] rounded-[10px] border border-[#F3E4EC] pb-2.5 pt-[9px] text-center">
-              <div className="font-mono text-[9px] uppercase tracking-[0.12em] text-[#C2317A]">
+          <div className="grid grid-cols-[auto_1fr] items-center gap-[18px] rounded-[14px] border border-line bg-surface p-[22px] sm:grid-cols-[auto_1fr_auto]">
+            <div className="w-[72px] rounded-[10px] border border-line pb-2.5 pt-[9px] text-center">
+              <div className="font-mono text-[9px] uppercase tracking-[0.12em] text-accent">
                 {diaDaSemanaCurto(proxima.inicio, fuso)}
               </div>
               <div className="font-display text-[32px] font-bold leading-none">
@@ -70,14 +70,14 @@ export default async function Page() {
               </div>
             </div>
             <div className="min-w-0">
-              <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#8E7C86]">
+              <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-stone">
                 {salaDaProxima ? "A sala está aberta" : `Próxima ${t.session}`}
               </div>
               <h2 className="mt-1 text-[26px] capitalize">
                 {diaDaSemanaLongo(proxima.inicio, fuso)} · {hora(proxima.inicio, fuso)}
               </h2>
-              <p className="mt-0.5 text-[12.5px] text-[#8E7C86]">
-                Com <b className="text-[#2A1B26]">{proxima.outro.nome}</b> ·{" "}
+              <p className="mt-0.5 text-[12.5px] text-stone">
+                Com <b className="text-ink">{proxima.outro.nome}</b> ·{" "}
                 {Math.round((proxima.fim.getTime() - proxima.inicio.getTime()) / 60_000)} minutos
                 {abreDaProxima && ` · ${abreDaProxima}`}
               </p>
@@ -106,14 +106,14 @@ export default async function Page() {
             title="Esperando resposta"
             icone="clock"
             action={
-              <Link href="/agenda" className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-[#C2317A]">
+              <Link href="/agenda" className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-accent">
                 Minha agenda
                 <Icone nome="chevron-right" tamanho={13} />
               </Link>
             }
           >
             {pedidos.length === 0 ? (
-              <p className="text-[13px] text-[#8E7C86]">Nenhum pedido pendente.</p>
+              <p className="text-[13px] text-stone">Nenhum pedido pendente.</p>
             ) : (
               <ul className="flex flex-col">
                 {pedidos.map((s) => {
@@ -134,12 +134,12 @@ export default async function Page() {
           </Card>
 
           <div className="flex flex-col gap-[18px]">
-            <div className="rounded-[14px] bg-[#FBF1DE] p-[18px]">
+            <div className="rounded-[14px] bg-gold-soft p-[18px]">
               <div className="flex items-center gap-3 font-display text-[38px] font-bold leading-[0.9]">
                 {saldo > 0 && <FichaStack count={saldo} max={config.fichaPolicy.maxBalance} />}
                 {saldo}
               </div>
-              <div className="mt-2 font-mono text-[9.5px] uppercase tracking-[0.12em] text-[#8A5D0C]">
+              <div className="mt-2 font-mono text-[9.5px] uppercase tracking-[0.12em] text-gold-text">
                 {cap(t.fichas)} disponíveis
                 {pedidos.length > 0 && ` · ${pedidos.length} em pedido`}
               </div>

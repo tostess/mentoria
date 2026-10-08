@@ -9,7 +9,7 @@ export function Price({ fichas, className = "" }: { fichas: number; className?: 
   const terms = useTerms();
   return (
     <span
-      className={`inline-flex items-center gap-[5px] rounded-full bg-[#FBF1DE] py-1 pl-[6px] pr-[9px] font-mono text-[12px] font-semibold text-[#7A5209] ${className}`}
+      className={`inline-flex items-center gap-[5px] rounded-full bg-gold-soft py-1 pl-[6px] pr-[9px] font-mono text-[12px] font-semibold text-gold-ink ${className}`}
       aria-label={countFichas(fichas, terms)}
     >
       <Ficha size="s" />

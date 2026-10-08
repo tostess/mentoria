@@ -60,8 +60,8 @@ export function CancelarSessao({
 
   if (estado.fase === "confirmando" || estado.fase === "enviando") {
     return (
-      <div className="mt-1 flex max-w-[440px] flex-col gap-2.5 rounded-[12px] bg-[#FBEAE7] px-3.5 py-3">
-        <p className="text-[13px] leading-[1.45] text-[#A63A2E]">{pergunta}</p>
+      <div className="mt-1 flex max-w-[440px] flex-col gap-2.5 rounded-[12px] bg-danger-soft px-3.5 py-3">
+        <p className="text-[13px] leading-[1.45] text-danger">{pergunta}</p>
         <div className="flex flex-wrap gap-2">
           <Button variant="warn" size="sm" disabled={estado.fase === "enviando"} onClick={() => void cancelar()}>
             {estado.fase === "enviando" ? "Cancelando…" : confirmar}
@@ -89,14 +89,14 @@ export function CancelarSessao({
         <button
           type="button"
           onClick={() => setEstado({ fase: "confirmando" })}
-          className="text-[12.5px] font-semibold text-[#8E7C86] hover:text-[#A63A2E] hover:underline"
+          className="text-[12.5px] font-semibold text-stone hover:text-danger hover:underline"
         >
           Cancelar
         </button>
-        {prazo && <span className="text-[12px] text-[#8E7C86]">· {prazo}</span>}
+        {prazo && <span className="text-[12px] text-stone">· {prazo}</span>}
       </span>
       {estado.fase === "erro" && (
-        <span role="alert" className="block text-[12px] text-[#A63A2E]">
+        <span role="alert" className="block text-[12px] text-danger">
           {estado.texto}
         </span>
       )}

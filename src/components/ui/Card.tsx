@@ -21,14 +21,14 @@ export function Card({
   children,
   ...rest
 }: Props) {
-  const border = flat ? "border-transparent" : "border-[#F3E4EC]";
+  const border = flat ? "border-transparent" : "border-line";
   return (
-    <div className={`rounded-[14px] border bg-white p-5 ${border} ${className}`} {...rest}>
+    <div className={`rounded-[14px] border bg-surface p-5 ${border} ${className}`} {...rest}>
       {(title || action) && (
         <div className="mb-4 flex items-center justify-between gap-3.5">
           {title ? (
             <h3 className="flex items-center gap-2 text-[20px]">
-              {icone && <Icone nome={icone} tamanho={17} className="text-[#8E7C86]" />}
+              {icone && <Icone nome={icone} tamanho={17} className="text-stone" />}
               {title}
             </h3>
           ) : (

@@ -1,9 +1,11 @@
 /**
  * Tema resolvido da plataforma.
  *
- * O produto é white-label: só o `accent` (e o logotipo) mudam por empresa.
- * O magenta abaixo é apenas o default da plataforma. Nenhum componente deve
- * escrever o accent como literal — sempre ler de `useTheme()` ou receber por prop.
+ * O produto é white-label. O magenta abaixo é só o default da plataforma, e
+ * nenhum componente escreve cor como literal: a cor chega à tela como token do
+ * Tailwind (`bg-accent`, `text-stone`), que lê as variáveis `--cor-*` que o
+ * layout raiz põe em `<html>` com `variaveisDoTema()`. `useTheme()` fica para
+ * quem precisa do valor em JS — o nome e o logotipo.
  */
 
 export type Theme = {
@@ -16,6 +18,12 @@ export type Theme = {
   line: string;
   line2: string;
   stone: string;
+  /** Neutros de apoio, do mais escuro ao mais claro: texto de etiqueta, rótulo da marca, ícone apagado. */
+  stoneDark: string;
+  muted: string;
+  faint: string;
+  pale: string;
+  ghost: string;
   gold: string;
   goldSoft: string;
   goldInk: string;
@@ -49,6 +57,11 @@ export const DEFAULT_THEME: Theme = {
   line: "#F3E4EC",
   line2: "#EAD6E1",
   stone: "#8E7C86",
+  stoneDark: "#6E5F68",
+  muted: "#B3A3AC",
+  faint: "#BFAFB8",
+  pale: "#C6B8C0",
+  ghost: "#D9C3CF",
   gold: "#C98A2E",
   goldSoft: "#FBF1DE",
   goldInk: "#7A5209",
@@ -116,5 +129,60 @@ export function resolveTheme(branding: Branding | null): Theme {
     accent: normalizeHex(branding?.accent) ?? DEFAULT_THEME.accent,
     platformName: branding?.name?.trim() || DEFAULT_THEME.platformName,
     logoUrl: branding?.logoUrl?.trim() || null,
+  };
+}
+
+/**
+ * O tom de borda que acompanha o accent. O default é o tom escolhido à mão no
+ * protótipo; para outra marca, o accent sobre branco a 38%, que reproduz o
+ * default com menos de 2 pontos de diferença por canal.
+ */
+export function accentLine(accent: string): string {
+  if (accent === DEFAULT_THEME.accent) return "#E7B3CC";
+  return misturar(accent, "#FFFFFF", 0.38);
+}
+
+/** `cor` sobre `fundo` com opacidade `peso`, já resolvida em hex opaco. */
+export function misturar(cor: string, fundo: string, peso: number): string {
+  const canal = (hex: string, i: number) => parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16);
+  const p = Math.max(0, Math.min(1, peso));
+  const partes = [0, 1, 2].map((i) =>
+    Math.round(canal(cor, i) * p + canal(fundo, i) * (1 - p))
+      .toString(16)
+      .padStart(2, "0"),
+  );
+  return `#${partes.join("").toUpperCase()}`;
+}
+
+/**
+ * As variáveis `--cor-*` da marca, para `<html style>` (ou para o `div` de uma
+ * prévia, ou da entrada com a marca da empresa). Os tons fixos — ouro,
+ * sucesso, erro — não entram: moram só em `globals.css`.
+ *
+ * Os derivados do accent saem calculados aqui, e não pelo `color-mix` do
+ * Tailwind (`bg-accent/10`): é o mesmo `withAlpha` de sempre, então o tema
+ * padrão continua igual pixel a pixel.
+ */
+export function variaveisDoTema(theme: Theme): Record<`--cor-${string}`, string> {
+  return {
+    "--cor-ink": theme.ink,
+    "--cor-mist": theme.mist,
+    "--cor-surface": theme.white,
+    "--cor-blush": theme.blush,
+    "--cor-accent": theme.accent,
+    "--cor-accent-10": withAlpha(theme.accent, 0.1),
+    "--cor-accent-12": withAlpha(theme.accent, 0.12),
+    "--cor-accent-line": accentLine(theme.accent),
+    "--cor-on-accent": onAccent(theme.accent),
+    "--cor-on-soft": onSoft(theme.accent),
+    "--cor-deep": theme.deep,
+    "--cor-line": theme.line,
+    "--cor-line2": theme.line2,
+    "--cor-stone": theme.stone,
+    "--cor-stone-dark": theme.stoneDark,
+    "--cor-muted": theme.muted,
+    "--cor-faint": theme.faint,
+    "--cor-pale": theme.pale,
+    "--cor-ghost": theme.ghost,
   };
 }

@@ -1,6 +1,64 @@
 @import "tailwindcss";
 
-/* Só fontes e raios aqui. Cor é sempre hex inline no componente. */
+/*
+ * Cor é token, não hex (F4, 07/10/2026). Cada empresa tem a própria marca, então
+ * a cor do componente é uma variável: `bg-accent`, `text-stone`, `border-line`.
+ *
+ * Duas famílias:
+ *
+ * - **Da marca** (`--cor-*` abaixo, até `ghost`): o layout raiz sobrescreve em
+ *   `<html style>` com `variaveisDoTema()` (`src/lib/theme.ts`), a partir da
+ *   marca da empresa de quem está logado. Os valores daqui são o default da
+ *   plataforma e precisam ser iguais a `variaveisDoTema(DEFAULT_THEME)` — um
+ *   teste confere.
+ * - **Fixas**: ouro da ficha, sucesso, erro, o "desligado" e a sala escura.
+ *   Significam a mesma coisa em todo cliente e não entram na personalização.
+ *
+ * Hex em classe de componente é recusado por `src/lib/cores.test.ts`.
+ */
+:root {
+  /* da marca — sobrescritas por empresa */
+  --cor-ink: #2A1B26;
+  --cor-mist: #FDF8FB;
+  --cor-surface: #FFFFFF;
+  --cor-blush: #FCEDF4;
+  --cor-accent: #C2317A;
+  --cor-accent-10: #C2317A1A;
+  --cor-accent-12: #C2317A1F;
+  --cor-accent-line: #E7B3CC;
+  --cor-on-accent: #FFFFFF;
+  --cor-on-soft: #C2317A;
+  --cor-deep: #8E1E58;
+  --cor-line: #F3E4EC;
+  --cor-line2: #EAD6E1;
+  --cor-stone: #8E7C86;
+  --cor-stone-dark: #6E5F68;
+  --cor-muted: #B3A3AC;
+  --cor-faint: #BFAFB8;
+  --cor-pale: #C6B8C0;
+  --cor-ghost: #D9C3CF;
+
+  /* fixas */
+  --cor-ink-night: #1E1319;
+  --cor-night-text: #F1DCE7;
+  --cor-off: #948A90;
+  --cor-off-soft: #F4F1F3;
+  --cor-gold: #C98A2E;
+  --cor-gold-soft: #FBF1DE;
+  --cor-gold-wash: #FFFAF0;
+  --cor-gold-line: #EFD9A8;
+  --cor-gold-pale: #E5C88F;
+  --cor-gold-text: #8A5D0C;
+  --cor-gold-ink: #7A5209;
+  --cor-gold-deep: #6B470A;
+  --cor-success: #2E6B52;
+  --cor-success-soft: #EAF6F0;
+  --cor-success-line: #CDE6DA;
+  --cor-danger: #A63A2E;
+  --cor-danger-soft: #FBEAE7;
+  --cor-danger-line: #F2CFC8;
+}
+
 @theme inline {
   --font-display: var(--font-darker-grotesque);
   --font-sans: var(--font-instrument-sans);
@@ -8,6 +66,45 @@
   --radius-card: 14px;
   --radius-btn: 10px;
   --radius-chip: 8px;
+
+  --color-ink: var(--cor-ink);
+  --color-mist: var(--cor-mist);
+  --color-surface: var(--cor-surface);
+  --color-blush: var(--cor-blush);
+  --color-accent: var(--cor-accent);
+  --color-accent-10: var(--cor-accent-10);
+  --color-accent-12: var(--cor-accent-12);
+  --color-accent-line: var(--cor-accent-line);
+  --color-on-accent: var(--cor-on-accent);
+  --color-on-soft: var(--cor-on-soft);
+  --color-deep: var(--cor-deep);
+  --color-line: var(--cor-line);
+  --color-line2: var(--cor-line2);
+  --color-stone: var(--cor-stone);
+  --color-stone-dark: var(--cor-stone-dark);
+  --color-muted: var(--cor-muted);
+  --color-faint: var(--cor-faint);
+  --color-pale: var(--cor-pale);
+  --color-ghost: var(--cor-ghost);
+
+  --color-ink-night: var(--cor-ink-night);
+  --color-night-text: var(--cor-night-text);
+  --color-off: var(--cor-off);
+  --color-off-soft: var(--cor-off-soft);
+  --color-gold: var(--cor-gold);
+  --color-gold-soft: var(--cor-gold-soft);
+  --color-gold-wash: var(--cor-gold-wash);
+  --color-gold-line: var(--cor-gold-line);
+  --color-gold-pale: var(--cor-gold-pale);
+  --color-gold-text: var(--cor-gold-text);
+  --color-gold-ink: var(--cor-gold-ink);
+  --color-gold-deep: var(--cor-gold-deep);
+  --color-success: var(--cor-success);
+  --color-success-soft: var(--cor-success-soft);
+  --color-success-line: var(--cor-success-line);
+  --color-danger: var(--cor-danger);
+  --color-danger-soft: var(--cor-danger-soft);
+  --color-danger-line: var(--cor-danger-line);
 }
 
 html,
@@ -16,8 +113,8 @@ body {
 }
 
 body {
-  background: #fdf8fb;
-  color: #2a1b26;
+  background: var(--cor-mist);
+  color: var(--cor-ink);
   font-family: var(--font-sans), system-ui, sans-serif;
   font-size: 14.5px;
   line-height: 1.55;
@@ -34,7 +131,7 @@ h3 {
 }
 
 ::selection {
-  background: #fcedf4;
+  background: var(--cor-blush);
 }
 
 /*

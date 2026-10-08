@@ -70,7 +70,7 @@ export default async function Page() {
               {carteira.saldo > 0 ? (
                 <FichaStack count={carteira.saldo} max={pessoal ? 6 : config.fichaPolicy.maxBalance} />
               ) : (
-                <span className="grid h-[38px] w-[38px] place-items-center rounded-full border border-dashed border-[#EAD6E1] text-[#BFAFB8]">
+                <span className="grid h-[38px] w-[38px] place-items-center rounded-full border border-dashed border-line2 text-faint">
                   <Icone nome="coins" tamanho={18} />
                 </span>
               )}
@@ -78,14 +78,14 @@ export default async function Page() {
                 <div className="font-display text-[44px] font-bold leading-[0.9]">
                   {carteira.saldo}
                 </div>
-                <div className="mt-1 font-mono text-[9.5px] uppercase tracking-[0.12em] text-[#8E7C86]">
+                <div className="mt-1 font-mono text-[9.5px] uppercase tracking-[0.12em] text-stone">
                   {cap(t.fichas)} disponíveis
                 </div>
               </div>
             </div>
 
             {carteira.saldo === 0 && (
-              <p className="mt-4 border-t border-[#F3E4EC] pt-4 text-[13px] leading-[1.5] text-[#8E7C86]">
+              <p className="mt-4 border-t border-line pt-4 text-[13px] leading-[1.5] text-stone">
                 {pessoal
                   ? `Sua carteira está vazia. ${deOndeVemAFicha(sessao.tipoDeConta, t)}`
                   : `Sua carteira está vazia. O ${t.orgAdmin} da sua empresa distribui as ${t.fichas}, e elas também são recarregadas no começo de cada mês.`}
@@ -93,14 +93,14 @@ export default async function Page() {
             )}
 
             {validades.length > 0 && (
-              <ul className="mt-4 flex flex-col gap-1.5 border-t border-[#F3E4EC] pt-4">
+              <ul className="mt-4 flex flex-col gap-1.5 border-t border-line pt-4">
                 {validades.map((validade) => (
                   <li
                     key={validade.venceEm.toISOString()}
                     className="flex items-center justify-between gap-3 text-[13px]"
                   >
                     <span>{countFichas(validade.restante, t)}</span>
-                    <span className="flex items-center gap-1.5 font-mono text-[11px] text-[#8E7C86]">
+                    <span className="flex items-center gap-1.5 font-mono text-[11px] text-stone">
                       <Icone nome="calendar-clock" tamanho={12} />
                       {validade.venceEm <= new Date()
                         ? `vencem em ${dia(validade.venceEm)}`
@@ -130,7 +130,7 @@ export default async function Page() {
               />
               <Linha rotulo={`Já usadas`} valor={countFichas(usadas, t)} />
             </dl>
-            <p className="mt-3 text-[12px] leading-[1.45] text-[#8E7C86]">
+            <p className="mt-3 text-[12px] leading-[1.45] text-stone">
               {regraDaFicha(sessao.tipoDeConta, meses, t)}
             </p>
           </Card>
@@ -141,7 +141,7 @@ export default async function Page() {
             title="Extrato"
             action={
               carteira.ultimoUso !== null ? (
-                <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-[#8E7C86]">
+                <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-stone">
                   Último uso {quandoRelativo(carteira.ultimoUso)}
                 </span>
               ) : undefined
@@ -161,29 +161,29 @@ export default async function Page() {
                 {extrato.map((lancamento) => (
                   <li
                     key={lancamento.id}
-                    className="grid grid-cols-[auto_1fr_auto] items-center gap-3 border-t border-[#F3E4EC] py-2.5 first:border-t-0 first:pt-0"
+                    className="grid grid-cols-[auto_1fr_auto] items-center gap-3 border-t border-line py-2.5 first:border-t-0 first:pt-0"
                   >
-                    <span className="grid h-[30px] w-[30px] place-items-center rounded-[9px] bg-[#FDF8FB] text-[#8E7C86]">
+                    <span className="grid h-[30px] w-[30px] place-items-center rounded-[9px] bg-mist text-stone">
                       <Icone nome={lancamento.icone} tamanho={15} />
                     </span>
                     <div className="min-w-0">
                       <div className="truncate text-[13.5px] font-semibold">
                         {lancamento.rotulo}
                       </div>
-                      <div className="truncate text-[12px] text-[#8E7C86]">
+                      <div className="truncate text-[12px] text-stone">
                         {lancamento.motivo ?? dataHora(lancamento.quando)}
                       </div>
                     </div>
                     <div className="text-right">
                       <div
                         className={`font-mono text-[14px] font-semibold tabular-nums ${
-                          lancamento.quantidade > 0 ? "text-[#2E6B52]" : "text-[#2A1B26]"
+                          lancamento.quantidade > 0 ? "text-success" : "text-ink"
                         }`}
                       >
                         {lancamento.quantidade > 0 ? "+" : "−"}
                         {Math.abs(lancamento.quantidade)}
                       </div>
-                      <div className="font-mono text-[10px] text-[#BFAFB8]">
+                      <div className="font-mono text-[10px] text-faint">
                         saldo {lancamento.saldoDepois}
                       </div>
                     </div>
@@ -204,8 +204,8 @@ export default async function Page() {
 
 function Linha({ rotulo, valor }: { rotulo: string; valor: string }) {
   return (
-    <div className="flex items-baseline justify-between gap-3 border-t border-[#F3E4EC] pt-2.5 first:border-t-0 first:pt-0">
-      <dt className="text-[#8E7C86]">{rotulo}</dt>
+    <div className="flex items-baseline justify-between gap-3 border-t border-line pt-2.5 first:border-t-0 first:pt-0">
+      <dt className="text-stone">{rotulo}</dt>
       <dd className="font-semibold">{valor}</dd>
     </div>
   );

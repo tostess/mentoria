@@ -22,12 +22,12 @@ export function SidebarRecolhivel({ topo, children }: { topo: ReactNode; childre
   const aberto = abertoEm === pathname;
 
   return (
-    <aside className="sticky top-0 z-30 flex max-h-screen flex-col gap-[22px] overflow-y-auto border-b border-[#F3E4EC] bg-white px-4 py-3 lg:h-screen lg:border-b-0 lg:border-r lg:py-[22px]">
+    <aside className="sticky top-0 z-30 flex max-h-screen flex-col gap-[22px] overflow-y-auto border-b border-line bg-surface px-4 py-3 lg:h-screen lg:border-b-0 lg:border-r lg:py-[22px]">
       <div className="flex items-center justify-between gap-3">
         {topo}
         <button
           type="button"
-          className="grid h-[38px] w-[38px] shrink-0 place-items-center rounded-[10px] border border-[#EAD6E1] text-[#2A1B26] transition-colors hover:bg-[#FCEDF4] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C2317A] lg:hidden"
+          className="grid h-[38px] w-[38px] shrink-0 place-items-center rounded-[10px] border border-line2 text-ink transition-colors hover:bg-blush focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent lg:hidden"
           aria-expanded={aberto}
           aria-controls="menu-principal"
           aria-label={aberto ? "Fechar menu" : "Abrir menu"}

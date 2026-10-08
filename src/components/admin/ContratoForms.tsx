@@ -62,7 +62,7 @@ export function RegistrarContratoForm({ orgId, token }: ComToken) {
         {enviando ? "Registrando…" : "Registrar compra"}
       </Button>
 
-      <p className="text-[12px] leading-[1.45] text-[#8E7C86]">
+      <p className="text-[12px] leading-[1.45] text-stone">
         Entra como compra no livro-caixa da empresa e soma no saldo do contrato. Não se edita
         depois: correção é lançamento novo.
       </p>
@@ -90,7 +90,7 @@ export function AlocarFichasForm({
 
   if (colaboradores.length === 0) {
     return (
-      <p className="text-[13px] leading-[1.5] text-[#8E7C86]">
+      <p className="text-[13px] leading-[1.5] text-stone">
         Crie um colaborador primeiro. A ficha sai do contrato e entra na carteira de alguém — sem
         carteira, não há para onde ir.
       </p>
@@ -209,7 +209,7 @@ export function NovoProfissionalForm({
         {enviando ? "Criando…" : `Criar ${termoProfissional}`}
       </Button>
 
-      <p className="text-[12px] leading-[1.45] text-[#8E7C86]">
+      <p className="text-[12px] leading-[1.45] text-stone">
         A conta nasce com carteira vazia e uma senha provisória que aparece uma vez só.
       </p>
     </form>

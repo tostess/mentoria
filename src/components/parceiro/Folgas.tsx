@@ -1,14 +1,12 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { useTheme } from "@/components/theme/ThemeProvider";
 import { Button } from "@/components/ui/Button";
 import { CONTROLE_MONO, Field } from "@/components/ui/Field";
 import { FormFeedback } from "@/components/ui/FormFeedback";
 import { Icone } from "@/components/ui/Icone";
 import { useEnvioSemReset } from "@/components/ui/useEnvioSemReset";
 import { FORM_INICIAL } from "@/lib/forms";
-import { onSoft, withAlpha } from "@/lib/theme";
 import { adicionarFolgaAcao, removerFolgaAcao } from "@/lib/parceiro/acoes";
 
 type Tipo = "bloqueio" | "extra";
@@ -23,7 +21,6 @@ type Tipo = "bloqueio" | "extra";
  * dizendo o contrário — a tela mostrava "dia inteiro" e as horas ao mesmo tempo.
  */
 export function NovaFolga({ hoje }: { hoje: string }) {
-  const theme = useTheme();
   const [estado, aoEnviar, enviando] = useEnvioSemReset(adicionarFolgaAcao);
   const [tipo, setTipo] = useState<Tipo>("bloqueio");
   const [de, setDe] = useState("");
@@ -62,13 +59,8 @@ export function NovaFolga({ hoje }: { hoje: string }) {
             <label
               key={opcao.valor}
               className={`cursor-pointer select-none rounded-[9px] border px-3 py-2 text-[13px] font-semibold transition-colors ${
-                ativo ? "border-transparent" : "border-[#EAD6E1] bg-white text-[#8E7C86]"
+                ativo ? "border-transparent bg-accent-12 text-on-soft" : "border-line2 bg-surface text-stone"
               }`}
-              style={
-                ativo
-                  ? { backgroundColor: withAlpha(theme.accent, 0.12), color: onSoft(theme.accent) }
-                  : undefined
-              }
             >
               <input
                 type="radio"
@@ -119,15 +111,14 @@ export function NovaFolga({ hoje }: { hoje: string }) {
       </div>
 
       {tipo === "bloqueio" && (
-        <label className="flex cursor-pointer items-center gap-2 text-[13px] text-[#2A1B26]">
+        <label className="flex cursor-pointer items-center gap-2 text-[13px] text-ink">
           <input
             type="checkbox"
             name="diaInteiro"
             checked={diaInteiro}
             disabled={enviando}
             onChange={(e) => setDiaInteiro(e.target.checked)}
-            className="h-4 w-4"
-            style={{ accentColor: theme.accent }}
+            className="h-4 w-4 accent-accent"
           />
           Dia inteiro
         </label>
@@ -185,12 +176,12 @@ export function RemoverFolga({ ids, rotulo }: { ids: readonly string[]; rotulo: 
         type="submit"
         disabled={enviando}
         aria-label={`Remover ${rotulo}`}
-        className="rounded-[8px] p-1.5 text-[#BFAFB8] transition-colors hover:bg-[#FBEAE7] hover:text-[#A63A2E] disabled:opacity-50"
+        className="rounded-[8px] p-1.5 text-faint transition-colors hover:bg-danger-soft hover:text-danger disabled:opacity-50"
       >
         <Icone nome="x" tamanho={15} />
       </button>
       {estado.erro !== null && (
-        <span role="alert" className="text-[12px] text-[#A63A2E]">
+        <span role="alert" className="text-[12px] text-danger">
           {estado.erro}
         </span>
       )}

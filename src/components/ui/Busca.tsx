@@ -23,14 +23,14 @@ export function Busca({
       <Icone
         nome="search"
         tamanho={15}
-        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#8E7C86]"
+        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-stone"
       />
       <input
         type="search"
         value={valor}
         onChange={(e) => aoMudar(e.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-[10px] border border-[#EAD6E1] bg-white py-[9px] pl-9 pr-3 text-[13.5px] outline-none transition-colors focus:border-[#C2317A]"
+        className="w-full rounded-[10px] border border-line2 bg-surface py-[9px] pl-9 pr-3 text-[13.5px] outline-none transition-colors focus:border-accent"
       />
     </label>
   );
@@ -51,10 +51,10 @@ export function Chip({
       type="button"
       aria-pressed={ativo}
       onClick={aoClicar}
-      className={`rounded-[8px] border px-[11px] py-[6px] text-[12.5px] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C2317A] ${
+      className={`rounded-[8px] border px-[11px] py-[6px] text-[12.5px] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
         ativo
-          ? "border-transparent bg-[#FCEDF4] font-semibold text-[#8E1E58]"
-          : "border-[#EAD6E1] bg-white text-[#8E7C86] hover:text-[#2A1B26]"
+          ? "border-transparent bg-blush font-semibold text-deep"
+          : "border-line2 bg-surface text-stone hover:text-ink"
       }`}
     >
       {children}

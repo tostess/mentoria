@@ -167,7 +167,10 @@ vira query, não cron de pré-agregação).
 
 ## Regras de trabalho
 
-- Cores em **hex inline** (`bg-[#C2317A]`), nunca CSS variables. O accent vem de `resolveTheme()`.
+- **Cor é token, nunca hex no componente** (`bg-accent`, `text-stone`, `border-line`) — desde a F4,
+  07/10/2026. Os tokens leem as variáveis `--cor-*`; o layout raiz as escreve em `<html style>` com
+  `variaveisDoTema(theme)`, a partir da marca da empresa. Hex só em `globals.css` e `lib/theme.ts`;
+  `lib/cores.test.ts` recusa o resto. Era "hex inline, nunca CSS variables" até a F4.
 - Estados visuais via `className` condicional.
 - **Uma feature por sessão.** Atualizar `CLAUDE.md` e `STATUS.md` ao final.
 - Commits curtos, imperativo, em português.
@@ -187,24 +190,29 @@ vira query, não cron de pré-agregação).
 
 ## Sistema de design
 
-Paleta **default da plataforma** — o produto é white-label e cada empresa sobrescreve
-`branding.accent` e o logotipo. A cliente ainda não tem marca.
+Paleta **default da plataforma** — o produto é white-label. A cliente ainda não tem marca. A
+coluna da esquerda é o token do Tailwind; o default mora em `globals.css` e em `DEFAULT_THEME`
+(`lib/theme.ts`), que um teste mantém iguais.
 
-| Papel | Hex |
-|---|---|
-| ink | `#2A1B26` |
-| mist | `#FDF8FB` |
-| white | `#FFFFFF` |
-| blush | `#FCEDF4` |
-| accent (default) | `#C2317A` |
-| deep | `#8E1E58` |
-| line | `#F3E4EC` |
-| line2 | `#EAD6E1` |
-| stone | `#8E7C86` |
-| gold | `#C98A2E` |
-| gold-soft | `#FBF1DE` |
-| success | `#2E6B52` / `#EAF6F0` |
-| danger | `#A63A2E` / `#FBEAE7` |
+| Token | Default | Família |
+|---|---|---|
+| `ink` | `#2A1B26` | marca |
+| `mist` (fundo) | `#FDF8FB` | marca |
+| `surface` (card) | `#FFFFFF` | marca |
+| `blush` | `#FCEDF4` | marca |
+| `accent` | `#C2317A` | marca |
+| `deep` | `#8E1E58` | marca |
+| `line` / `line2` | `#F3E4EC` / `#EAD6E1` | marca |
+| `stone` | `#8E7C86` | marca |
+| `stone-dark` · `muted` · `faint` · `pale` · `ghost` | `#6E5F68` · `#B3A3AC` · `#BFAFB8` · `#C6B8C0` · `#D9C3CF` | marca (neutros de apoio) |
+| `accent-10` · `accent-12` · `accent-line` · `on-accent` · `on-soft` | calculados do accent | marca (derivados) |
+| `gold` · `gold-soft` · `gold-wash` · `gold-line` · `gold-pale` · `gold-text` · `gold-ink` · `gold-deep` | `#C98A2E` · `#FBF1DE` · … | fixa — a ficha |
+| `success` · `-soft` · `-line` | `#2E6B52` · `#EAF6F0` · `#CDE6DA` | fixa |
+| `danger` · `-soft` · `-line` | `#A63A2E` · `#FBEAE7` · `#F2CFC8` | fixa |
+| `off` · `off-soft` · `ink-night` · `night-text` | desligado; sala escura | fixa |
+
+As famílias **marca** mudam por empresa (`variaveisDoTema`); as **fixas** significam a mesma coisa
+em todo cliente e não entram na personalização (decisão de 07/10/2026).
 
 Fontes: **Darker Grotesque** (títulos 600/700), **Instrument Sans** (corpo), **IBM Plex Mono**
 (horários, números, rótulos em caixa alta). Raio 14px, botões 10px, chips 8px.
@@ -611,8 +619,11 @@ Sem folga no calendário. Se o nome não sair em 10/10, A2 escorrega e arrasta o
 Asaas de produção não estiver aprovada até 13/11, o piloto abre com o admin registrando a compra do
 avulso à mão (a compra pelo painel já existe) e o checkout entra depois.
 
-Fora do piloto: convite por token de Parceiro, candidatura espontânea, console do RH, personalização por
-empresa, briefing, avaliação, fila de espera, moderação.
+- **F4 (07/10, fora do calendário) Marca por empresa.** Trazida para dentro do piloto a pedido,
+  enquanto a A2 espera o nome. F4a: cor virou token. F4b: a operadora escolhe a marca da empresa.
+
+Fora do piloto: convite por token de Parceiro, candidatura espontânea, console do RH, briefing,
+avaliação, fila de espera, moderação.
 
 **Produto (nov/2026 – fev/2027):** F1.5 convite e moderação · F2 console do RH · F3 grade semanal
 completa · F4 personalização por empresa · F6 briefing · F7 cancelamento e fila de espera ·
@@ -1210,6 +1221,18 @@ sensível —, rota com `maxDuration`, modelo escolhido na hora.
   `/redefinir-senha` abre com ou sem sessão (`OPEN_PREFIXES`): mandar quem está logado para a casca
   levaria o fragmento junto e perderia o link. Sem auditoria — é a pessoa mexendo em si.
 
+- **Cor virou token (F4a, 07/10/2026), e a regra "hex inline, nunca CSS variables" caiu.** Pedido
+  seu: todas as cores da marca por empresa. Com 522 hex escritos em 74 componentes isso era
+  impossível — e 35 deles eram o próprio magenta padrão, que já aparecia na casca verde da Aurora.
+  Agora cada cor é um token do Tailwind (`@theme inline` em `globals.css`) que lê `--cor-*`, e o
+  layout raiz escreve essas variáveis em `<html style>` com `variaveisDoTema(theme)`, no servidor —
+  sem piscar o padrão antes da marca. Os derivados do accent (`accent-10`, `accent-12`,
+  `accent-line`, `on-accent`, `on-soft`) saem de `variaveisDoTema`, com o mesmo `withAlpha` e
+  `onAccent` de antes, e não do `color-mix` do Tailwind: é o que mantém o tema padrão igual pixel a
+  pixel. A troca de classes foi mecânica (script fora do repositório) e conferida por captura de
+  tela antes e depois. `lib/cores.test.ts` recusa hex em componente e confere que o default de
+  `globals.css` é `variaveisDoTema(DEFAULT_THEME)`. Ouro, sucesso, erro e a sala escura são fixos.
+
 ## Descartado
 
 - Firebase / Firestore. - Chat livre fora da janela de 24h da sessão. - Ranking público.
@@ -1233,7 +1256,13 @@ sensível —, rota com `maxDuration`, modelo escolhido na hora.
 
 ## Estado atual
 
-Fase: **A3 (cadastro e fila) na `main` e em produção desde 07/10/2026** — aprovada por você e
+Fase: **F4 (marca por empresa) em andamento na branch `f4`**, trazida para dentro do piloto em
+07/10/2026, a pedido, enquanto a A2 espera o nome. A **F4a** (cor virou token) está commitada na
+`f4`: nenhum hex sobrou em componente, as cores chegam por `--cor-*` em `<html style>` e o tema
+padrão ficou igual pixel a pixel (conferido por captura antes e depois). Sem migração. Falta a
+**F4b**: a operadora escolher a marca da empresa em `/admin/empresas/[id]`.
+
+Antes dela: **A3 (cadastro e fila) na `main` e em produção desde 07/10/2026** — aprovada por você e
 publicada por fast-forward da `a3`, depois de `db:migrate:prod` aplicar `cadastro_anonimizado` no
 `mentoria` (conferida por consulta: 10 migrações, `anonymized_at` e o `check`). Deploy `Ready`,
 `/api/health` ok, as quatro rotas públicas 200, `/admin/cadastros` 307 sem sessão, cron 401.
@@ -1316,7 +1345,8 @@ Toda casca tem o **menu da conta** no pé da sidebar, com "Redefinir senha" e "S
 com senha provisória recebe a janela de troca ao entrar (`components/conta/JanelaDeSenha.tsx`,
 `trocarSenha` em `lib/auth/actions.ts`, regras puras em `lib/auth/senha.ts`).
 
-700 testes em 41 arquivos — a recuperação de senha em `auth/recuperacao.test.ts`; o cadastro em `cadastro/fila.test.ts` (pedido e reenvio, aprovação
+710 testes em 42 arquivos — a cor como token em `lib/cores.test.ts` (nenhum hex em componente,
+`globals.css` igual a `variaveisDoTema(DEFAULT_THEME)`, tons derivados do accent); a recuperação de senha em `auth/recuperacao.test.ts`; o cadastro em `cadastro/fila.test.ts` (pedido e reenvio, aprovação
 virando conta e dando papel no token, e-mail sem confirmar, recusa sem nome na auditoria, a rede da
 rodada diária, anonimização de 90 dias) e `cadastro/regras.test.ts`; a conta pessoal em `ledger/conta-pessoal.test.ts` (dono único, tipo
 imutável, CPF, crédito, idempotência, canais separados, lote no gasto e no estorno), RLS das tabelas

@@ -116,7 +116,7 @@ export function NovoParceiroForm({ termoParceiro }: { termoParceiro: string }) {
         {enviando ? "Criando…" : `Criar ${termoParceiro} ativo`}
       </Button>
 
-      <p className="text-[12px] leading-[1.45] text-[#8E7C86]">
+      <p className="text-[12px] leading-[1.45] text-stone">
         Criado aqui, já nasce ativo e visível a todas as empresas contratantes. A decisão fica
         registrada com o seu nome.
       </p>

@@ -35,8 +35,8 @@ export function CorrecaoDePresenca({ bookingId, primeiroNome }: { bookingId: str
 
   if (estado.fase === "confirmando" || estado.fase === "enviando") {
     return (
-      <div className="flex max-w-[440px] flex-col gap-2.5 rounded-[12px] border border-[#F3E4EC] bg-[#FDF8FB] px-3.5 py-3">
-        <p className="text-[13px] leading-[1.45] text-[#2A1B26]">
+      <div className="flex max-w-[440px] flex-col gap-2.5 rounded-[12px] border border-line bg-mist px-3.5 py-3">
+        <p className="text-[13px] leading-[1.45] text-ink">
           Marcar que {primeiroNome} participou? A {t.session} passa a contar como realizada. A{" "}
           {t.ficha} não muda — já tinha sido usada. Fica registrado no histórico da {t.admin.toLowerCase()}.
         </p>
@@ -66,12 +66,12 @@ export function CorrecaoDePresenca({ bookingId, primeiroNome }: { bookingId: str
       <button
         type="button"
         onClick={() => setEstado({ fase: "confirmando" })}
-        className="text-[12.5px] font-semibold text-[#C2317A] hover:underline"
+        className="text-[12.5px] font-semibold text-accent hover:underline"
       >
         Participou, sim
       </button>
       {estado.fase === "erro" && (
-        <span role="alert" className="text-[12px] text-[#A63A2E]">
+        <span role="alert" className="text-[12px] text-danger">
           {estado.texto}
         </span>
       )}

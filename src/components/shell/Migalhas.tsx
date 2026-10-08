@@ -19,7 +19,7 @@ export function Migalhas({ itens }: { itens: Migalha[] }) {
         {itens.map((item, i) => (
           <Fragment key={`${item.rotulo}-${i}`}>
             {i > 0 && (
-              <li aria-hidden className="text-[#D9C3CF]">
+              <li aria-hidden className="text-ghost">
                 <Icone nome="chevron-right" tamanho={11} />
               </li>
             )}
@@ -27,7 +27,7 @@ export function Migalhas({ itens }: { itens: Migalha[] }) {
               {item.href === undefined ? (
                 <span aria-current="page">{item.rotulo}</span>
               ) : (
-                <Link href={item.href} className="transition-colors hover:text-[#C2317A]">
+                <Link href={item.href} className="transition-colors hover:text-accent">
                   {item.rotulo}
                 </Link>
               )}

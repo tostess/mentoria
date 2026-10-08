@@ -58,8 +58,8 @@ export function RespostaAoPedido({
 
   if (estado.fase === "confirmando-recusa") {
     return (
-      <div className="flex max-w-[320px] flex-col gap-2.5 rounded-[12px] bg-[#FBEAE7] px-3.5 py-3">
-        <p className="text-[13px] text-[#A63A2E]">
+      <div className="flex max-w-[320px] flex-col gap-2.5 rounded-[12px] bg-danger-soft px-3.5 py-3">
+        <p className="text-[13px] text-danger">
           Recusar o pedido de {primeiroNome}? A {termoFicha} volta para {primeiroNome} agora e o
           horário reabre na sua agenda.
         </p>
@@ -100,11 +100,11 @@ export function RespostaAoPedido({
           {enviando && estado.acao === "confirmar" ? "Confirmando…" : "Confirmar"}
         </Button>
       </div>
-      <span className={`font-mono text-[10.5px] ${urgente ? "text-[#8A5D0C]" : "text-[#8E7C86]"}`}>
+      <span className={`font-mono text-[10.5px] ${urgente ? "text-gold-text" : "text-stone"}`}>
         {prazo}
       </span>
       {estado.fase === "erro" && (
-        <span role="alert" className="max-w-[260px] text-right text-[12px] text-[#A63A2E]">
+        <span role="alert" className="max-w-[260px] text-right text-[12px] text-danger">
           {estado.texto}
         </span>
       )}

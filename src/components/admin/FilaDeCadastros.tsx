@@ -7,7 +7,6 @@ import { CONTROLE } from "@/components/ui/Field";
 import { FormFeedback } from "@/components/ui/FormFeedback";
 import { Icone } from "@/components/ui/Icone";
 import { Pill } from "@/components/ui/Pill";
-import { useTheme } from "@/components/theme/ThemeProvider";
 import { aprovarCadastrosAcao, recusarCadastroAcao } from "@/lib/admin/acoes";
 import { FORM_INICIAL } from "@/lib/forms";
 
@@ -109,8 +108,8 @@ export function FilaDeCadastros({
       )}
 
       {podeDecidir && pedidos.length > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-[12px] bg-[#FDF8FB] px-3.5 py-2.5">
-          <label className="flex items-center gap-2.5 text-[13px] text-[#2A1B26]">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-[12px] bg-mist px-3.5 py-2.5">
+          <label className="flex items-center gap-2.5 text-[13px] text-ink">
             <Caixa
               marcada={todos}
               desligada={elegiveis.length === 0 || ocupado}
@@ -138,7 +137,7 @@ export function FilaDeCadastros({
       )}
 
       {pedidos.length > 0 && (
-        <ul className="flex flex-col divide-y divide-[#F3E4EC]">
+        <ul className="flex flex-col divide-y divide-line">
           {pedidos.map((pedido) => (
             <Linha
               key={pedido.id}
@@ -167,7 +166,6 @@ function Caixa({
   aoMudar: () => void;
   rotulo?: string;
 }) {
-  const { accent } = useTheme();
   return (
     <input
       type="checkbox"
@@ -175,8 +173,7 @@ function Caixa({
       disabled={desligada}
       onChange={aoMudar}
       aria-label={rotulo}
-      className="h-4 w-4 shrink-0 disabled:cursor-not-allowed"
-      style={{ accentColor: accent }}
+      className="h-4 w-4 shrink-0 accent-accent disabled:cursor-not-allowed"
     />
   );
 }
@@ -196,7 +193,6 @@ function Linha({
   aoMarcar: () => void;
   aoRecusar: (motivo: string) => void;
 }) {
-  const { accent } = useTheme();
   const [recusando, setRecusando] = useState(false);
   const [motivo, setMotivo] = useState("");
   const elegivel = pedido.emailConfirmado && pedido.temLogin;
@@ -216,7 +212,7 @@ function Linha({
 
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-          <span className="text-[14.5px] font-semibold text-[#2A1B26]">
+          <span className="text-[14.5px] font-semibold text-ink">
             {pedido.nome}
           </span>
           {!pedido.temLogin ? (
@@ -227,14 +223,14 @@ function Linha({
             <Pill variant="wait">Esperando confirmação</Pill>
           )}
           <span
-            className="ml-auto font-mono text-[11px] text-[#8E7C86]"
+            className="ml-auto font-mono text-[11px] text-stone"
             title={pedido.quandoCompleto}
           >
             {pedido.quando}
           </span>
         </div>
 
-        <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[12.5px] text-[#8E7C86]">
+        <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[12.5px] text-stone">
           <span className="break-all">{pedido.email}</span>
           {pedido.telefone !== null && <span>{pedido.telefone}</span>}
           {pedido.linkedin !== null && (
@@ -242,30 +238,29 @@ function Linha({
               href={pedido.linkedin}
               target="_blank"
               rel="noreferrer noopener"
-              className="inline-flex items-center gap-1 hover:underline"
-              style={{ color: accent }}
+              className="inline-flex items-center gap-1 text-accent hover:underline"
             >
               LinkedIn
               <Icone nome="chevron-right" tamanho={12} />
             </a>
           )}
           {pedido.detalhe !== null && (
-            <span className="text-[#2A1B26]">{pedido.detalhe}</span>
+            <span className="text-ink">{pedido.detalhe}</span>
           )}
         </div>
 
         {pedido.objetivo !== null && (
-          <p className="whitespace-pre-line rounded-[10px] bg-[#FDF8FB] px-3 py-2.5 text-[13px] leading-[1.5] text-[#2A1B26]">
+          <p className="whitespace-pre-line rounded-[10px] bg-mist px-3 py-2.5 text-[13px] leading-[1.5] text-ink">
             {pedido.objetivo}
           </p>
         )}
 
         {podeDecidir &&
           (recusando ? (
-            <div className="flex flex-col gap-2 rounded-[10px] border border-[#F2CFC8] p-3">
+            <div className="flex flex-col gap-2 rounded-[10px] border border-danger-line p-3">
               <label
                 htmlFor={`motivo-${pedido.id}`}
-                className="font-mono text-[9.5px] uppercase tracking-[0.12em] text-[#8E7C86]"
+                className="font-mono text-[9.5px] uppercase tracking-[0.12em] text-stone"
               >
                 Motivo — só a equipe vê
               </label>
@@ -279,7 +274,7 @@ function Linha({
                 className={`${CONTROLE} resize-y`}
                 placeholder="Opcional. Ex.: pedido em nome de empresa; e-mail de teste."
               />
-              <p className="text-[12px] leading-[1.45] text-[#8E7C86]">
+              <p className="text-[12px] leading-[1.45] text-stone">
                 Recusar apaga o login criado no cadastro. A pessoa pode pedir de
                 novo.
               </p>

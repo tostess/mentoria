@@ -24,7 +24,7 @@ export function FormFeedback({
     return (
       <p
         role="alert"
-        className="flex items-start gap-2 rounded-[10px] border border-[#F2CFC8] bg-[#FBEAE7] px-3 py-2.5 text-[13px] text-[#A63A2E]"
+        className="flex items-start gap-2 rounded-[10px] border border-danger-line bg-danger-soft px-3 py-2.5 text-[13px] text-danger"
       >
         <Icone nome="x" tamanho={15} className="mt-px" />
         {erro}
@@ -34,7 +34,7 @@ export function FormFeedback({
 
   return (
     <div aria-live="polite" className="flex flex-col gap-2.5">
-      <p className="flex items-start gap-2 rounded-[10px] border border-[#CDE6DA] bg-[#EAF6F0] px-3 py-2.5 text-[13px] text-[#2E6B52]">
+      <p className="flex items-start gap-2 rounded-[10px] border border-success-line bg-success-soft px-3 py-2.5 text-[13px] text-success">
         <Icone nome="check" tamanho={15} className="mt-px" />
         {ok}
       </p>
@@ -52,21 +52,21 @@ export function FormFeedback({
  */
 function Acesso({ credencial }: { credencial: Credencial }) {
   return (
-    <div className="rounded-[12px] border border-[#EFD9A8] bg-[#FBF1DE] px-[15px] py-[13px]">
-      <p className="font-mono text-[9.5px] uppercase tracking-[0.12em] text-[#8A5D0C]">
+    <div className="rounded-[12px] border border-gold-line bg-gold-soft px-[15px] py-[13px]">
+      <p className="font-mono text-[9.5px] uppercase tracking-[0.12em] text-gold-text">
         Acesso provisório — copie agora
       </p>
       <dl className="mt-2.5 grid grid-cols-[auto_1fr_auto] items-center gap-x-3 gap-y-1.5 text-[13px]">
-        <dt className="text-[#8A5D0C]">E-mail</dt>
-        <dd className="select-all break-all font-mono text-[#7A5209]">{credencial.email}</dd>
+        <dt className="text-gold-text">E-mail</dt>
+        <dd className="select-all break-all font-mono text-gold-ink">{credencial.email}</dd>
         <BotaoCopiar valor={credencial.email} rotulo="e-mail" />
-        <dt className="text-[#8A5D0C]">Senha</dt>
-        <dd className="select-all break-all font-mono font-semibold text-[#7A5209]">
+        <dt className="text-gold-text">Senha</dt>
+        <dd className="select-all break-all font-mono font-semibold text-gold-ink">
           {credencial.senha}
         </dd>
         <BotaoCopiar valor={credencial.senha} rotulo="senha" />
       </dl>
-      <p className="mt-2.5 text-[12px] leading-[1.45] text-[#8A5D0C]">
+      <p className="mt-2.5 text-[12px] leading-[1.45] text-gold-text">
         Recarregar a página apaga esta senha. Se ela se perder, gere outra na página da pessoa.
       </p>
     </div>

@@ -68,10 +68,10 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       <Portao
         quem={quem}
         icone={aberta.aberta ? "log-out" : "check"}
-        tomDoIcone={aberta.aberta ? "text-[#8E7C86]" : "text-[#2E6B52]"}
+        tomDoIcone={aberta.aberta ? "text-stone" : "text-success"}
         titulo={aberta.aberta ? "Você saiu da sala" : `${cap(t.session)} encerrada`}
       >
-        <p className="text-[14px] text-[#8E7C86]">
+        <p className="text-[14px] text-stone">
           {aberta.aberta
             ? `Ela fica aberta até as ${hora(aberta.janela.fecha, sala.fuso)}, se quiser voltar.`
             : papel === "professional"
@@ -80,19 +80,19 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         </p>
 
         {presente && (
-          <div className="mt-2 flex w-full items-center gap-3.5 rounded-[12px] bg-[#FBF1DE] p-3.5 text-left">
+          <div className="mt-2 flex w-full items-center gap-3.5 rounded-[12px] bg-gold-soft p-3.5 text-left">
             <Ficha size="xl" className={papel === "professional" ? "presente-ficha" : ""} />
-            <p className="text-[13.5px] text-[#6B470A]">
+            <p className="text-[13.5px] text-gold-deep">
               {papel === "professional" ? (
                 <>
-                  <b className="text-[#7A5209]">
+                  <b className="text-gold-ink">
                     {nome} te deu 1 {t.ficha} de presente.
                   </b>
                   <br />
                   Ela já está na sua carteira{saldo !== null ? `: saldo ${saldo}` : ""}.
                 </>
               ) : (
-                <b className="text-[#7A5209]">
+                <b className="text-gold-ink">
                   Você deu 1 {t.ficha} para {nome} nesta {t.session}.
                 </b>
               )}

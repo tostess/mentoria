@@ -28,7 +28,7 @@ export function ContagemParaAbrir({ abreIso, agoraIso }: { abreIso: string; agor
   return (
     <div className="flex flex-col items-center gap-1">
       <div className="font-mono text-[44px] font-medium leading-none tabular-nums">{mmss(falta)}</div>
-      <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#8E7C86]">até abrir</span>
+      <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-stone">até abrir</span>
     </div>
   );
 }

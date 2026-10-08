@@ -129,23 +129,23 @@ export function SalaAoVivo(props: Props) {
   }, [aviso]);
 
   return (
-    <div className="grid h-[100dvh] min-h-[560px] grid-rows-[auto_1fr] bg-[#FDF8FB]">
-      <header className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-[#F3E4EC] bg-white px-4 py-3 lg:px-5">
+    <div className="grid h-[100dvh] min-h-[560px] grid-rows-[auto_1fr] bg-mist">
+      <header className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line bg-surface px-4 py-3 lg:px-5">
         <Link
           href={`/sala/${bookingId}/fim`}
-          className="inline-flex items-center gap-1.5 text-[13px] text-[#8E7C86] hover:text-[#C2317A]"
+          className="inline-flex items-center gap-1.5 text-[13px] text-stone hover:text-accent"
         >
           <Icone nome="chevron-left" tamanho={14} />
           Sair
         </Link>
-        <span className="hidden h-7 w-px bg-[#F3E4EC] sm:block" />
+        <span className="hidden h-7 w-px bg-line sm:block" />
         <div className="flex min-w-0 items-center gap-2.5">
           <Avatar name={outro.nome} photoUrl={outro.foto} size="sm" />
           <div className="min-w-0">
             <div className="truncate font-semibold leading-tight">
               {cap(t.session)} com {outro.nome}
             </div>
-            <div className="hidden font-mono text-[11px] text-[#8E7C86] sm:block">{props.intervalo}</div>
+            <div className="hidden font-mono text-[11px] text-stone sm:block">{props.intervalo}</div>
           </div>
         </div>
         <RelogioDaSala
@@ -157,7 +157,7 @@ export function SalaAoVivo(props: Props) {
       </header>
 
       <div className="grid min-h-0 grid-cols-1 gap-3 p-3 lg:grid-cols-[1fr_300px] lg:gap-4 lg:p-5">
-        <div className="relative min-h-[62vh] overflow-hidden rounded-[14px] bg-[#1E1319] lg:min-h-0">
+        <div className="relative min-h-[62vh] overflow-hidden rounded-[14px] bg-ink-night lg:min-h-0">
           {video.fase === "pronto" && (
             <iframe
               src={video.url}
@@ -167,15 +167,15 @@ export function SalaAoVivo(props: Props) {
             />
           )}
           {video.fase === "abrindo" && (
-            <div className="grid h-full place-items-center p-6 text-center text-[13.5px] text-[#D9C3CF]">
+            <div className="grid h-full place-items-center p-6 text-center text-[13.5px] text-ghost">
               Abrindo a sala…
             </div>
           )}
           {video.fase === "erro" && (
             <div className="grid h-full place-items-center p-6">
               <div className="flex max-w-[360px] flex-col items-center gap-3 text-center">
-                <Icone nome="alerta" tamanho={22} className="text-[#F1DCE7]" />
-                <p className="text-[14px] text-[#F1DCE7]">{video.texto}</p>
+                <Icone nome="alerta" tamanho={22} className="text-night-text" />
+                <p className="text-[14px] text-night-text">{video.texto}</p>
                 {video.podeTentar && (
                   <Button
                     variant="ghost"
@@ -195,14 +195,14 @@ export function SalaAoVivo(props: Props) {
           {aviso && (
             <div
               role="status"
-              className="presente-aviso absolute left-1/2 top-4 z-10 flex w-[calc(100%-24px)] max-w-[420px] -translate-x-1/2 items-center gap-3.5 rounded-[16px] bg-white py-3.5 pl-3.5 pr-[18px] shadow-[0_18px_50px_-18px_rgba(0,0,0,0.55)]"
+              className="presente-aviso absolute left-1/2 top-4 z-10 flex w-[calc(100%-24px)] max-w-[420px] -translate-x-1/2 items-center gap-3.5 rounded-[16px] bg-surface py-3.5 pl-3.5 pr-[18px] shadow-[0_18px_50px_-18px_rgba(0,0,0,0.55)]"
             >
               <Ficha size="l" className="presente-ficha" />
               <div>
                 <b className="block font-display text-[22px] leading-[1.05]">
                   {outro.primeiroNome} te deu 1 {t.ficha}
                 </b>
-                <span className="text-[12.5px] text-[#8E7C86]">
+                <span className="text-[12.5px] text-stone">
                   Presente para você marcar a próxima conversa.
                 </span>
               </div>
@@ -211,13 +211,13 @@ export function SalaAoVivo(props: Props) {
         </div>
 
         <aside className="flex min-h-0 flex-col gap-3.5 lg:overflow-auto">
-          <div className="hidden rounded-[14px] border border-[#F3E4EC] bg-white p-4 lg:block">
-            <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#8E7C86]">Com você</div>
+          <div className="hidden rounded-[14px] border border-line bg-surface p-4 lg:block">
+            <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-stone">Com você</div>
             <div className="mt-2.5 flex items-center gap-2.5">
               <Avatar name={outro.nome} photoUrl={outro.foto} size="md" />
               <div className="min-w-0">
                 <div className="font-semibold">{outro.nome}</div>
-                {outro.linha && <div className="text-[12.5px] leading-[1.4] text-[#8E7C86]">{outro.linha}</div>}
+                {outro.linha && <div className="text-[12.5px] leading-[1.4] text-stone">{outro.linha}</div>}
               </div>
             </div>
           </div>
@@ -230,17 +230,17 @@ export function SalaAoVivo(props: Props) {
               aberto={estado.fase !== "antes" && estado.fase !== "fechada"}
             />
           ) : (
-            <div className="rounded-[14px] border border-[#F3E4EC] bg-white p-4">
-              <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#8E7C86]">Sua carteira</div>
+            <div className="rounded-[14px] border border-line bg-surface p-4">
+              <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-stone">Sua carteira</div>
               <div className="mt-2.5 flex items-center gap-2.5">
                 {saldo !== null && saldo > 0 && (
                   <FichaStack count={saldo} max={props.presente.tetoVisual} />
                 )}
                 <b className="font-mono text-[20px] font-medium">{saldo ?? "—"}</b>
-                <span className="text-[12.5px] text-[#8E7C86]">{saldo === 1 ? t.ficha : t.fichas}</span>
+                <span className="text-[12.5px] text-stone">{saldo === 1 ? t.ficha : t.fichas}</span>
               </div>
               {recebido && (
-                <p className="mt-3 text-[12.5px] text-[#7A5209]">
+                <p className="mt-3 text-[12.5px] text-gold-ink">
                   {outro.primeiroNome} te deu 1 {t.ficha} nesta {t.session}.
                 </p>
               )}
@@ -253,11 +253,11 @@ export function SalaAoVivo(props: Props) {
 }
 
 const TOM: Record<FaseDoRelogio, string> = {
-  antes: "border-[#F3E4EC] bg-[#FDF8FB] text-[#2A1B26]",
-  sessao: "border-[#F3E4EC] bg-[#FDF8FB] text-[#2A1B26]",
-  "reta-final": "border-transparent bg-[#FBF1DE] text-[#8A5D0C]",
-  tolerancia: "border-transparent bg-[#FBEAE7] text-[#A63A2E]",
-  fechada: "border-[#F3E4EC] bg-[#FDF8FB] text-[#8E7C86]",
+  antes: "border-line bg-mist text-ink",
+  sessao: "border-line bg-mist text-ink",
+  "reta-final": "border-transparent bg-gold-soft text-gold-text",
+  tolerancia: "border-transparent bg-danger-soft text-danger",
+  fechada: "border-line bg-mist text-stone",
 };
 
 function RelogioDaSala({
@@ -361,12 +361,12 @@ function PainelDoPresente({
   }
 
   const bolinhas = (
-    <div className="mt-2.5 flex items-center gap-2 text-[12.5px] text-[#8E7C86]">
+    <div className="mt-2.5 flex items-center gap-2 text-[12.5px] text-stone">
       <span className="inline-flex gap-1" aria-hidden="true">
         {Array.from({ length: cota.cota }, (_, i) => (
           <i
             key={i}
-            className={`block h-2.5 w-2.5 rounded-full ${i < cota.usados ? "bg-[#EAD6E1]" : "bg-[#C98A2E]"}`}
+            className={`block h-2.5 w-2.5 rounded-full ${i < cota.usados ? "bg-line2" : "bg-gold"}`}
           />
         ))}
       </span>
@@ -375,17 +375,17 @@ function PainelDoPresente({
   );
 
   return (
-    <div className="rounded-[14px] border border-[#F3E4EC] bg-white p-4">
-      <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.16em] text-[#8E7C86]">
+    <div className="rounded-[14px] border border-line bg-surface p-4">
+      <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.16em] text-stone">
         <Icone nome="presente" tamanho={13} />
         Presente
       </div>
 
       {dado ? (
-        <div className="mt-3 flex items-center gap-3 rounded-[12px] bg-[#FBF1DE] p-3.5">
+        <div className="mt-3 flex items-center gap-3 rounded-[12px] bg-gold-soft p-3.5">
           <Ficha size="l" className={agoraMesmo ? "presente-ficha" : ""} />
-          <p className="text-[13px] text-[#6B470A]">
-            <b className="text-[#7A5209]">
+          <p className="text-[13px] text-gold-deep">
+            <b className="text-gold-ink">
               Você deu 1 {t.ficha} para {primeiroNome}.
             </b>
             <br />
@@ -395,7 +395,7 @@ function PainelDoPresente({
       ) : restantes === 0 ? (
         <>
           {bolinhas}
-          <p className="mt-2 text-[12.5px] leading-[1.5] text-[#8E7C86]">
+          <p className="mt-2 text-[12.5px] leading-[1.5] text-stone">
             Você já deu {cota.cota === 1 ? "o presente" : `os ${cota.cota} presentes`} de {inicial.mes}. A
             cota renova no mês que vem.
           </p>
@@ -410,7 +410,7 @@ function PainelDoPresente({
           <div className="mt-3.5">
             {estado.fase === "confirmando" || estado.fase === "enviando" ? (
               <>
-                <div className="mb-2.5 rounded-[12px] bg-[#FBF1DE] px-3.5 py-3 text-[13px] text-[#6B470A]">
+                <div className="mb-2.5 rounded-[12px] bg-gold-soft px-3.5 py-3 text-[13px] text-gold-deep">
                   Dar 1 {t.ficha} para {primeiroNome}? Sai da sua cota de {inicial.mes} e não pode ser
                   desfeito.
                 </div>
@@ -448,10 +448,10 @@ function PainelDoPresente({
               </Button>
             )}
             {!aberto && (
-              <p className="mt-2 text-[12px] text-[#8E7C86]">O presente abre quando a {t.session} começar.</p>
+              <p className="mt-2 text-[12px] text-stone">O presente abre quando a {t.session} começar.</p>
             )}
             {estado.fase === "erro" && (
-              <p role="alert" className="mt-2 text-[12px] text-[#A63A2E]">
+              <p role="alert" className="mt-2 text-[12px] text-danger">
                 {estado.texto}
               </p>
             )}

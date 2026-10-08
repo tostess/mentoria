@@ -49,10 +49,10 @@ export function NovaSenha() {
     return (
       <div className="flex flex-col gap-4">
         <div className="flex items-start gap-3">
-          <Icone nome="check" tamanho={20} className="mt-1.5 shrink-0 text-[#2E6B52]" />
+          <Icone nome="check" tamanho={20} className="mt-1.5 shrink-0 text-success" />
           <div>
             <h1 className="text-[29px]">Senha nova salva</h1>
-            <p className="mt-1 text-[13px] leading-[1.5] text-[#2A1B26]">
+            <p className="mt-1 text-[13px] leading-[1.5] text-ink">
               Por segurança, saímos da sua conta em todos os aparelhos. Entre de novo com a senha
               nova.
             </p>
@@ -68,7 +68,7 @@ export function NovaSenha() {
       <div className="flex flex-col gap-4">
         <div>
           <h1 className="text-[29px]">Este link não vale mais</h1>
-          <p className="mt-1 text-[13px] leading-[1.5] text-[#2A1B26]">
+          <p className="mt-1 text-[13px] leading-[1.5] text-ink">
             O link para criar senha nova vale por pouco tempo e uma vez só. Peça outro — se chegaram
             vários, use o mais recente.
           </p>
@@ -84,7 +84,7 @@ export function NovaSenha() {
     <form onSubmit={aoEnviar} className="flex flex-col gap-4">
       <div>
         <h1 className="text-[29px]">Crie uma senha nova</h1>
-        <p className="mt-1 text-[13px] leading-[1.5] text-[#8E7C86]">
+        <p className="mt-1 text-[13px] leading-[1.5] text-stone">
           Você tem {RECUPERACAO_MINUTOS} minutos a partir de quando abriu o link.
         </p>
       </div>

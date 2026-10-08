@@ -170,17 +170,17 @@ export function PerfilForm({
         </Field>
       </FieldRow>
 
-      <label className="flex cursor-pointer items-start gap-2.5 rounded-[12px] bg-[#FDF8FB] px-[15px] py-[13px]">
+      <label className="flex cursor-pointer items-start gap-2.5 rounded-[12px] bg-mist px-[15px] py-[13px]">
         <input
           type="checkbox"
           name="confirmaSozinho"
           defaultChecked={perfil.confirmaSozinho}
           disabled={enviando}
-          className="mt-[3px] h-4 w-4 shrink-0 accent-[#C2317A]"
+          className="mt-[3px] h-4 w-4 shrink-0 accent-accent"
         />
         <span className="text-[13px] leading-[1.5]">
           <strong className="font-semibold">Confirmar sozinho</strong>
-          <span className="block text-[#8E7C86]">
+          <span className="block text-stone">
             A sessão já nasce confirmada em vez de esperar você responder. Sem isso, o pedido
             expira em {expiraEmHoras} horas sem resposta, a ficha volta para quem pediu e o horário
             volta para a busca.

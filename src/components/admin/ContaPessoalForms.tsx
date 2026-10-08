@@ -89,7 +89,7 @@ export function NovaContaPessoalForm({ termoConta }: { termoConta: string }) {
         {enviando ? "Criando…" : `Criar ${termoConta.toLowerCase()}`}
       </Button>
 
-      <p className="text-[12px] leading-[1.45] text-[#8E7C86]">
+      <p className="text-[12px] leading-[1.45] text-stone">
         A conta nasce com carteira vazia e uma senha provisória que aparece uma vez só.
       </p>
     </form>
@@ -127,7 +127,7 @@ export function RegistrarPacoteForm({
 
   if (pacotes.length === 0) {
     return (
-      <p className="text-[13px] leading-[1.5] text-[#8E7C86]">
+      <p className="text-[13px] leading-[1.5] text-stone">
         Nenhum pacote ativo. A tabela de pacotes vive na configuração da plataforma.
       </p>
     );
@@ -148,24 +148,24 @@ export function RegistrarPacoteForm({
           return (
             <label
               key={pacote.id}
-              className="flex cursor-pointer items-center gap-3 rounded-[10px] border border-[#EAD6E1] bg-white px-3 py-2.5 transition-colors hover:border-[#D9C3CF] has-[:checked]:border-[#C2317A] has-[:checked]:bg-[#FCEDF4]"
+              className="flex cursor-pointer items-center gap-3 rounded-[10px] border border-line2 bg-surface px-3 py-2.5 transition-colors hover:border-ghost has-[:checked]:border-accent has-[:checked]:bg-blush"
             >
               <input
                 type="radio"
                 name="pacote"
                 value={pacote.id}
                 required
-                className="accent-[#C2317A]"
+                className="accent-accent"
               />
               <span className="min-w-0 flex-1">
-                <span className="block text-[13.5px] font-semibold text-[#2A1B26]">
+                <span className="block text-[13.5px] font-semibold text-ink">
                   {pacote.nome}
                 </span>
-                <span className="block font-mono text-[11px] text-[#8E7C86]">
+                <span className="block font-mono text-[11px] text-stone">
                   {pacote.fichas} · {pacote.porFicha} cada · {pacote.parcelas}
                 </span>
               </span>
-              <span className="font-mono text-[13px] font-semibold tabular-nums text-[#2A1B26]">
+              <span className="font-mono text-[13px] font-semibold tabular-nums text-ink">
                 {pacote.preco}
               </span>
             </label>
@@ -188,7 +188,7 @@ export function RegistrarPacoteForm({
         {enviando ? "Registrando…" : "Registrar pacote pago"}
       </Button>
 
-      <p className="text-[12px] leading-[1.45] text-[#8E7C86]">
+      <p className="text-[12px] leading-[1.45] text-stone">
         Para pagamento já recebido fora da plataforma. As {termoFichas} entram na carteira na
         hora e valem {validade} a partir de hoje. Não se edita depois: correção é lançamento novo.
       </p>

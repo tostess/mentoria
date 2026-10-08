@@ -76,9 +76,9 @@ export function AcoesConfirmadas({
         <div
           role="group"
           aria-label="Confirmação"
-          className="flex flex-col gap-2.5 rounded-[12px] bg-[#FBEAE7] px-3.5 py-3"
+          className="flex flex-col gap-2.5 rounded-[12px] bg-danger-soft px-3.5 py-3"
         >
-          <p className="text-[13px] leading-[1.5] text-[#A63A2E]">{escolhida.pergunta}</p>
+          <p className="text-[13px] leading-[1.5] text-danger">{escolhida.pergunta}</p>
           <div className="flex flex-wrap gap-2">
             <Button
               type="submit"
@@ -135,7 +135,7 @@ export function AcoesConfirmadas({
         </div>
       )}
 
-      {enviando && <p className="text-[12px] text-[#8E7C86]">Enviando…</p>}
+      {enviando && <p className="text-[12px] text-stone">Enviando…</p>}
     </form>
   );
 }

@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { Note } from "@/components/ui/Note";
-import { loadTheme } from "@/lib/config/load";
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL, hasSupabasePublicEnv } from "@/lib/env";
 import { EntrarForm } from "./EntrarForm";
 
@@ -32,7 +31,7 @@ export default async function EntrarPage({ searchParams }: PageProps<"/entrar">)
     return (
       <Card className="w-full max-w-[400px]">
         <h1 className="text-[33px]">Ambiente incompleto</h1>
-        <p className="mb-5 mt-1 text-[13px] text-[#8E7C86]">
+        <p className="mb-5 mt-1 text-[13px] text-stone">
           A entrada não pode funcionar sem a configuração do Supabase.
         </p>
         <Note variant="gold">
@@ -53,20 +52,18 @@ export default async function EntrarPage({ searchParams }: PageProps<"/entrar">)
     );
   }
 
-  const { accent } = await loadTheme(null);
-
   return (
     <div className="flex w-full max-w-[400px] flex-col gap-4">
       <Card>
         <h1 className="text-[33px]">Entrar</h1>
-        <p className="mb-5 mt-1 text-[13px] text-[#8E7C86]">
+        <p className="mb-5 mt-1 text-[13px] text-stone">
           Use o e-mail da sua conta — o da empresa ou o pessoal.
         </p>
         <EntrarForm next={next} aviso={AVISOS[chave] ?? null} />
       </Card>
-      <p className="text-center text-[13px] text-[#8E7C86]">
+      <p className="text-center text-[13px] text-stone">
         Busca mentoria por conta própria?{" "}
-        <Link href="/cadastro" className="font-semibold hover:underline" style={{ color: accent }}>
+        <Link href="/cadastro" className="font-semibold text-accent hover:underline">
           Crie sua conta pessoal
         </Link>
       </p>

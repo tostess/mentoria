@@ -44,7 +44,7 @@ export function MenuDaConta({
   }
 
   const item =
-    "flex w-full items-center gap-2.5 rounded-[8px] px-2.5 py-2 text-left text-[13px] text-[#2A1B26] transition-colors hover:bg-[#FDF8FB] focus-visible:bg-[#FDF8FB] focus-visible:outline-none";
+    "flex w-full items-center gap-2.5 rounded-[8px] px-2.5 py-2 text-left text-[13px] text-ink transition-colors hover:bg-mist focus-visible:bg-mist focus-visible:outline-none";
 
   return (
     <div
@@ -62,7 +62,7 @@ export function MenuDaConta({
           id={idMenu}
           role="menu"
           aria-label="Opções da conta"
-          className="absolute inset-x-0 bottom-full mb-1.5 flex flex-col gap-px rounded-[12px] border border-[#EAD6E1] bg-white p-1 shadow-[0_8px_24px_rgba(42,27,38,0.08)]"
+          className="absolute inset-x-0 bottom-full mb-1.5 flex flex-col gap-px rounded-[12px] border border-line2 bg-surface p-1 shadow-[0_8px_24px_rgba(42,27,38,0.08)]"
         >
           <button
             type="button"
@@ -73,13 +73,13 @@ export function MenuDaConta({
               setJanela("menu");
             }}
           >
-            <Icone nome="key" tamanho={15} className="text-[#8E7C86]" />
+            <Icone nome="key" tamanho={15} className="text-stone" />
             Redefinir senha
           </button>
           {/* Sair é ação de servidor: só ele apaga o cookie de sessão de verdade. */}
           <form action={sair}>
             <button type="submit" role="menuitem" className={item}>
-              <Icone nome="log-out" tamanho={15} className="text-[#8E7C86]" />
+              <Icone nome="log-out" tamanho={15} className="text-stone" />
               Sair
             </button>
           </form>
@@ -93,27 +93,27 @@ export function MenuDaConta({
         aria-expanded={aberto}
         aria-controls={aberto ? idMenu : undefined}
         onClick={() => setAberto((a) => !a)}
-        className="flex w-full items-center gap-2 rounded-[9px] px-2.5 py-2 text-left transition-colors hover:bg-[#FDF8FB] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C2317A]"
+        className="flex w-full items-center gap-2 rounded-[9px] px-2.5 py-2 text-left transition-colors hover:bg-mist focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
       >
-        <Icone nome="user" tamanho={15} className="text-[#BFAFB8]" />
+        <Icone nome="user" tamanho={15} className="text-faint" />
         <span className="min-w-0 flex-1">
-          <span className="block text-[12.5px] font-semibold text-[#2A1B26]">Minha conta</span>
+          <span className="block text-[12.5px] font-semibold text-ink">Minha conta</span>
           {email !== null && (
-            <span className="block truncate font-mono text-[10px] text-[#BFAFB8]" title={email}>
+            <span className="block truncate font-mono text-[10px] text-faint" title={email}>
               {email}
             </span>
           )}
         </span>
         {senhaProvisoria && (
           <span
-            className="h-2 w-2 shrink-0 rounded-full bg-[#C98A2E]"
+            className="h-2 w-2 shrink-0 rounded-full bg-gold"
             title="Senha provisória — troque em Redefinir senha"
           />
         )}
         <Icone
           nome="chevron-up"
           tamanho={14}
-          className={`text-[#BFAFB8] transition-transform ${aberto ? "" : "rotate-180"}`}
+          className={`text-faint transition-transform ${aberto ? "" : "rotate-180"}`}
         />
       </button>
 

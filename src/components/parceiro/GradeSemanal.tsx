@@ -1,13 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { useTheme } from "@/components/theme/ThemeProvider";
 import { Button } from "@/components/ui/Button";
 import { CONTROLE_MONO, ROTULO } from "@/components/ui/Field";
 import { FormFeedback } from "@/components/ui/FormFeedback";
 import { Icone } from "@/components/ui/Icone";
 import { useEnvioSemReset } from "@/components/ui/useEnvioSemReset";
-import { onSoft, withAlpha } from "@/lib/theme";
 import { salvarGradeAcao } from "@/lib/parceiro/acoes";
 import { MAX_FAIXAS_POR_DIA, lerGrade, validarGrade } from "@/lib/parceiro/grade";
 import { DIAS, paraMinutos, paraTexto } from "@/lib/parceiro/horarios";
@@ -87,7 +85,7 @@ export function GradeSemanal({
         <input type="hidden" name="grade" value={serializada} />
         <FormFeedback erro={estado.erro} ok={mudou ? null : estado.ok} credencial={null} />
 
-        <ul className="flex flex-col divide-y divide-[#F3E4EC] rounded-[12px] border border-[#F3E4EC]">
+        <ul className="flex flex-col divide-y divide-line rounded-[12px] border border-line">
           {DIAS.map(({ valor, curto, longo }) => {
             const doDia = linhas.filter((l) => l.dia === valor);
             return (
@@ -97,7 +95,7 @@ export function GradeSemanal({
               >
                 <div className="flex items-center justify-between sm:w-[52px] sm:shrink-0 sm:pt-2">
                   <span
-                    className={`text-[13.5px] font-semibold ${doDia.length === 0 ? "text-[#BFAFB8]" : "text-[#2A1B26]"}`}
+                    className={`text-[13.5px] font-semibold ${doDia.length === 0 ? "text-faint" : "text-ink"}`}
                   >
                     <span aria-hidden="true">{curto}</span>
                     <span className="sr-only">{longo}</span>
@@ -106,7 +104,7 @@ export function GradeSemanal({
 
                 <div className="flex min-w-0 flex-1 flex-col gap-2">
                   {doDia.length === 0 && (
-                    <span className="pt-0.5 text-[13px] text-[#BFAFB8] sm:pt-2">Não atende</span>
+                    <span className="pt-0.5 text-[13px] text-faint sm:pt-2">Não atende</span>
                   )}
                   {doDia.map((linha, i) => (
                     <div key={linha.chave} className="flex items-center gap-2">
@@ -122,7 +120,7 @@ export function GradeSemanal({
                           className={CONTROLE_MONO}
                         />
                       </div>
-                      <span className="text-[#BFAFB8]">–</span>
+                      <span className="text-faint">–</span>
                       <div className="w-[112px] shrink-0">
                         <input
                           type="time"
@@ -140,7 +138,7 @@ export function GradeSemanal({
                         onClick={() => remover(linha.chave)}
                         disabled={salvando}
                         aria-label={`Remover faixa ${i + 1} de ${longo}`}
-                        className="rounded-[8px] p-1.5 text-[#BFAFB8] transition-colors hover:bg-[#FBEAE7] hover:text-[#A63A2E] disabled:opacity-50"
+                        className="rounded-[8px] p-1.5 text-faint transition-colors hover:bg-danger-soft hover:text-danger disabled:opacity-50"
                       >
                         <Icone nome="x" tamanho={15} />
                       </button>
@@ -153,7 +151,7 @@ export function GradeSemanal({
                     type="button"
                     onClick={() => acrescentar(valor)}
                     disabled={salvando}
-                    className="inline-flex items-center gap-1 self-start rounded-[8px] px-2 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-[#8E7C86] transition-colors hover:bg-[#FCEDF4] hover:text-[#2A1B26] disabled:opacity-50 sm:mt-1"
+                    className="inline-flex items-center gap-1 self-start rounded-[8px] px-2 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-stone transition-colors hover:bg-blush hover:text-ink disabled:opacity-50 sm:mt-1"
                   >
                     <Icone nome="plus" tamanho={13} />
                     {doDia.length === 0 ? "Abrir" : "Faixa"}
@@ -164,15 +162,15 @@ export function GradeSemanal({
           })}
         </ul>
 
-        <div className="rounded-[12px] bg-[#FDF8FB] px-[15px] py-[13px]">
+        <div className="rounded-[12px] bg-mist px-[15px] py-[13px]">
           {analise.erro !== null ? (
-            <p className="text-[13px] leading-[1.5] text-[#A63A2E]">{analise.erro}</p>
+            <p className="text-[13px] leading-[1.5] text-danger">{analise.erro}</p>
           ) : analise.cabem === 0 ? (
-            <p className="text-[13px] leading-[1.5] text-[#2A1B26]">
+            <p className="text-[13px] leading-[1.5] text-ink">
               Nenhum dia aberto — salvar assim tira você da busca até abrir algum.
             </p>
           ) : (
-            <p className="text-[13px] leading-[1.5] text-[#2A1B26]">
+            <p className="text-[13px] leading-[1.5] text-ink">
               Cabem até {analise.cabem} sessões por semana na grade, mas o seu teto é{" "}
               <strong className="font-semibold">{maxPorSemana}</strong> — é ele que vale.
             </p>
@@ -185,13 +183,13 @@ export function GradeSemanal({
           </Button>
           {mudou && !salvando && (
             <>
-              <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-[#C98A2E]">
+              <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-gold">
                 Alterações não salvas
               </span>
               <button
                 type="button"
                 onClick={() => setLinhas(inicial.map(comChave))}
-                className="font-mono text-[10px] uppercase tracking-[0.12em] text-[#8E7C86] hover:text-[#2A1B26]"
+                className="font-mono text-[10px] uppercase tracking-[0.12em] text-stone hover:text-ink"
               >
                 Desfazer
               </button>
@@ -216,7 +214,6 @@ function Atalho({
   aoAplicar: (dias: readonly DiaDaSemana[], inicio: string, fim: string) => void;
   desabilitado: boolean;
 }) {
-  const theme = useTheme();
   const [aberto, setAberto] = useState(false);
   const [dias, setDias] = useState<DiaDaSemana[]>([1, 2, 3, 4, 5]);
   const [inicio, setInicio] = useState("09:00");
@@ -227,7 +224,7 @@ function Atalho({
       <button
         type="button"
         onClick={() => setAberto(true)}
-        className="self-start font-mono text-[10px] uppercase tracking-[0.12em] text-[#8E7C86] hover:text-[#2A1B26]"
+        className="self-start font-mono text-[10px] uppercase tracking-[0.12em] text-stone hover:text-ink"
       >
         Mesmo horário em vários dias
       </button>
@@ -235,8 +232,8 @@ function Atalho({
   }
 
   return (
-    <div className="flex flex-col gap-3 rounded-[12px] border border-dashed border-[#EAD6E1] px-3.5 py-3">
-      <p className="text-[12.5px] leading-[1.45] text-[#8E7C86]">
+    <div className="flex flex-col gap-3 rounded-[12px] border border-dashed border-line2 px-3.5 py-3">
+      <p className="text-[12.5px] leading-[1.45] text-stone">
         Troca o que estiver na grade nos dias escolhidos por esta faixa. Nada é salvo até você clicar
         em “Salvar rotina”.
       </p>
@@ -249,13 +246,8 @@ function Atalho({
               <label
                 key={dia.valor}
                 className={`cursor-pointer select-none rounded-[9px] border px-2.5 py-1.5 text-[12.5px] font-semibold transition-colors ${
-                  ativo ? "border-transparent" : "border-[#EAD6E1] bg-white text-[#8E7C86]"
+                  ativo ? "border-transparent bg-accent-12 text-on-soft" : "border-line2 bg-surface text-stone"
                 }`}
-                style={
-                  ativo
-                    ? { backgroundColor: withAlpha(theme.accent, 0.12), color: onSoft(theme.accent) }
-                    : undefined
-                }
               >
                 <input
                   type="checkbox"
@@ -287,7 +279,7 @@ function Atalho({
             className={CONTROLE_MONO}
           />
         </div>
-        <span className="text-[#BFAFB8]">–</span>
+        <span className="text-faint">–</span>
         <div className="w-[112px] shrink-0">
           <input
             type="time"

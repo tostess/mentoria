@@ -1,8 +1,5 @@
 "use client";
 
-import { useState } from "react";
-import { useTheme } from "@/components/theme/ThemeProvider";
-import { onAccent } from "@/lib/theme";
 
 export type RailSlot = { label: string; taken?: boolean };
 
@@ -15,8 +12,6 @@ type Props = {
 };
 
 function Slot({ slot, onPick }: { slot: RailSlot; onPick?: (label: string) => void }) {
-  const theme = useTheme();
-  const [hover, setHover] = useState(false);
   const base =
     "rounded-[8px] border px-[11px] py-[6px] font-mono text-[12px] font-medium transition-colors duration-100";
 
@@ -25,26 +20,17 @@ function Slot({ slot, onPick }: { slot: RailSlot; onPick?: (label: string) => vo
       <button
         type="button"
         disabled
-        className={`${base} cursor-not-allowed border-[#F3E4EC] bg-[#FDF8FB] text-[#C6B8C0] line-through`}
+        className={`${base} cursor-not-allowed border-line bg-mist text-pale line-through`}
       >
         {slot.label}
       </button>
     );
   }
 
-  const style = hover
-    ? { backgroundColor: theme.accent, borderColor: theme.accent, color: onAccent(theme.accent) }
-    : { backgroundColor: theme.white, borderColor: theme.line2, color: theme.deep };
-
   return (
     <button
       type="button"
-      className={`${base} cursor-pointer`}
-      style={style}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      onFocus={() => setHover(true)}
-      onBlur={() => setHover(false)}
+      className={`${base} cursor-pointer border-line2 bg-surface text-deep hover:border-accent hover:bg-accent hover:text-on-accent focus:border-accent focus:bg-accent focus:text-on-accent`}
       onClick={() => onPick?.(slot.label)}
     >
       {slot.label}
@@ -56,10 +42,10 @@ function Slot({ slot, onPick }: { slot: RailSlot; onPick?: (label: string) => vo
 export function Rail({ day, slots, onPick, className = "" }: Props) {
   const free = slots.filter((s) => !s.taken).length;
   return (
-    <div className={`rounded-[12px] border border-[#F3E4EC] bg-white px-3.5 py-3 ${className}`}>
+    <div className={`rounded-[12px] border border-line bg-surface px-3.5 py-3 ${className}`}>
       <div className="mb-2.5 flex items-baseline justify-between">
         <span className="font-mono text-[10.5px] font-semibold uppercase tracking-[0.1em]">{day}</span>
-        <span className="font-mono text-[10px] text-[#8E7C86]">
+        <span className="font-mono text-[10px] text-stone">
           {free} {free === 1 ? "livre" : "livres"}
         </span>
       </div>

@@ -90,14 +90,14 @@ export function BuscaDeParceiros({
             <li key={p.id}>
               <Link
                 href={`/parceiros/${p.id}`}
-                className="group flex h-full flex-col gap-3 rounded-[14px] border border-[#F3E4EC] bg-white p-[18px] transition-[border-color,box-shadow] duration-150 hover:border-[#EAD6E1] hover:shadow-[0_10px_30px_-22px_rgba(42,27,38,0.4)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C2317A]"
+                className="group flex h-full flex-col gap-3 rounded-[14px] border border-line bg-surface p-[18px] transition-[border-color,box-shadow] duration-150 hover:border-line2 hover:shadow-[0_10px_30px_-22px_rgba(42,27,38,0.4)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
               >
                 <div className="flex items-center gap-3">
                   <Avatar name={p.nome} photoUrl={p.foto} />
                   <div className="min-w-0">
                     <div className="truncate text-[15px] font-semibold">{p.nome}</div>
                     {p.chamada && (
-                      <div className="text-[12.5px] leading-[1.35] text-[#8E7C86]">{p.chamada}</div>
+                      <div className="text-[12.5px] leading-[1.35] text-stone">{p.chamada}</div>
                     )}
                   </div>
                 </div>
@@ -108,11 +108,11 @@ export function BuscaDeParceiros({
                     ))}
                   </div>
                 )}
-                <div className="mt-auto flex items-center justify-between gap-2 border-t border-[#F3E4EC] pt-[11px] text-[12.5px] text-[#8E7C86]">
+                <div className="mt-auto flex items-center justify-between gap-2 border-t border-line pt-[11px] text-[12.5px] text-stone">
                   {p.proximo ? (
                     <>
                       <span>Próximo horário</span>
-                      <span className="ml-auto font-mono text-[12px] text-[#2A1B26]">{p.proximo}</span>
+                      <span className="ml-auto font-mono text-[12px] text-ink">{p.proximo}</span>
                     </>
                   ) : (
                     <span>Sem horário nos próximos {horizonteDias} dias</span>
@@ -120,7 +120,7 @@ export function BuscaDeParceiros({
                   <Icone
                     nome="chevron-right"
                     tamanho={15}
-                    className="text-[#D9C3CF] group-hover:text-[#C2317A]"
+                    className="text-ghost group-hover:text-accent"
                   />
                 </div>
               </Link>

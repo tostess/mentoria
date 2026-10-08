@@ -46,7 +46,7 @@ export function Confirmacao({ erroNaQuery, termoAdmin }: { erroNaQuery: boolean;
       <div className="flex flex-col gap-4">
         <div>
           <h1 className="text-[29px]">Este link não vale mais</h1>
-          <p className="mt-1 text-[13px] leading-[1.5] text-[#2A1B26]">
+          <p className="mt-1 text-[13px] leading-[1.5] text-ink">
             O link de confirmação expira e só pode ser usado uma vez. Se você já confirmou, é só
             esperar a análise do pedido. Se não, peça outro link:
           </p>
@@ -59,10 +59,10 @@ export function Confirmacao({ erroNaQuery, termoAdmin }: { erroNaQuery: boolean;
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-start gap-3">
-        <Icone nome="check" tamanho={20} className="mt-1.5 shrink-0 text-[#2E6B52]" />
+        <Icone nome="check" tamanho={20} className="mt-1.5 shrink-0 text-success" />
         <div>
           <h1 className="text-[29px]">E-mail confirmado</h1>
-          <p className="mt-1 text-[13px] leading-[1.5] text-[#2A1B26]">
+          <p className="mt-1 text-[13px] leading-[1.5] text-ink">
             Seu pedido foi para a {termoAdmin.toLowerCase()}, que confere cada cadastro antes de abrir
             a conta. Quando for aprovado, você entra com este e-mail e a senha que criou.
           </p>

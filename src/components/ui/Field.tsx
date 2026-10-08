@@ -13,12 +13,12 @@ import type { ReactNode } from "react";
  */
 
 export const CONTROLE =
-  "w-full rounded-[10px] border border-[#EAD6E1] bg-white px-3 py-2.5 text-[13.5px] text-[#2A1B26] outline-none transition-colors focus:border-[#C2317A] disabled:cursor-not-allowed disabled:bg-[#FDF8FB] disabled:text-[#8E7C86]";
+  "w-full rounded-[10px] border border-line2 bg-surface px-3 py-2.5 text-[13.5px] text-ink outline-none transition-colors focus:border-accent disabled:cursor-not-allowed disabled:bg-mist disabled:text-stone";
 
 export const CONTROLE_MONO = `${CONTROLE} font-mono tabular-nums`;
 
 export const ROTULO =
-  "mb-1.5 block font-mono text-[9.5px] uppercase tracking-[0.12em] text-[#8E7C86]";
+  "mb-1.5 block font-mono text-[9.5px] uppercase tracking-[0.12em] text-stone";
 
 type FieldProps = {
   /** Precisa casar com o `id` do controle — é o que liga rótulo e campo. */
@@ -36,7 +36,7 @@ export function Field({ htmlFor, label, hint, children, className = "" }: FieldP
         {label}
       </label>
       {children}
-      {hint && <p className="mt-[5px] text-[12px] leading-[1.45] text-[#8E7C86]">{hint}</p>}
+      {hint && <p className="mt-[5px] text-[12px] leading-[1.45] text-stone">{hint}</p>}
     </div>
   );
 }

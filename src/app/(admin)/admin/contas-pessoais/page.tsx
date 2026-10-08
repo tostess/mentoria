@@ -48,7 +48,7 @@ export default async function Page() {
           title={cap(contagem(contas.length, t.individual, t.individuals))}
           icone="user"
           action={
-            <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-[#8E7C86]">
+            <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-stone">
               Saldo = na carteira
             </span>
           }
@@ -78,7 +78,7 @@ export default async function Page() {
                 {contas.map((conta) => (
                   <tr
                     key={conta.id}
-                    className="group relative transition-colors hover:bg-[#FDF8FB] focus-within:bg-[#FDF8FB]"
+                    className="group relative transition-colors hover:bg-mist focus-within:bg-mist"
                   >
                     <Td>
                       <div className="flex items-center gap-2.5">
@@ -97,7 +97,7 @@ export default async function Page() {
                       </div>
                     </Td>
                     <Td>
-                      <span className="font-mono text-[12px] text-[#8E7C86]">
+                      <span className="font-mono text-[12px] text-stone">
                         {conta.ultimaCompra === null ? "—" : dia(conta.ultimaCompra)}
                       </span>
                     </Td>
@@ -110,7 +110,7 @@ export default async function Page() {
                     <Td align="right" className="w-8">
                       <Icone
                         nome="chevron-right"
-                        className="text-[#D9C3CF] transition-colors group-hover:text-[#C2317A]"
+                        className="text-ghost transition-colors group-hover:text-accent"
                       />
                     </Td>
                   </tr>
@@ -126,7 +126,7 @@ export default async function Page() {
           </Card>
         ) : (
           <Card title="Só leitura">
-            <p className="text-[13px] leading-[1.5] text-[#8E7C86]">
+            <p className="text-[13px] leading-[1.5] text-stone">
               A moderação acompanha as contas pessoais mas não cria conta nem registra pagamento.
             </p>
           </Card>

@@ -46,12 +46,12 @@ function Purse({
   children: ReactNode;
 }) {
   return (
-    <div className="rounded-[12px] border border-[#F3E4EC] bg-white px-3 py-[11px]">
+    <div className="rounded-[12px] border border-line bg-surface px-3 py-[11px]">
       <div className="flex items-center gap-[9px]">
         {children}
         <div>
           <div className="font-display text-[30px] font-bold leading-none">{value}</div>
-          <div className="font-mono text-[9px] uppercase tracking-[0.12em] text-[#8E7C86]">
+          <div className="font-mono text-[9px] uppercase tracking-[0.12em] text-stone">
             {cap(label)}
           </div>
         </div>

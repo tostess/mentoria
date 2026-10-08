@@ -62,28 +62,28 @@ export default async function Page() {
         <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-3">
           <Link
             href="/parceiro/sessoes"
-            className="rounded-[14px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C2317A]"
+            className="rounded-[14px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           >
             <Stat
               value={pedidos.length}
               label={pedidos.length === 1 ? "Pedido esperando você" : "Pedidos esperando você"}
               icone="inbox"
-              className={pedidos.length > 0 ? "border-[#E7B3CC]" : ""}
+              className={pedidos.length > 0 ? "border-accent-line" : ""}
             />
           </Link>
           <Stat value={emSeteDias} label={`${t.sessions} nos próximos 7 dias`} icone="calendar" />
-          <div className="relative rounded-[14px] border border-[#F3E4EC] bg-white p-[18px]">
-            <Icone nome="clock" tamanho={20} className="absolute right-4 top-4 text-[#D9C3CF]" />
+          <div className="relative rounded-[14px] border border-line bg-surface p-[18px]">
+            <Icone nome="clock" tamanho={20} className="absolute right-4 top-4 text-ghost" />
             <div className="font-display text-[38px] font-bold leading-[0.9]">
               {nestaSemana}
-              <span className="text-[22px] text-[#8E7C86]"> / {teto}</span>
+              <span className="text-[22px] text-stone"> / {teto}</span>
             </div>
-            <div className="mt-2 font-mono text-[9.5px] uppercase tracking-[0.12em] text-[#8E7C86]">
+            <div className="mt-2 font-mono text-[9.5px] uppercase tracking-[0.12em] text-stone">
               nesta semana (dom–sáb)
             </div>
-            <div className="mt-2.5 h-2 overflow-hidden rounded-full bg-[#F3E4EC]">
+            <div className="mt-2.5 h-2 overflow-hidden rounded-full bg-line">
               <div
-                className="h-full rounded-full bg-[#C2317A]"
+                className="h-full rounded-full bg-accent"
                 style={{ width: `${Math.min(100, Math.round((nestaSemana / Math.max(1, teto)) * 100))}%` }}
               />
             </div>
@@ -96,7 +96,7 @@ export default async function Page() {
             action={
               <Link
                 href="/parceiro/sessoes"
-                className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-[#C2317A]"
+                className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-accent"
               >
                 Todas
                 <Icone nome="chevron-right" tamanho={13} />
@@ -131,7 +131,7 @@ export default async function Page() {
           </Card>
 
           <Card title="Sua agenda aberta" icone="calendar-clock">
-            <p className="text-[12.5px] leading-[1.5] text-[#8E7C86]">
+            <p className="text-[12.5px] leading-[1.5] text-stone">
               {resumoDasRegras(regras)}
               {regras.length > 0 && perfil && (
                 <>
