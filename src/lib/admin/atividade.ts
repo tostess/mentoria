@@ -89,6 +89,10 @@ const CAMPOS: Record<string, string> = {
   confirmaSozinho: "confirmação automática",
   cargo: "cargo",
   area: "área",
+  accent: "cor principal",
+  nomeNaMarca: "nome na marca",
+  logotipo: "logotipo",
+  cores: "ajuste fino das cores",
 };
 
 export function rotuloDoCampo(chave: string): string {
@@ -274,6 +278,15 @@ export const ACOES = {
       return [fraco(`${verbo} o ${t.partner} `), forte(nomeDoAlvo(ev))];
     },
   },
+  editar_marca: {
+    icone: () => "palette",
+    tom: () => "accent",
+    predicado: (ev, t) => [
+      fraco("mudou a marca de "),
+      forte(ev.empresa ?? t.org.toLowerCase()),
+      ...camposAlterados(ev),
+    ],
+  },
   editar_profissional: {
     icone: () => "pencil",
     tom: () => "neutral",
@@ -367,6 +380,7 @@ export function rotuloDaAcao(acao: AcaoAuditada, t: Terms): string {
     criar_parceiro: `Criar ${t.partner}`,
     editar_parceiro: `Editar ${t.partner}`,
     alterar_status_parceiro: `Status de ${t.partner}`,
+    editar_marca: "Marca",
     editar_profissional: `Editar ${t.professional}`,
     desativar_conta: "Desativar acesso",
     reativar_conta: "Reativar acesso",

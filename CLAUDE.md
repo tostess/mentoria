@@ -212,7 +212,8 @@ coluna da esquerda é o token do Tailwind; o default mora em `globals.css` e em 
 | `off` · `off-soft` · `ink-night` · `night-text` | desligado; sala escura | fixa |
 
 As famílias **marca** mudam por empresa (`variaveisDoTema`); as **fixas** significam a mesma coisa
-em todo cliente e não entram na personalização (decisão de 07/10/2026).
+em todo cliente e não entram na personalização (decisão de 07/10/2026). Na família marca, tudo sai
+do accent por `paletaDoAccent` e a empresa pode ajustar cada cor (`branding.cores`) — F4b.
 
 Fontes: **Darker Grotesque** (títulos 600/700), **Instrument Sans** (corpo), **IBM Plex Mono**
 (horários, números, rótulos em caixa alta). Raio 14px, botões 10px, chips 8px.
@@ -619,8 +620,10 @@ Sem folga no calendário. Se o nome não sair em 10/10, A2 escorrega e arrasta o
 Asaas de produção não estiver aprovada até 13/11, o piloto abre com o admin registrando a compra do
 avulso à mão (a compra pelo painel já existe) e o checkout entra depois.
 
-- **F4 (07/10, fora do calendário) Marca por empresa.** Trazida para dentro do piloto a pedido,
-  enquanto a A2 espera o nome. F4a: cor virou token. F4b: a operadora escolhe a marca da empresa.
+- **F4 (07/10, fora do calendário) Marca por empresa** ✅ na branch `f4`, esperando aprovação.
+  Trazida para dentro do piloto a pedido, enquanto a A2 espera o nome. F4a: cor virou token. F4b:
+  a operadora escolhe cor principal, nome, logotipo e ajuste fino em `/admin/empresas/[id]`, com
+  prévia; `/admin/personalizacao` mostra a marca de cada empresa.
 
 Fora do piloto: convite por token de Parceiro, candidatura espontânea, console do RH, briefing,
 avaliação, fila de espera, moderação.
@@ -1233,6 +1236,35 @@ sensível —, rota com `maxDuration`, modelo escolhido na hora.
   tela antes e depois. `lib/cores.test.ts` recusa hex em componente e confere que o default de
   `globals.css` é `variaveisDoTema(DEFAULT_THEME)`. Ouro, sucesso, erro e a sala escura são fixos.
 
+- **A paleta inteira sai do accent (F4b, 07/10/2026).** Trocar só o accent deixava botão verde
+  sobre fundo rosado — o que a Aurora mostrava. `paletaDoAccent` gira cada tom do padrão pela
+  diferença de matiz entre o accent novo e o magenta, acompanha a saturação (com teto de 1,25×) e
+  **não mexe na luminosidade**: o fundo continua claro e o texto escuro, então o contraste do padrão
+  sobrevive (texto sobre cartão acima de 15:1 em verde, azul, laranja, cinza e amarelo). O `deep`
+  acompanha a luminosidade do accent, porque é a versão escura dele. O accent padrão devolve o
+  padrão exato — teste.
+- **Ajuste fino guarda só a diferença.** `branding.cores` tem apenas a cor que a operadora mudou e
+  que difere da derivada (`ajustesDaMarca`), na ordem de `CORES_DA_MARCA`. Guardar a derivada
+  congelaria a cor: trocar o accent depois deixaria um fundo do accent antigo. Com accent próprio,
+  o ajuste fino da plataforma não vale para a empresa (`mergeBranding`).
+- **Texto ilegível não salva; accent fraco salva com aviso.** Texto sobre cartão ou fundo abaixo de
+  4,5:1 é recusado na tela e na ação (`problemasDeLeitura`) — quem descobriria é o colaborador. Accent
+  ou texto secundário abaixo de 3:1 contra o cartão só avisa (`avisosDeContraste`): marca amarela
+  existe, e a decisão é da operadora.
+- **Logotipo por endereço `https`, sem upload, por enquanto.** Vai num `<img>` em toda tela da
+  empresa, e `http` numa página `https` some sem erro. Subir o arquivo pelo Supabase Storage pede
+  bucket e policy — fica para quando a cliente tiver marca.
+- **O formulário lê a marca como gravada, por consulta que falha alto.** `buscarEmpresa` traz
+  `branding` cru; `loadOrgBranding` degrada para vazio com o banco fora do ar, e salvar em cima do
+  vazio apagaria a marca. A prévia é o mesmo `resolveTheme` + `variaveisDoTema` do layout raiz,
+  escrito no `div` dela — as variáveis do `div` vencem as do `<html>`, com as classes de sempre.
+- **Marca é da empresa; a conta pessoal fica com a da plataforma.** `marcaNaTransacao` trava a
+  `org` com `kind = 'empresa'` e recusa o resto (`EmpresaInexistente`). Auditoria `editar_marca`
+  com a diferença, no molde da edição de pessoas; salvar sem mudar nada não grava linha.
+- **A casca do celular não estica em página curta.** O grid do `AppShell` é `min-h-screen`, e com
+  pouco conteúdo as duas linhas cresciam para preencher a tela — a barra do topo virava uma faixa
+  branca de 200px. `max-lg:content-start` (achado rodando na `/admin/personalizacao`).
+
 ## Descartado
 
 - Firebase / Firestore. - Chat livre fora da janela de 24h da sessão. - Ranking público.
@@ -1256,11 +1288,28 @@ sensível —, rota com `maxDuration`, modelo escolhido na hora.
 
 ## Estado atual
 
-Fase: **F4 (marca por empresa) em andamento na branch `f4`**, trazida para dentro do piloto em
-07/10/2026, a pedido, enquanto a A2 espera o nome. A **F4a** (cor virou token) está commitada na
-`f4`: nenhum hex sobrou em componente, as cores chegam por `--cor-*` em `<html style>` e o tema
-padrão ficou igual pixel a pixel (conferido por captura antes e depois). Sem migração. Falta a
-**F4b**: a operadora escolher a marca da empresa em `/admin/empresas/[id]`.
+Fase: **F4 (marca por empresa) pronta na branch `f4`, esperando sua aprovação** — trazida para
+dentro do piloto em 07/10/2026, a pedido, enquanto a A2 espera o nome. Sem migração: `orgs.branding`
+já era `jsonb` e só ganhou a chave `cores`. **F4a**: cor virou token (`--cor-*` em `<html style>`,
+tema padrão igual pixel a pixel). **F4b**: cartão "Marca" em `/admin/empresas/[id]` — cor
+principal, nome na marca, logotipo por endereço `https`, ajuste fino das 13 outras cores e prévia
+ao vivo —, e `/admin/personalizacao` (era página vazia) com a marca de cada empresa. Exercitada no
+`next dev --webpack` contra o `mentoria-dev`, por clique com Chrome sem tela, desktop e 390px, sem
+erro de console: a Aurora foi para azul com fundo ajustado, a casca da Mariana mudou inteira, e
+"Voltar à marca da plataforma" mais o verde a devolveram ao `{"accent":"#2E6B52"}` de antes (duas
+linhas de `editar_marca` ficam na auditoria do `mentoria-dev`).
+
+**Achado na verificação da F4b, anterior a ela e ainda sem correção:** requisições
+**simultâneas** entalam a conexão Drizzle de `max: 1` do mesmo jeito que o `Promise.all` — o
+`Promise.all` é só o caso de dentro de uma requisição. Reproduzido no `next dev` limpo: 12
+requisições de páginas da operadora em paralelo, 2 respondem e 10 ficam paradas até o limite de
+90 s, e o processo inteiro deixa de responder; as mesmas 12 em sequência respondem em menos de
+0,5 s. No mesmo período apareceram `RangeError: Invalid time value` em `/admin/contas-pessoais` e
+`cnpj(undefined)` em `/admin/empresas`, intermitentes — compatíveis com resposta entregue à consulta
+errada, o que seria pior que a trava. Em produção depende de a Vercel servir mais de uma requisição
+por instância (Fluid compute). **A próxima sessão deveria começar por aqui**, antes de qualquer
+feature: reproduzir contra o Preview, confirmar o modo de concorrência do projeto e decidir a
+correção (fila por conexão, pool maior no pooler de transação ou conexão por requisição).
 
 Antes dela: **A3 (cadastro e fila) na `main` e em produção desde 07/10/2026** — aprovada por você e
 publicada por fast-forward da `a3`, depois de `db:migrate:prod` aplicar `cadastro_anonimizado` no
@@ -1345,7 +1394,8 @@ Toda casca tem o **menu da conta** no pé da sidebar, com "Redefinir senha" e "S
 com senha provisória recebe a janela de troca ao entrar (`components/conta/JanelaDeSenha.tsx`,
 `trocarSenha` em `lib/auth/actions.ts`, regras puras em `lib/auth/senha.ts`).
 
-710 testes em 42 arquivos — a cor como token em `lib/cores.test.ts` (nenhum hex em componente,
+735 testes em 43 arquivos — a marca da empresa em `marca/marca.test.ts` (paleta derivada,
+legibilidade, ajuste fino, escrita e auditoria, conta pessoal recusada); a cor como token em `lib/cores.test.ts` (nenhum hex em componente,
 `globals.css` igual a `variaveisDoTema(DEFAULT_THEME)`, tons derivados do accent); a recuperação de senha em `auth/recuperacao.test.ts`; o cadastro em `cadastro/fila.test.ts` (pedido e reenvio, aprovação
 virando conta e dando papel no token, e-mail sem confirmar, recusa sem nome na auditoria, a rede da
 rodada diária, anonimização de 90 dias) e `cadastro/regras.test.ts`; a conta pessoal em `ledger/conta-pessoal.test.ts` (dono único, tipo
@@ -1418,6 +1468,17 @@ A P5 está em produção desde 27/09. Para o vídeo chegar ao piloto de 10/11:
   no piloto. O limite é por IP e o `signUp` sai do servidor: todos os cadastros dividem o IP da
   Vercel — folgado para a escala do piloto, e o próprio SMTP limita antes.
 - **Editar o pedido pela operadora** ou devolvê-lo com pergunta. Ela aprova, recusa ou espera.
+
+### F4 — o que ficou de fora, de propósito
+
+- **Upload do logotipo.** Endereço `https` digitado; Storage com bucket e policy fica para quando
+  houver marca de verdade.
+- **Marca da plataforma pela tela.** `app_config.branding` continua mudando no banco; o nome da
+  plataforma ainda não existe.
+- **Vocabulário por empresa.** `copy.terms` sobrescrevível por empresa é outra tela.
+- **Entrada com a marca da empresa.** `/entrar` não sabe de que empresa a pessoa é antes de ela
+  entrar; continua com a da plataforma.
+- **O RH editar a própria marca.** É da operadora, como contrato — o console do RH é a F2.
 
 ### A1 — o que ficou de fora, de propósito
 

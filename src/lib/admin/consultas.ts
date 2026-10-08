@@ -3,6 +3,8 @@ import "server-only";
 import { and, asc, eq, isNull, sql as raw } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { orgWallets, orgs, partners, profiles, wallets } from "@/lib/db/schema";
+import { parseBranding } from "@/lib/config/app-config";
+import { marcaDoBranding, type MarcaDaEmpresa } from "@/lib/marca/operacoes";
 import type { DadosDoParceiro } from "@/lib/pessoas/edicao";
 import type { EventoDeAtividade } from "./atividade";
 import type { Colaborador, ParceiroNaLista } from "./tipos";
@@ -126,6 +128,27 @@ export type EmpresaNaLista = {
   colaboradores: number;
 };
 
+export type MarcaNaLista = {
+  id: string;
+  nome: string;
+  ativa: boolean;
+  marca: MarcaDaEmpresa;
+};
+
+/** A marca de cada empresa, para a tela de personalização. Conta pessoal usa a da plataforma. */
+export async function listarMarcas(): Promise<MarcaNaLista[]> {
+  const linhas = await getDb()
+    .select({ id: orgs.id, nome: orgs.name, ativa: orgs.active, branding: orgs.branding })
+    .from(orgs)
+    .where(eq(orgs.kind, "empresa"))
+    .orderBy(raw`${orgs.active} desc`, asc(orgs.name));
+
+  return linhas.map(({ branding, ...linha }) => ({
+    ...linha,
+    marca: marcaDoBranding(parseBranding(branding)),
+  }));
+}
+
 export async function listarEmpresas(): Promise<EmpresaNaLista[]> {
   const linhas = await getDb().execute<{
     id: string;
@@ -163,6 +186,12 @@ export type Empresa = {
   saldo: number;
   inicio: string | null;
   fim: string | null;
+  /**
+   * A marca como está gravada, não o tema resolvido — é o que o formulário
+   * edita. Lida aqui, e não por `loadOrgBranding`, porque aquele degrada para
+   * vazio com o banco fora do ar, e salvar em cima do vazio apagaria a marca.
+   */
+  marca: MarcaDaEmpresa;
 };
 
 export async function buscarEmpresa(orgId: string): Promise<Empresa | null> {
@@ -176,6 +205,7 @@ export async function buscarEmpresa(orgId: string): Promise<Empresa | null> {
       saldo: orgWallets.balance,
       inicio: orgs.contractStart,
       fim: orgs.contractEnd,
+      branding: orgs.branding,
     })
     .from(orgs)
     .leftJoin(orgWallets, eq(orgWallets.orgId, orgs.id))
@@ -185,7 +215,8 @@ export async function buscarEmpresa(orgId: string): Promise<Empresa | null> {
     .limit(1);
 
   if (!linha) return null;
-  return { ...linha, saldo: linha.saldo ?? 0 };
+  const { branding, ...empresa } = linha;
+  return { ...empresa, saldo: linha.saldo ?? 0, marca: marcaDoBranding(parseBranding(branding)) };
 }
 
 

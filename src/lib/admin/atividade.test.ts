@@ -79,6 +79,15 @@ describe("catálogo de ações auditadas", () => {
     );
   });
 
+  it("marca diz de qual empresa e o que mudou", () => {
+    const texto = frase(
+      evento("editar_marca", { alvo: null, depois: { accent: "#2E6B52", logotipo: "https://x/l.png", cores: {} } }),
+    );
+    expect(texto).toBe(
+      "João Paulo Ferreira mudou a marca de Faculdade Aurora — cor principal, logotipo, ajuste fino das cores",
+    );
+  });
+
   it("status escolhe verbo e ícone pelo estado novo", () => {
     const pausar = descrever(
       evento("alterar_status_parceiro", { depois: { status: "paused" } }),

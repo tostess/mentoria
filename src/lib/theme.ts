@@ -37,6 +37,34 @@ export type Theme = {
 };
 
 /**
+ * As cores da família "marca" além do accent (F4b). Saem do accent por
+ * `paletaDoAccent`, e a empresa pode ajustar qualquer uma. Ouro, sucesso e
+ * erro ficam fora: significam a mesma coisa em todo cliente.
+ */
+export const CORES_DA_MARCA = [
+  "ink",
+  "mist",
+  "white",
+  "blush",
+  "deep",
+  "line",
+  "line2",
+  "stone",
+  "stoneDark",
+  "muted",
+  "faint",
+  "pale",
+  "ghost",
+] as const;
+
+export type CorDaMarca = (typeof CORES_DA_MARCA)[number];
+
+/** Ajuste fino: só as cores que a empresa escolheu à mão, diferentes da derivada. */
+export type AjustesDeCor = Partial<Record<CorDaMarca, string>>;
+
+export type Paleta = Record<CorDaMarca | "accent", string>;
+
+/**
  * O que a empresa sobrescreve. Mora aqui, e não no módulo de configuração,
  * porque `normalizeHex` é daqui: se o tipo morasse lá, os dois módulos se
  * importariam em círculo por causa de uma validação de hex.
@@ -45,6 +73,8 @@ export type Branding = {
   accent: string | null;
   name: string | null;
   logoUrl: string | null;
+  /** Ausente é o mesmo que vazio: todas as cores derivadas do accent. */
+  cores?: AjustesDeCor;
 };
 
 export const DEFAULT_THEME: Theme = {
@@ -119,17 +149,119 @@ export function onSoft(hex: string): string {
 }
 
 /**
- * Branding resolvido → tema. Só `accent`, nome e logotipo mudam por empresa:
- * ink, ouro e os tons de estado são estrutura do sistema de design e não
- * entram na personalização.
+ * Branding resolvido → tema. A família "marca" sai do accent e recebe por
+ * cima o ajuste fino da empresa; ouro e os tons de estado são estrutura do
+ * sistema de design e não entram na personalização.
  */
 export function resolveTheme(branding: Branding | null): Theme {
+  const accent = normalizeHex(branding?.accent) ?? DEFAULT_THEME.accent;
+  const paleta = paletaDoAccent(accent);
+  for (const cor of CORES_DA_MARCA) {
+    paleta[cor] = normalizeHex(branding?.cores?.[cor]) ?? paleta[cor];
+  }
   return {
     ...DEFAULT_THEME,
-    accent: normalizeHex(branding?.accent) ?? DEFAULT_THEME.accent,
+    ...paleta,
     platformName: branding?.name?.trim() || DEFAULT_THEME.platformName,
     logoUrl: branding?.logoUrl?.trim() || null,
   };
+}
+
+type Hsl = { h: number; s: number; l: number };
+
+function paraHsl(hex: string): Hsl {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  const d = max - min;
+  if (d === 0) return { h: 0, s: 0, l };
+  const s = d / (1 - Math.abs(2 * l - 1));
+  const h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return { h: (h * 60 + 360) % 360, s, l };
+}
+
+function deHsl({ h, s, l }: Hsl): string {
+  const limitar = (v: number) => Math.max(0, Math.min(1, v));
+  const [ss, ll] = [limitar(s), limitar(l)];
+  const c = (1 - Math.abs(2 * ll - 1)) * ss;
+  const hh = (((h % 360) + 360) % 360) / 60;
+  const x = c * (1 - Math.abs((hh % 2) - 1));
+  const [r, g, b] =
+    hh < 1 ? [c, x, 0] : hh < 2 ? [x, c, 0] : hh < 3 ? [0, c, x] : hh < 4 ? [0, x, c] : hh < 5 ? [x, 0, c] : [c, 0, x];
+  const m = ll - c / 2;
+  return `#${[r, g, b]
+    .map((v) =>
+      Math.round((v + m) * 255)
+        .toString(16)
+        .padStart(2, "0"),
+    )
+    .join("")
+    .toUpperCase()}`;
+}
+
+/**
+ * A família "marca" inteira a partir de um accent só.
+ *
+ * Cada tom do padrão guarda a relação que tem com o magenta: o fundo é o
+ * magenta quase branco, o texto é o magenta quase preto. Trocar o accent gira
+ * todos os tons pela mesma diferença de matiz e acompanha a saturação dele,
+ * sem mexer na luminosidade — então o fundo continua claro, o texto continua
+ * escuro e o contraste do padrão sobrevive. Sem isso, uma marca verde ficava
+ * com botão verde sobre fundo rosado. O `deep` acompanha a luminosidade do
+ * accent, porque é a versão escura dele, não um tom fixo da página.
+ *
+ * O ganho de saturação tem teto (1,25×) para um accent berrante não tingir o
+ * texto e as bordas além da conta; accent cinza dá neutros cinza.
+ */
+export function paletaDoAccent(accent: string): Paleta {
+  const paleta = { accent } as Paleta;
+  if (accent === DEFAULT_THEME.accent) {
+    for (const cor of CORES_DA_MARCA) paleta[cor] = DEFAULT_THEME[cor];
+    return paleta;
+  }
+
+  const ref = paraHsl(DEFAULT_THEME.accent);
+  const nova = paraHsl(accent);
+  const giro = nova.h - ref.h;
+  const ganho = Math.min(nova.s / ref.s, 1.25);
+
+  for (const cor of CORES_DA_MARCA) {
+    const tom = paraHsl(DEFAULT_THEME[cor]);
+    paleta[cor] =
+      cor === "deep"
+        ? deHsl({ h: nova.h + (tom.h - ref.h), s: nova.s * (tom.s / ref.s), l: nova.l * (tom.l / ref.l) })
+        : deHsl({ h: tom.h + giro, s: tom.s * ganho, l: tom.l });
+  }
+  return paleta;
+}
+
+/**
+ * O que guardar do ajuste fino: só cor válida e diferente da derivada, na
+ * ordem de `CORES_DA_MARCA`. Guardar a derivada congelaria a cor — a empresa
+ * que trocasse o accent depois ficaria com um fundo do accent antigo.
+ */
+export function ajustesDaMarca(accent: string, cores: Partial<Record<CorDaMarca, string | null>>): AjustesDeCor {
+  const derivada = paletaDoAccent(accent);
+  const ajustes: AjustesDeCor = {};
+  for (const cor of CORES_DA_MARCA) {
+    const valor = normalizeHex(cores[cor]);
+    if (valor !== null && valor !== derivada[cor]) ajustes[cor] = valor;
+  }
+  return ajustes;
+}
+
+/** Razão de contraste da WCAG entre duas cores opacas: de 1 (igual) a 21 (preto e branco). */
+export function contraste(a: string, b: string): number {
+  const luminancia = (hex: string) => {
+    const [r, g, b2] = [1, 3, 5].map((i) => {
+      const c = parseInt(hex.slice(i, i + 2), 16) / 255;
+      return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b2;
+  };
+  const [claro, escuro] = [luminancia(a), luminancia(b)].sort((x, y) => y - x);
+  return (claro + 0.05) / (escuro + 0.05);
 }
 
 /**

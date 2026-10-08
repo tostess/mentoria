@@ -11,7 +11,7 @@
  */
 
 import { DEFAULT_TERMS, resolveTerms, type Terms } from "@/lib/terms";
-import { normalizeHex, type Branding } from "@/lib/theme";
+import { CORES_DA_MARCA, normalizeHex, type AjustesDeCor, type Branding } from "@/lib/theme";
 
 export type FichaPolicy = {
   defaultAllocationPerUser: number;
@@ -116,7 +116,7 @@ export const DEFAULT_FLAGS: Flags = { partnerEarnsFichas: false };
 
 export const DEFAULT_LEGAL: Legal = { termsUrl: null, privacyUrl: null, versao: null };
 
-export const DEFAULT_BRANDING: Branding = { accent: null, name: null, logoUrl: null };
+export const DEFAULT_BRANDING: Branding = { accent: null, name: null, logoUrl: null, cores: {} };
 
 /** Os três pacotes de 01/10/2026 — os mesmos que a migração `conta_individual` semeia. */
 export const DEFAULT_PACOTES: Pacote[] = [
@@ -266,11 +266,31 @@ function parseIndividualPolicy(value: unknown): IndividualPolicy {
  */
 export function parseBranding(value: unknown): Branding {
   const v = asRecord(value);
+  const cores = asRecord(v.cores);
+  const ajustes: AjustesDeCor = {};
+  for (const cor of CORES_DA_MARCA) {
+    const hex = normalizeHex(str(cores[cor]));
+    if (hex !== null) ajustes[cor] = hex;
+  }
   return {
     accent: normalizeHex(str(v.accent)),
     name: str(v.name),
     logoUrl: str(v.logo_url) ?? str(v.logoUrl),
+    cores: ajustes,
   };
+}
+
+/**
+ * O branding no formato do `orgs.branding`: chaves do banco, sem campo vazio.
+ * Devolve null quando não sobra nada — a empresa volta inteira à plataforma.
+ */
+export function brandingParaBanco(branding: Branding): Record<string, unknown> | null {
+  const linha: Record<string, unknown> = {};
+  if (branding.accent !== null) linha.accent = branding.accent;
+  if (branding.name !== null) linha.name = branding.name;
+  if (branding.logoUrl !== null) linha.logo_url = branding.logoUrl;
+  if (branding.cores && Object.keys(branding.cores).length > 0) linha.cores = branding.cores;
+  return Object.keys(linha).length === 0 ? null : linha;
 }
 
 export function parseAppConfig(rows: readonly ConfigRow[]): AppConfig {
@@ -300,5 +320,8 @@ export function mergeBranding(platform: Branding, org: Branding | null): Brandin
     accent: org.accent ?? platform.accent,
     name: org.name ?? platform.name,
     logoUrl: org.logoUrl ?? platform.logoUrl,
+    // O ajuste fino da plataforma foi escolhido para o accent dela; com accent
+    // próprio, a empresa parte da paleta derivada do seu.
+    cores: org.accent === null ? { ...platform.cores, ...org.cores } : (org.cores ?? {}),
   };
 }

@@ -55,7 +55,10 @@ import {
 } from "@/lib/pessoas/editar";
 import { fuso as campoFuso, senioridade as campoSenioridade } from "@/lib/parceiro/validacao";
 import { dia } from "@/lib/formato";
-import { normalizeHex } from "@/lib/theme";
+import { mergeBranding } from "@/lib/config/app-config";
+import { EmpresaInexistente, salvarMarca } from "@/lib/marca";
+import { ROTULO_DA_COR, logotipoValido, problemasDeLeitura } from "@/lib/marca/regras";
+import { CORES_DA_MARCA, DEFAULT_THEME, normalizeHex, resolveTheme, type AjustesDeCor } from "@/lib/theme";
 import { rotuloDoCampo } from "./atividade";
 import { ehColaboradorDaEmpresa } from "./consultas";
 
@@ -105,7 +108,8 @@ async function executando(fn: () => Promise<FormState>): Promise<FormState> {
         erro instanceof TipoDeContaErrado ||
         erro instanceof PagamentoNaoCreditavel ||
         erro instanceof PedidoJaDecidido ||
-        erro instanceof PedidoInexistente
+        erro instanceof PedidoInexistente ||
+        erro instanceof EmpresaInexistente
       ) {
         return falha(erro.message);
       }
@@ -148,6 +152,60 @@ export async function criarEmpresaAcao(
     // Redirect vem depois da escrita e substitui o `refresh()`: a tela de
     // destino é renderizada do zero e já mostra a empresa criada.
     redirect(`/admin/empresas/${id}`);
+  });
+}
+
+/** Hex opcional; preenchido e inválido é erro, com o nome do campo. */
+function corOpcional(form: FormData, nome: string, rotulo: string): string | null {
+  const bruto = textoOpcional(form, nome, 9);
+  if (bruto === null) return null;
+  const hex = normalizeHex(bruto);
+  if (hex === null) throw new CampoInvalido(`${rotulo} precisa ser um hex como #C2317A.`);
+  return hex;
+}
+
+/**
+ * A marca da empresa (F4b). Campo em branco é "herdar da plataforma"; do
+ * ajuste fino chegam só as cores que a operadora mexeu, e a transação ainda
+ * descarta a que ficou igual à derivada.
+ */
+export async function editarMarcaAcao(
+  _anterior: FormState,
+  form: FormData,
+): Promise<FormState> {
+  const ator = await exigeOperadora();
+
+  return executando(async () => {
+    const orgId = campoId(form, "orgId", "A empresa");
+    const accent = corOpcional(form, "accent", "A cor principal");
+    const nomeNaMarca = textoOpcional(form, "nomeNaMarca", 40);
+    const logotipo = textoOpcional(form, "logotipo", 500);
+    if (logotipo !== null && !logotipoValido(logotipo)) {
+      throw new CampoInvalido("O logotipo precisa ser um endereço https://, como https://exemplo.com.br/logo.png.");
+    }
+
+    const cores: AjustesDeCor = {};
+    for (const cor of CORES_DA_MARCA) {
+      const hex = corOpcional(form, `cor_${cor}`, ROTULO_DA_COR[cor]);
+      if (hex !== null) cores[cor] = hex;
+    }
+
+    // A conferência de leitura olha o tema que a empresa vai ver de verdade,
+    // com a plataforma por baixo — o mesmo que `loadTheme` monta.
+    const plataforma = (await loadAppConfig()).branding;
+    const tema = resolveTheme(mergeBranding(plataforma, { accent, name: nomeNaMarca, logoUrl: logotipo, cores }));
+    const [problema] = problemasDeLeitura(tema);
+    if (problema !== undefined) throw new CampoInvalido(problema);
+
+    const { campos } = await salvarMarca(
+      orgId,
+      { accent, nomeNaMarca, logotipo, cores },
+      ator,
+      plataforma.accent ?? DEFAULT_THEME.accent,
+    );
+
+    refresh();
+    return resumoDaEdicao(campos);
   });
 }
 

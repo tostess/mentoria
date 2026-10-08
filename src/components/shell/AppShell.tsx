@@ -20,7 +20,7 @@ export function AppShell({
   children: ReactNode;
 }) {
   return (
-    <div className="grid min-h-screen grid-cols-1 lg:grid-cols-[246px_1fr]">
+    <div className="grid min-h-screen grid-cols-1 max-lg:content-start lg:grid-cols-[246px_1fr]">
       <Sidebar shell={shell} session={session} saldo={saldo} />
       <main className="w-full max-w-[1140px] px-[18px] pb-[60px] pt-6 lg:px-10 lg:pb-[70px] lg:pt-[34px]">
         {children}

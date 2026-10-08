@@ -20,16 +20,18 @@ export function Table({ children }: { children: ReactNode }) {
 export function Th({
   children,
   align = "left",
+  className = "",
 }: {
   children?: ReactNode;
   align?: "left" | "right";
+  className?: string;
 }) {
   return (
     <th
       scope="col"
       className={`whitespace-nowrap px-3 pb-[9px] font-mono text-[9.5px] font-medium uppercase tracking-[0.12em] text-stone ${
         align === "right" ? "text-right" : "text-left"
-      }`}
+      } ${className}`}
     >
       {children}
     </th>

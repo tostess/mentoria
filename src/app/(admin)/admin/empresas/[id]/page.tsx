@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ColaboradoresTabela } from "@/components/admin/ColaboradoresTabela";
+import { MarcaForm } from "@/components/admin/MarcaForm";
 import {
   AlocarFichasForm,
   NovoProfissionalForm,
@@ -206,6 +207,12 @@ export default async function Page({
             </Card>
           )}
         </div>
+
+        {ehOperadora && (
+          <Card title="Marca" icone="palette" id="marca" className="scroll-mt-6">
+            <MarcaForm orgId={empresa.id} atual={empresa.marca} plataforma={config.branding} />
+          </Card>
+        )}
       </div>
     </>
   );
